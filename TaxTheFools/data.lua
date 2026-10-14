@@ -1,0 +1,41 @@
+TaxTheFools = TaxTheFools or {}
+local D = {}
+TaxTheFools.Data = D
+
+D.VERSION = "0.1.0"
+-- Bump when saved data needs a one-time migration (see db.lua MIGRATIONS).
+D.DATA_VERSION = 1
+
+D.PAGE_SIZE = 50
+D.QUERY_TIMEOUT = 15     -- seconds without a reply before a page is asked for again
+D.MAX_RETRIES = 3        -- resends before the scan stalls and asks the player
+D.SAFE_DELAY = 4         -- seconds between pages in safe pace
+D.NAME_WAIT = 1          -- seconds to wait for uncached item names on a page
+D.MARKET_DAYS = 30
+D.DECAY = 0.9
+D.KEEP_DAYS = 60
+D.KEEP_MONTHS = 12
+D.MARKET_PER_FRAME = 300
+D.PRUNE_PER_FRAME = 50
+
+D.DEFAULTS = {
+  settings = {
+    debug = false,
+    replaceBlizzardAH = true,
+    minimap = true,
+    minimapAngle = 200,
+    scale = 1,
+    theme = "Pathfinder",
+    fonts = true,
+    scanDelay = 0.3,
+    safeMode = false,
+    browseFeedsHistory = true,
+    tooltip = { market = true, low = true, vendor = true },
+  },
+  items = {},
+  realms = {},
+}
+
+D.CHAR_DEFAULTS = { windows = {} }
+
+D.REALM_DEFAULTS = { history = {}, market = {}, scan = {}, chars = {}, watch = {} }
