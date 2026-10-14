@@ -32,8 +32,8 @@ local function region(kind)
   r.ClearAllPoints = function(self) self.points = {} end
   r.SetWidth = function(self, w) self.width = w end
   r.SetHeight = function(self, h) self.height = h end
-  r.GetWidth = function(self) return self.width or 0 end
-  r.GetHeight = function(self) return self.height or 0 end
+  r.GetWidth = function(self) return rawget(self, "width") or 0 end
+  r.GetHeight = function(self) return rawget(self, "height") or 0 end
   return setmetatable(r, meta)
 end
 
@@ -93,12 +93,12 @@ local function newFrame(kind, name, parent)
   f.CreateTexture = function(self) return newTexture() end
   f.CreateFontString = function(self) return newFontString() end
   f.SetScale = function(self, s) self.scale = s end
-  f.GetScale = function(self) return self.scale or 1 end
-  f.GetEffectiveScale = function(self) return self.scale or 1 end
+  f.GetScale = function(self) return rawget(self, "scale") or 1 end
+  f.GetEffectiveScale = function(self) return rawget(self, "scale") or 1 end
   f.SetAlpha = function(self, a) self.alpha = a end
-  f.GetAlpha = function(self) return self.alpha or 1 end
-  f.GetLeft = function(self) return self.left or 100 end
-  f.GetTop = function(self) return self.top or 500 end
+  f.GetAlpha = function(self) return rawget(self, "alpha") or 1 end
+  f.GetLeft = function(self) return rawget(self, "left") or 100 end
+  f.GetTop = function(self) return rawget(self, "top") or 500 end
   f.GetCenter = function(self) return 100, 100 end
   f.SetFont = setFont
   f.SetTextColor = function(self, r, g, b, a) self.color = { r, g, b, a or 1 } end

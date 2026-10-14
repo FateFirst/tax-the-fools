@@ -15,4 +15,6 @@ items.lua
 scan.lua
 ahhook.lua
 theme.lua
+widgets.lua
+list.lua
 core.lua
