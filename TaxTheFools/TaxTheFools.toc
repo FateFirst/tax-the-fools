@@ -11,4 +11,5 @@ util.lua
 stats.lua
 price.lua
 db.lua
+items.lua
 core.lua
