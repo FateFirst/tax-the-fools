@@ -34,19 +34,28 @@ function TS.ReadRecipe(i)
   return r
 end
 
--- Reads the open window into this character's professions. The recipe table
--- is replaced, so unlearned recipes go, with two exceptions that protect what
--- is stored: a list that reads empty (the client has not sent it yet) changes
--- nothing, and recipes hidden under a collapsed header are kept.
+-- A reagent whose link is not cached this time keeps the item key it had
+-- (same name, same position) rather than losing it.
+function TS.KeepKeys(r, old)
+  if not old or not old.reagents then return end
+  for n, g in ipairs(r.reagents) do
+    local o = old.reagents[n]
+    if not g.item and o and o.name == g.name then g.item = o.item end
+  end
+end
+
+-- Reads the open window into this character's professions. Capture only
+-- merges: the window's filters ("have materials", slot filters) hide learned
+-- recipes, so a recipe is never removed. A recipe the window lists is updated
+-- in place. A list that reads empty (the client has not sent it yet) changes
+-- nothing.
 function TS.Capture()
   local line, rank, maxRank = GetTradeSkillLine()
   if not line or line == "UNKNOWN" then return nil end
-  local recipes, found, collapsed = {}, 0, false
+  local recipes, found = {}, 0
   for i = 1, GetNumTradeSkills() do
-    local name, kind, _, expanded = GetTradeSkillInfo(i)
-    if kind == "header" then
-      if not expanded then collapsed = true end
-    elseif name then
+    local name, kind = GetTradeSkillInfo(i)
+    if kind ~= "header" and name then
       local r = TS.ReadRecipe(i)
       r.color = kind
       recipes[name] = r
@@ -61,12 +70,12 @@ function TS.Capture()
     prof = {}
     c.professions[line] = prof
   end
-  if collapsed and prof.recipes then
-    for name, r in pairs(prof.recipes) do
-      if not recipes[name] then recipes[name] = r end
-    end
+  local stored = prof.recipes or {}
+  for name, r in pairs(recipes) do
+    TS.KeepKeys(r, stored[name])
+    stored[name] = r
   end
-  prof.rank, prof.maxRank, prof.at, prof.recipes = rank, maxRank, time(), recipes
+  prof.rank, prof.maxRank, prof.at, prof.recipes = rank, maxRank, time(), stored
   if DB.S().craft.autoWatch then TS.Watch(recipes) end
   return prof
 end

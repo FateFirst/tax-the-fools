@@ -34,15 +34,42 @@ T.test("opening the window captures every recipe, skipping headers", function()
   T.eq(A.Items.Get(2320).n, "Coarse Thread", "and every reagent")
 end)
 
-T.test("a recapture replaces the recipes, so unlearned ones go", function()
+T.test("a recipe the window stops listing is kept: capture only merges", function()
   tailoring()
   WoW.fire("TRADE_SKILL_SHOW")
-  table.remove(WoW.tradeskill.rows, 4)
+  table.remove(WoW.tradeskill.rows, 4)     -- a filter hides the robe
   WoW.fire("TRADE_SKILL_UPDATE")
   WoW.clock = WoW.clock + 0.5
   tick()
-  T.eq(tailoringRecipes()["Brown Linen Robe"], nil)
+  T.ok(tailoringRecipes()["Brown Linen Robe"], "still stored after a later capture without it")
   T.ok(tailoringRecipes()["Bolt of Silk Cloth"])
+end)
+
+T.test("a recapture updates the fields of the recipes it lists", function()
+  tailoring()
+  WoW.fire("TRADE_SKILL_SHOW")
+  local rows = WoW.tradeskill.rows
+  rows[2].type, rows[2].made = "easy", { 2, 3 }        -- colour and yields change
+  rows[2].reagents[1].count = 5
+  WoW.fire("TRADE_SKILL_UPDATE")
+  WoW.clock = WoW.clock + 0.5
+  tick()
+  local bolt = tailoringRecipes()["Bolt of Silk Cloth"]
+  T.eq(bolt.color, "easy") T.eq(bolt.yieldMin, 2) T.eq(bolt.yieldMax, 3)
+  T.eq(bolt.reagents[1].count, 5)
+  T.eq(bolt.reagents[1].item, "4306:0", "the reagent's key is still there")
+  T.eq(DB.Char().professions.Tailoring.recipes["Brown Linen Robe"].color, "trivial", "the robe is untouched")
+end)
+
+T.test("a reagent whose link is missing on a later capture keeps its stored key", function()
+  tailoring()
+  WoW.fire("TRADE_SKILL_SHOW")
+  WoW.tradeskill.rows[2].reagents[1].noLink = true
+  WoW.fire("TRADE_SKILL_UPDATE")
+  WoW.clock = WoW.clock + 0.5
+  tick()
+  T.eq(tailoringRecipes()["Bolt of Silk Cloth"].reagents[1].item, "4306:0", "a link not cached this time does not lose the key")
+  T.eq(tailoringRecipes()["Bolt of Silk Cloth"].reagents[1].name, "Silk Cloth")
 end)
 
 T.test("updates are captured at most twice a second", function()
