@@ -18,6 +18,9 @@ D.KEEP_DAYS = 60
 D.KEEP_MONTHS = 12
 D.MARKET_PER_FRAME = 300
 D.PRUNE_PER_FRAME = 50
+D.CRAFT_DEPTH = 4         -- a material crafted from materials crafted from ..., at most this deep
+D.AH_CUT = 0.05
+D.DEPOSIT_MINUTES = 480   -- the middle duration (8h, shown as 24h on Turtle)
 
 D.DEFAULTS = {
   settings = {

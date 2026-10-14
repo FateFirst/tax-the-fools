@@ -10,6 +10,7 @@ data.lua
 util.lua
 stats.lua
 price.lua
+craft.lua
 db.lua
 items.lua
 scan.lua
