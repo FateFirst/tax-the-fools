@@ -20,4 +20,6 @@ list.lua
 tooltip.lua
 ui_window.lua
 ui_browse.lua
+options.lua
+minimap.lua
 core.lua
