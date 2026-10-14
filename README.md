@@ -3,9 +3,9 @@
 Auction house price history, deal finding and crafting profit for the Ravencraft
 server (Turtle WoW 1.18.1 client, WoW 1.12, Lua 5.0).
 
-Phase 1, this release: the auction window, scanning, price history and tooltips.
-Crafting profit, deals with one-click buying, selling, and sales tracking follow
-(see `docs/superpowers/specs/2026-10-14-tax-the-fools-design.md`).
+This release (0.2.0): the auction window, scanning, price history, tooltips, and
+crafting profit for every recipe your characters know. Deals with one-click buying,
+selling, and sales tracking follow (see `docs/superpowers/specs/2026-10-14-tax-the-fools-design.md`).
 
 ## Install
 
@@ -26,15 +26,26 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
 - **Tooltips** show market value (a recent-weighted typical price) with how sure
   the addon is (high / medium / low), the lowest price in the latest scan, and the
   vendor price once a merchant has seen the item. Hold Shift for whole-stack values.
+- **Crafting profit.** Open your Tailoring window (or any tradeskill) once on each
+  crafter; the addon remembers its recipes. A strip under the tradeskill window shows
+  the selected recipe's cost, value and profit. `/ttf craft`, the minimap coin, or the
+  AH **Crafting** tab lists every recipe with cost, value, profit and cash profit (which
+  treats materials any of your characters already hold as free), on any character.
+  Materials are priced at the cheaper of the AH and the vendor, or crafted when that
+  is cheaper still. A recipe with a missing price says "incomplete" and names it; it
+  never guesses.
+- **Vendor and bank.** Visiting a vendor teaches the addon its buy prices (thread,
+  dye); opening your bank records what is in it, so "have" counts bags and bank.
 - **Blizzard UI** switches to the stock window at any time; its **Tax the Fools** button
   switches back. Buying and selling from our own window arrives in phase 3.
 
-Nothing is ever bought, bid on, posted or cancelled without your click. The only
-thing that runs by itself is a scan turning pages.
+Nothing is ever bought, bid on, posted, cancelled, crafted or sold without your
+click. The only thing that runs by itself is a scan turning pages.
 
 ## Commands
 
     /ttf options              settings
+    /ttf craft                crafting profit window
     /ttf watch <item name>    add to the watchlist
     /ttf unwatch <item name>  remove from it
     /ttf watchlist            list it
