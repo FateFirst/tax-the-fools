@@ -94,7 +94,7 @@ end
 
 function UI.CreateAH()
   if UI.ah then return UI.ah end
-  local f = W.Window("TaxTheFoolsAH", 780, 500, "Tax the Fools", { resizable = true, minW = 660, minH = 380 })
+  local f = W.Window("TaxTheFoolsAH", 780, 500, "Tax the Fools", { resizable = true, minW = 660, minH = 380, logo = true })
   f.gold = Th.Text(f.header, "body2", 12, "gold")
   f.gold:SetPoint("RIGHT", f.close, "LEFT", -10, 0)
   f.gold:SetJustifyH("RIGHT")

@@ -6,7 +6,8 @@ TaxTheFools.Theme = Th
 -- flat dark panels, one accent colour, white-mask textures tinted at run time.
 Th.MEDIA = "Interface\\AddOns\\TaxTheFools\\media\\"
 Th.TEXTURES = { "solid", "panel-fill", "panel-border", "tab-fill", "tab-border", "circle",
-  "icon-close", "icon-check", "icon-caret-down", "icon-caret-up", "icon-arrow-left", "icon-arrow-right", "icon-grip" }
+  "icon-close", "icon-check", "icon-caret-down", "icon-caret-up", "icon-arrow-left", "icon-arrow-right", "icon-grip",
+  "logo", "minimap" }
 Th.FONTS = {
   display = "fonts\\Rajdhani-Bold.ttf",
   display2 = "fonts\\Rajdhani-SemiBold.ttf",
