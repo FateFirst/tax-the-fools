@@ -8,4 +8,5 @@
 
 data.lua
 util.lua
+stats.lua
 core.lua
