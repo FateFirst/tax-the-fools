@@ -221,3 +221,22 @@ T.test("the strip repaints after a recapture even when the selection stays", fun
   T.eq(TS.strip.text:GetText(), "Cost 12s   Value 9s 50c   Profit -2s 50c")
   T.eq(TS.strip.text.color[1], A.Theme.color.bad[1])
 end)
+
+T.test("closing the window forgets the strip's selection memo, so a reopened window repaints", function()
+  priced()
+  tailoring()
+  WoW.tradeskill.selected = 2
+  WoW.openTradeSkill()
+  T.eq(TS.strip.text:GetText(), "Cost 12s   Value 19s   Profit 7s", "session one: the bolt")
+  T.eq(TS.strip.sel, 2)
+  WoW.fire("TRADE_SKILL_CLOSE")
+  TradeSkillFrame:Hide()
+  T.eq(TS.strip.sel, false, "the memo is reset on close")
+  -- Another profession, same index 2: a different recipe (the robe, whose bolts have no price).
+  local rows = WoW.tradeskill.rows
+  rows[2], rows[4] = rows[4], rows[2]
+  TradeSkillFrame:Show()                           -- shown by the client; the strip polls before any event
+  WoW.clock = WoW.clock + 0.25
+  tick()
+  T.eq(TS.strip.text:GetText(), "incomplete: Bolt of Linen Cloth, Coarse Thread", "session two: the robe, not the bolt")
+end)

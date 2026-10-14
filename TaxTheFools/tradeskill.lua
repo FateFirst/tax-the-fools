@@ -101,12 +101,14 @@ function TS.OnEvent(e, now)
   if e == "TRADE_SKILL_SHOW" then
     TS.open, TS.dirty = true, true
     TS.CreateStrip()
+    if TS.strip then TS.strip.sel = false end
     TS.Tick(now)
     TS.RefreshStrip(true)
   elseif e == "TRADE_SKILL_UPDATE" then
     TS.dirty = true
   elseif e == "TRADE_SKILL_CLOSE" then
     TS.open, TS.dirty = false, false
+    if TS.strip then TS.strip.sel = false end
   end
 end
 
