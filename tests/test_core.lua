@@ -58,6 +58,13 @@ T.test("opening a merchant learns vendor prices", function()
   T.eq(A.Items.Vendor(4306), 37)
 end)
 
+T.test("opening a merchant learns what it sells, and for how much", function()
+  WoW.merchant = { { id = 2321, name = "Fine Thread", price = 100, quantity = 1, numAvailable = -1 } }
+  WoW.merchantOpen = true
+  WoW.fire("MERCHANT_SHOW")
+  T.eq(A.Items.Get(2321).vb, 100)
+end)
+
 T.test("watch, list and unwatch by name", function()
   A.Items.Remember(4306, "Silk Cloth")
   ttf("watch silk cloth")

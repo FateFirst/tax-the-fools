@@ -47,3 +47,26 @@ T.test("find by name ignores case", function()
   T.eq(I.FindByName("silk cloth"), 4306)
   T.eq(I.FindByName("Mageweave"), nil)
 end)
+
+T.test("merchant buy prices are stored per unit and flagged when stock is limited", function()
+  WoW.merchant = {
+    { id = 2321, name = "Fine Thread", price = 100, quantity = 1, numAvailable = -1 },
+    { id = 4470, name = "Simple Wood", price = 38, quantity = 5, numAvailable = -1 },
+    { id = 2604, name = "Red Dye", price = 50, quantity = 1, numAvailable = 4 },
+  }
+  I.LearnMerchantPrices()
+  T.eq(I.Get(2321).vb, 100) T.eq(I.Get(2321).vbLimited, nil)
+  T.eq(I.Get(4470).vb, 7, "floor(38 / 5) = floor(7.6) = 7")
+  T.eq(I.Get(2604).vb, 50) T.eq(I.Get(2604).vbLimited, true)
+  T.eq(I.Get(2321).n, "Fine Thread", "the name is remembered too")
+end)
+
+T.test("merchant items with no link or a non-gold price are skipped", function()
+  WoW.merchant = {
+    { id = 2321, name = "Fine Thread", price = 100, quantity = 1, noLink = true },
+    { id = 19182, name = "Darkmoon Faire Prize Ticket", price = 0, quantity = 1 },
+  }
+  I.LearnMerchantPrices()
+  T.eq(I.Get(2321), nil)
+  T.eq(I.Get(19182), nil)
+end)

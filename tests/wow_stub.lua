@@ -204,6 +204,8 @@ function WoW.reset()
   WoW.items = {}
   WoW.bags = {}
   WoW.merchantOpen = false
+  WoW.merchant = {}
+  WoW.bankOpen = false
   WoW.rejectFonts = false
   WoW.ah = { listings = {}, canQuery = true, pending = false, current = {}, total = 0, lastPage = false, duplicateNext = 0 }
   WoW.classicAPI(false)
@@ -311,17 +313,43 @@ function GetItemInfo(id)
     it.subtype or "", it.stack or 20, "", it.tex or "Interface\\Icons\\INV_Misc_QuestionMark"
 end
 -- Bags: WoW.bags[bag][slot] = { id=, name=, count=, vendor= } or {} for an empty slot.
-function GetContainerNumSlots(bag) return WoW.bags[bag] and table.getn(WoW.bags[bag]) or 0 end
+-- Bags 0..4 are carried. The bank is container -1 plus bags 5..10, and like the
+-- real client it reads as empty unless the bank window is open (WoW.bankOpen).
+local function bankBag(bag) return bag == -1 or (bag >= 5 and bag <= 10) end
+local function slotItem(bag, slot)
+  if bankBag(bag) and not WoW.bankOpen then return nil end
+  return WoW.bags[bag] and WoW.bags[bag][slot]
+end
+function GetContainerNumSlots(bag)
+  if bankBag(bag) and not WoW.bankOpen then return 0 end
+  return WoW.bags[bag] and table.getn(WoW.bags[bag]) or 0
+end
 function GetContainerItemLink(bag, slot)
-  local it = WoW.bags[bag] and WoW.bags[bag][slot]
+  local it = slotItem(bag, slot)
   if it and it.id then return WoW.link(it.id, it.name) end
   return nil
 end
 function GetContainerItemInfo(bag, slot)
-  local it = WoW.bags[bag] and WoW.bags[bag][slot]
+  local it = slotItem(bag, slot)
   if not it or not it.id then return nil end
   return it.tex or "tex", it.count or 1
 end
+-- Selling at a merchant is a right-click on a bag item, which is this call.
+function UseContainerItem(bag, slot) WoW.log("UseContainerItem", bag, slot) end
+-- Merchant: WoW.merchant[i] = { id=, name=, price=, quantity=, numAvailable=, noLink= }.
+-- price is for the whole lot of `quantity` units; numAvailable -1 means unlimited stock.
+function GetMerchantNumItems() return table.getn(WoW.merchant) end
+function GetMerchantItemInfo(i)
+  local m = WoW.merchant[i]
+  if not m then return nil end
+  return m.name, m.tex or "tex", m.price or 0, m.quantity or 1, m.numAvailable or -1, 1
+end
+function GetMerchantItemLink(i)
+  local m = WoW.merchant[i]
+  if m and m.id and not m.noLink then return WoW.link(m.id, m.name) end
+  return nil
+end
+function BuyMerchantItem(i, n) WoW.log("BuyMerchantItem", i, n) end
 function GetInventoryItemLink() return nil end
 function GetInventoryItemCount() return 0 end
 

@@ -30,6 +30,7 @@ function Core.Init()
   A.Minimap.Create()
   DB.StartPrune()
   Core.pruned = false
+  A.Inventory.bagsDirty = true      -- count the bags once at login, whichever event comes first
   Core.ready = true
   local prev = TaxTheFoolsDB.version
   TaxTheFoolsDB.version = D.VERSION
@@ -43,13 +44,19 @@ function Core.Init()
   end
 end
 
+Core.INVENTORY_EVENTS = { BAG_UPDATE = true, BANKFRAME_OPENED = true, BANKFRAME_CLOSED = true,
+                          PLAYERBANKSLOTS_CHANGED = true, PLAYER_ENTERING_WORLD = true }
+
 function Core.OnEvent(e)
   if e == "VARIABLES_LOADED" then return Core.Init() end
   if not Core.ready then return end
   if e == "AUCTION_HOUSE_SHOW" then Core.Safe("auction open", A.AH.OnShow)
   elseif e == "AUCTION_HOUSE_CLOSED" then Core.Safe("auction close", A.AH.OnClosed)
   elseif e == "AUCTION_ITEM_LIST_UPDATE" then Core.Safe("scan", A.Scan.OnListUpdate, GetTime())
-  elseif e == "MERCHANT_SHOW" then Core.Safe("items", A.Items.LearnVendorPrices)
+  elseif e == "MERCHANT_SHOW" then
+    Core.Safe("items", A.Items.LearnVendorPrices)
+    Core.Safe("items", A.Items.LearnMerchantPrices)
+  elseif Core.INVENTORY_EVENTS[e] then Core.Safe("inventory", A.Inventory.OnEvent, e)
   elseif e == "PLAYER_MONEY" then Core.Safe("interface", A.UI.RefreshGold)
   end
 end
@@ -69,6 +76,7 @@ function Core.Update(now)
   if not Core.ready then return end
   Core.Safe("auction tick", A.AH.Tick)
   Core.Safe("scan", A.Scan.Tick, now)
+  Core.Safe("inventory", A.Inventory.Tick, now)
   if not Core.pruned then Core.Safe("prune", Core.PruneTick) end
   if now - Core.uiAt >= 0.25 then
     Core.uiAt = now
@@ -149,7 +157,8 @@ SlashCmdList["TAXTHEFOOLS"] = function(msg) Core.Safe("command", Core.Command, m
 
 local frame = CreateFrame("Frame", "TaxTheFoolsCore")
 for _, e in ipairs({ "VARIABLES_LOADED", "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "AUCTION_ITEM_LIST_UPDATE",
-                     "MERCHANT_SHOW", "PLAYER_MONEY" }) do
+                     "MERCHANT_SHOW", "PLAYER_MONEY", "BAG_UPDATE", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
+                     "PLAYERBANKSLOTS_CHANGED", "PLAYER_ENTERING_WORLD" }) do
   frame:RegisterEvent(e)
 end
 frame:SetScript("OnEvent", function() Core.OnEvent(event) end)

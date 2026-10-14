@@ -86,6 +86,21 @@ function I.LearnVendorPrices()
   end
 end
 
+-- What the open merchant sells. price covers `quantity` units (some vendors
+-- sell in fives); a merchant with limited stock is still used, but flagged.
+-- Items costing something other than gold read price 0 and are skipped.
+function I.LearnMerchantPrices()
+  for i = 1, GetMerchantNumItems() do
+    local name, texture, price, quantity, numAvailable = GetMerchantItemInfo(i)
+    local id = U.parseLink(GetMerchantItemLink(i))
+    if id and price and price > 0 and quantity and quantity > 0 then
+      local rec = I.Remember(id, name, nil, nil, texture)
+      rec.vb = math.floor(price / quantity)
+      if numAvailable and numAvailable >= 0 then rec.vbLimited = true else rec.vbLimited = nil end
+    end
+  end
+end
+
 function I.FindByName(name)
   local want = string.lower(name or "")
   for id, rec in pairs(TaxTheFoolsDB.items) do

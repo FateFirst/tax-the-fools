@@ -13,6 +13,7 @@ price.lua
 craft.lua
 db.lua
 items.lua
+inventory.lua
 scan.lua
 ahhook.lua
 theme.lua
