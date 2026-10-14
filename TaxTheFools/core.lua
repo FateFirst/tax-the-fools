@@ -46,8 +46,8 @@ end
 function Core.OnEvent(e)
   if e == "VARIABLES_LOADED" then return Core.Init() end
   if not Core.ready then return end
-  if e == "AUCTION_HOUSE_SHOW" then Core.Safe("auction window", A.AH.OnShow)
-  elseif e == "AUCTION_HOUSE_CLOSED" then Core.Safe("auction window", A.AH.OnClosed)
+  if e == "AUCTION_HOUSE_SHOW" then Core.Safe("auction open", A.AH.OnShow)
+  elseif e == "AUCTION_HOUSE_CLOSED" then Core.Safe("auction close", A.AH.OnClosed)
   elseif e == "AUCTION_ITEM_LIST_UPDATE" then Core.Safe("scan", A.Scan.OnListUpdate, GetTime())
   elseif e == "MERCHANT_SHOW" then Core.Safe("items", A.Items.LearnVendorPrices)
   elseif e == "PLAYER_MONEY" then Core.Safe("interface", A.UI.RefreshGold)
@@ -67,7 +67,7 @@ end
 
 function Core.Update(now)
   if not Core.ready then return end
-  Core.Safe("auction window", A.AH.Tick)
+  Core.Safe("auction tick", A.AH.Tick)
   Core.Safe("scan", A.Scan.Tick, now)
   if not Core.pruned then Core.Safe("prune", Core.PruneTick) end
   if now - Core.uiAt >= 0.25 then

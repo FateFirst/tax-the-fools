@@ -91,3 +91,10 @@ T.test("compacting an entry with nothing recent reports it empty", function()
   local e = entry({ [400] = { n = 1 } })
   T.eq(P.Compact(e, TODAY), true)
 end)
+
+T.test("recording into a saved entry that lost its days or months tables doesn't throw", function()
+  local h = { ["14047:0"] = {} }
+  P.Record(h, { ["14047:0"] = { n = 1, p25 = 5 } }, 20375, "full")
+  T.eq(h["14047:0"].days[20375].p25, 5)
+  T.ok(type(h["14047:0"].months) == "table")
+end)

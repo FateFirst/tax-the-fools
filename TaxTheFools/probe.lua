@@ -22,9 +22,9 @@ Probe.VARS = {
 function Probe.Lines()
   local out = {}
   local function add(s) table.insert(out, s) end
-  local version, build, _, iface = GetBuildInfo()
+  local version, build, built = GetBuildInfo()
   add("Tax the Fools " .. D.VERSION .. "  client " .. tostring(version) .. " build " .. tostring(build)
-    .. " interface " .. tostring(iface))
+    .. " (" .. tostring(built) .. ")")
   add("realm " .. tostring(GetRealmName()) .. "  character " .. tostring(UnitName("player"))
     .. "  faction " .. tostring(UnitFactionGroup("player")))
   add("ClassicAPI " .. ((C_Item ~= nil) and "yes" or "no"))

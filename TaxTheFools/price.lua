@@ -50,6 +50,8 @@ function P.Record(history, rows, day, src)
       entry = { days = {}, months = {} }
       history[key] = entry
     end
+    entry.days = entry.days or {}
+    entry.months = entry.months or {}
     local old = entry.days[day]
     if src ~= "browse" or not old or old.src == "browse" then
       row.src = src
