@@ -17,31 +17,33 @@ against a fake client; this proves the fake client was right.
 6. Next page, then previous page. The page text follows.
 7. Press **Blizzard UI**. Blizzard's window appears. Its **Tax the Fools** button
    brings ours back. Search again to prove the session survived the switches.
-8. Close our window with the X, then talk to the auctioneer again. It opens
+8. Start a full scan, press Blizzard UI mid-scan: the scan pauses (strip offers Resume when you come back) and Blizzard's list doesn't change under you.
+9. Close our window with the X, then talk to the auctioneer again. It opens
    cleanly. Do the same with Escape.
-9. Walk away from the auctioneer. Our window closes.
+10. Walk away from the auctioneer. Our window closes.
 
 ## Scanning
-10. Start a **Full scan**. The strip shows page X/Y, s/page and time left within a few pages.
+11. Start a **Full scan**. The strip shows page X/Y, s/page and time left within a few pages.
     Write down the s/page figure (spec §13 Q1).
-11. Walk away mid-scan, come back. The strip offers Resume/Discard. Resume. It carries on
+12. Walk away mid-scan, come back. The strip offers Resume/Discard. Resume. It carries on
     from the same page.
-12. Let it finish. `/ttf status` reports items with price history.
-13. Select a cloth row, press Watch, then run a **Watchlist** scan. It finishes in seconds.
-14. `/ttf probe` again with an AH page loaded: the `auction row 1` line shows 13 values.
+13. Let it finish. `/ttf status` reports items with price history.
+14. Select a cloth row, press Watch, then run a **Watchlist** scan. It finishes in seconds.
+15. `/ttf probe` again with an AH page loaded: the `auction row 1` line shows 13 values.
     Paste it in as well (duration and time-left values settle spec §13 Q3).
 
 ## Tooltips and merchants
-15. Hover Silk Cloth in your bags: Market (with confidence), Low now and Vendor lines,
+16. Hover Silk Cloth in your bags: Market (with confidence), Low now and Vendor lines,
     after a full scan. Hold Shift on a stack: the figures multiply.
-16. Open a vendor and close it. Hover a grey item: a Vendor line appears.
+17. Open a vendor and close it. Hover a grey item: a Vendor line appears.
 
 ## Options and look
-17. Minimap **TF** button opens options. Drag it round the minimap; `/reload`; it stays.
-18. Options: switch theme to Frost. Open windows recolour at once. Switch back.
-19. Turn off "Bundled fonts" and `/reload`: everything still readable in the stock font.
-20. Move and resize the auction window, `/reload`, reopen. Same place, same size.
-21. Nothing draws outside any window border at scale 80% and 150%.
+18. Minimap **TF** button opens options. Drag it round the minimap; `/reload`; it stays.
+19. Options: switch theme to Frost. Open windows recolour at once. Switch back.
+20. Headings render in Rajdhani (narrow, squared), body text in Inter — if both look like the stock game font, the bundled fonts failed to load (report it).
+21. Turn off "Bundled fonts" and `/reload`: everything still readable in the stock font.
+22. Move and resize the auction window, `/reload`, reopen. Same place, same size.
+23. Nothing draws outside any window border at scale 80% and 150%.
 
 ## Other character
-22. Log over to the priest. Hover Silk Cloth: the same market value, with no scan on this character.
+24. Log over to the priest. Hover Silk Cloth: the same market value, with no scan on this character.
