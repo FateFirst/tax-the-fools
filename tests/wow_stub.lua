@@ -331,7 +331,7 @@ UIParent = newFrame("Frame", "UIParent")
 Minimap = newFrame("Frame", "Minimap")
 WorldFrame = newFrame("Frame", "WorldFrame")
 GameTooltip = newFrame("GameTooltip", "GameTooltip")
-GameTooltip.SetOwner = function(self, owner, anchor) self.owner = owner end
+GameTooltip.SetOwner = function(self, owner, anchor) self.owner, self.anchor = owner, anchor end
 AuctionFrame = newFrame("Frame", "AuctionFrame")
 AuctionFrame.shown = false
 -- Blizzard's own OnHide ends the auction session; this is what the swap must dodge.

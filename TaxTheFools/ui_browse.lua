@@ -110,11 +110,12 @@ function Browse.ToggleWatch()
 end
 
 -- A hyperlink rather than SetAuctionItem: a scan may have replaced the
--- auction list since this page was drawn.
+-- auction list since this page was drawn. Anchored at the cursor: a row is as
+-- wide as the window, so anchoring to its right puts the tooltip far away.
 function Browse.RowTip(row, item)
   local link = U.linkString(item.link)
   if not link then return end
-  GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+  GameTooltip:SetOwner(row, "ANCHOR_CURSOR")
   GameTooltip:SetHyperlink(link)
   GameTooltip:Show()
 end

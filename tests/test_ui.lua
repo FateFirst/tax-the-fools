@@ -112,3 +112,10 @@ T.test("searching during a scan is refused and the strip shows the scan", functi
   T.eq(UI.ah.status.full.enabled, false)
   T.eq(UI.ah.status.pause.label:GetText(), "PAUSE")
 end)
+
+T.test("hovering a Browse row puts the item tooltip at the cursor, not past the row's far end", function()
+  local row = CreateFrame("Button")
+  Browse.RowTip(row, { link = WoW.link(14047, "Runecloth") })
+  T.eq(GameTooltip.owner, row)
+  T.eq(GameTooltip.anchor, "ANCHOR_CURSOR")
+end)
