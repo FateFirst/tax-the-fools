@@ -127,3 +127,24 @@ T.test("the auction and Crafting windows show the logo before the title", functi
   T.eq(UI.ah.header.title.points[1][2], UI.ah.header.logo, "the title starts after the logo")
   T.eq(CraftUI.Window().header.logo:GetTexture(), logo)
 end)
+
+T.test("a tradeskill capture while the Crafting page is open adds the recipe without reopening", function()
+  seed()
+  DB.Realm().chars[DB.charName], DB.Realm().chars.Tailor = DB.Realm().chars.Tailor, nil   -- the tailor is us
+  local p = open()
+  T.eq(table.getn(p.list.data), 3)
+  WoW.tradeskill = { name = "Tailoring", rank = 225, maxRank = 300, selected = 0, rows = {
+    { name = "Linen Bag", type = "easy", id = 4240, made = { 1, 1 },
+      reagents = { { id = 2996, name = "Bolt of Linen Cloth", count = 3 } } } } }
+  A.TradeSkill.Capture()
+  T.eq(table.getn(p.list.data), 4, "the new recipe is listed at once")
+end)
+
+T.test("a bag change while the Crafting page is open repaints it", function()
+  seed()
+  local p = open()
+  local before = p.list.data[1].cash
+  WoW.bags[0] = { { id = 4306, name = "Silk Cloth", count = 10 } }
+  A.Inventory.ScanBags()
+  T.ok(p.list.data[1].cash ~= before, "cash counts the new silk")
+end)

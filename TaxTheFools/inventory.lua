@@ -25,9 +25,16 @@ function Inv.Count(bags)
   return counts
 end
 
+-- What is held changes every profit on the Crafting page; it repaints only if
+-- visible. ui_craft.lua loads after this file: look it up at call time.
+function Inv.Changed()
+  if TaxTheFools.CraftUI then TaxTheFools.CraftUI.RefreshAll() end
+end
+
 function Inv.ScanBags()
   local c = DB.Char()
   c.bags, c.bagsAt = Inv.Count(Inv.BAGS), time()
+  Inv.Changed()
 end
 
 -- The bank can only be read while its window is open; closed, it reads as
@@ -36,6 +43,7 @@ function Inv.ScanBank()
   if not Inv.bankOpen then return end
   local c = DB.Char()
   c.bank, c.bankAt = Inv.Count(Inv.BANK), time()
+  Inv.Changed()
 end
 
 function Inv.OnEvent(e)

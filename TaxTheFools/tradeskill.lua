@@ -87,6 +87,8 @@ function TS.Capture()
   prof.rank, prof.maxRank, prof.at, prof.recipes = rank, maxRank, time(), stored
   if DB.S().craft.autoWatch then TS.Watch(recipes) end
   TS.RefreshStrip(true)
+  -- ui_craft.lua loads after this file: look it up at call time.
+  if TaxTheFools.CraftUI then TaxTheFools.CraftUI.RefreshAll() end
   return prof
 end
 
