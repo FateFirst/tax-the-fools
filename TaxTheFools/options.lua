@@ -5,13 +5,17 @@ TaxTheFools.Options = Opt
 
 local function pct(v) return math.floor(v * 100 + 0.5) .. "%" end
 local function secs(v) return string.format("%.1fs", v) end
+local function days(v)
+  if v == 1 then return "1 day" end
+  return v .. " days"
+end
 local function themes()
   local t = {}
   for _, n in ipairs(Th.ORDER) do table.insert(t, { value = n, label = n }) end
   return t
 end
 
--- Phase 3 adds Deals and Selling pages; phase 2 adds Crafting.
+-- Phase 3 adds Deals and Selling pages.
 Opt.CATEGORIES = {
   { key = "general", label = "General", rows = {
     { kind = "switch", key = "replaceBlizzardAH", label = "Replace the Blizzard auction window",
@@ -27,6 +31,12 @@ Opt.CATEGORIES = {
     { kind = "switch", key = "safeMode", label = "Safe pace (4s between pages)",
       hint = "Use this if scans keep repeating pages or stalling." },
     { kind = "switch", key = "browseFeedsHistory", label = "Searches add to price history" },
+  } },
+  { key = "crafting", label = "Crafting", rows = {
+    { kind = "switch", path = { "craft", "autoWatch" }, label = "Watch recipe materials automatically",
+      hint = "Each time a tradeskill window opens, its products and materials join the Watchlist scan." },
+    { kind = "slider", path = { "craft", "staleDays" }, label = "Dim prices older than", min = 1, max = 30, step = 1,
+      fmt = days, after = function() TaxTheFools.CraftUI.RefreshAll() end },
   } },
   { key = "tooltip", label = "Tooltip", rows = {
     { kind = "switch", path = { "tooltip", "market" }, label = "Market value" },

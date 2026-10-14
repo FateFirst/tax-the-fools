@@ -90,6 +90,7 @@ end
 
 Core.HELP = {
   "/ttf options - settings",
+  "/ttf craft - crafting profit for every recipe you have captured",
   "/ttf watch <item name> - add an item to the watchlist scan",
   "/ttf unwatch <item name> - take it off",
   "/ttf watchlist - list watched items",
@@ -138,6 +139,7 @@ function Core.Command(msg)
   local cmd = string.lower(U.words(msg)[1] or "")
   local rest = U.trim((string.gsub(msg, "^%s*%S+", "")))
   if cmd == "options" or cmd == "config" then A.Options.Toggle()
+  elseif cmd == "craft" then A.CraftUI.Toggle()
   elseif cmd == "watch" then Core.Watch(rest, true)
   elseif cmd == "unwatch" then Core.Watch(rest, false)
   elseif cmd == "watchlist" then Core.WatchList()

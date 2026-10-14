@@ -72,6 +72,16 @@ T.test("a reagent whose link is missing on a later capture keeps its stored key"
   T.eq(tailoringRecipes()["Bolt of Silk Cloth"].reagents[1].name, "Silk Cloth")
 end)
 
+T.test("a product whose link is missing on a later capture keeps its stored key", function()
+  tailoring()
+  WoW.fire("TRADE_SKILL_SHOW")
+  WoW.tradeskill.rows[2].noLink = true
+  WoW.fire("TRADE_SKILL_UPDATE")
+  WoW.clock = WoW.clock + 0.5
+  tick()
+  T.eq(tailoringRecipes()["Bolt of Silk Cloth"].item, "4305:0", "a product link not cached this time does not lose the key")
+end)
+
 T.test("updates are captured at most twice a second", function()
   tailoring()
   WoW.fire("TRADE_SKILL_SHOW")

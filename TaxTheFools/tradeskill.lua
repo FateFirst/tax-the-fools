@@ -38,10 +38,12 @@ function TS.ReadRecipe(i)
   return r
 end
 
--- A reagent whose link is not cached this time keeps the item key it had
--- (same name, same position) rather than losing it.
+-- A product or reagent whose link is not cached this time keeps the item key
+-- it had (same name, same position) rather than losing it.
 function TS.KeepKeys(r, old)
-  if not old or not old.reagents then return end
+  if not old then return end
+  if not r.item then r.item = old.item end
+  if not old.reagents then return end
   for n, g in ipairs(r.reagents) do
     local o = old.reagents[n]
     if not g.item and o and o.name == g.name then g.item = o.item end

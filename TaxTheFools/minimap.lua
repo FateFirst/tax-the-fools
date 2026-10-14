@@ -35,7 +35,7 @@ function Mini.Create()
   b:SetScript("OnClick", function() Mini.Click(arg1) end)
   b:SetScript("OnDragStart", function() this:SetScript("OnUpdate", function() Mini.DragUpdate() end) end)
   b:SetScript("OnDragStop", function() this:SetScript("OnUpdate", nil) end)
-  W.Tip(b, "Tax the Fools", "Click: options. Drag: move this button.")
+  W.Tip(b, "Tax the Fools", "Left-click: crafting profit. Right-click: options. Drag: move this button.")
   b:SetScript("OnEnter", function() W.ShowTip(this) end)
   b:SetScript("OnLeave", function() W.HideTip() end)
   Mini.button = b
@@ -60,7 +60,6 @@ function Mini.DragUpdate()
   Mini.Refresh()
 end
 
--- Phase 2 gives left-click the Crafting window.
 function Mini.Click(button)
-  TaxTheFools.Options.Toggle()
+  if button == "RightButton" then TaxTheFools.Options.Toggle() else TaxTheFools.CraftUI.Toggle() end
 end

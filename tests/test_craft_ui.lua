@@ -118,3 +118,12 @@ T.test("the auction window's Crafting tab shows the same page", function()
   T.eq(names(UI.pages.craft.list), "Bolt of Silk Cloth, Silk Headband, Spider Silk Robe")
   UI.ah.tabs:Select("browse")
 end)
+
+T.test("the auction and Crafting windows show the logo before the title", function()
+  UI.CreateAH()
+  local logo = Th.MEDIA .. "logo"
+  T.eq(UI.ah.header.logo:GetTexture(), logo)
+  T.eq(UI.ah.header.logo:GetWidth(), 24)
+  T.eq(UI.ah.header.title.points[1][2], UI.ah.header.logo, "the title starts after the logo")
+  T.eq(CraftUI.Window().header.logo:GetTexture(), logo)
+end)

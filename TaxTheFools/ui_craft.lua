@@ -210,7 +210,7 @@ end
 function CraftUI.Window()
   if CraftUI.window then return CraftUI.window end
   local f = W.Window("TaxTheFoolsCraft", 720, 480, "Tax the Fools  -  Crafting",
-    { resizable = true, minW = 700, minH = 360 })
+    { resizable = true, minW = 700, minH = 360, logo = true })
   f.body = CreateFrame("Frame", nil, f)
   f.body:SetPoint("TOPLEFT", f.header, "BOTTOMLEFT", 10, -10)
   f.body:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -10, 22)

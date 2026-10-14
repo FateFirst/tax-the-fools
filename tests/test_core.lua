@@ -9,6 +9,7 @@ end)
 T.test("/ttf with no arguments lists the commands", function()
   ttf("")
   T.ok(T.calledWith("/ttf options")) T.ok(T.calledWith("/ttf watch")) T.ok(T.calledWith("/ttf probe"))
+  T.ok(T.calledWith("/ttf craft"))
 end)
 
 T.test("chat messages carry the TTF prefix", function()
@@ -87,6 +88,15 @@ T.test("status reports what is stored and the last full scan", function()
   T.ok(T.calledWith("Last full scan 1d 1h ago"))
 end)
 
+T.test("/ttf craft opens and closes the Crafting window", function()
+  local f = A.CraftUI.Window()
+  f:Hide()
+  ttf("craft")
+  T.ok(f:IsShown())
+  ttf("craft")
+  T.eq(f:IsShown(), false)
+end)
+
 T.test("debug toggles", function()
   ttf("debug") T.eq(DB.S().debug, true)
   ttf("debug") T.eq(DB.S().debug, false)
@@ -111,9 +121,31 @@ T.test("nothing is bought, bid on, posted or cancelled without a click", functio
     if WoW.ah.pending then WoW.ahRespond() end
   end
   T.ok(T.calledWith("QueryAuctionItems"), "it did scan")
+  -- A merchant selling thread and a tradeskill window full of craftable recipes.
+  WoW.bags[0] = { { id = 4306, name = "Silk Cloth", count = 40, vendor = 37 } }
+  WoW.merchant = { { id = 2321, name = "Fine Thread", price = 100, quantity = 1, numAvailable = -1 } }
+  WoW.merchantOpen = true
+  WoW.fire("MERCHANT_SHOW")
+  WoW.tradeskill = { name = "Tailoring", rank = 225, maxRank = 300, selected = 2, rows = {
+    { header = true, name = "Cloth" },
+    { name = "Bolt of Silk Cloth", type = "optimal", id = 4305, available = 10,
+      reagents = { { id = 4306, name = "Silk Cloth", count = 4, have = 40 } } } } }
+  WoW.openTradeSkill()
+  WoW.fire("TRADE_SKILL_UPDATE")
+  for _ = 1, 10 do
+    WoW.clock = WoW.clock + 0.25
+    WoW.runScript(TaxTheFoolsCore, "OnUpdate")
+  end
+  A.CraftUI.Toggle()
+  T.ok(A.Items.Get(2321).vb, "the merchant was read")
+  T.ok(DB.Char().professions.Tailoring.recipes["Bolt of Silk Cloth"], "the recipes were read")
   T.ok(not T.calledWith("PlaceAuctionBid"), "no bid or buyout")
   T.ok(not T.calledWith("StartAuction"), "no post")
   T.ok(not T.calledWith("CancelAuction"), "no cancel")
+  T.ok(not T.calledWith("DoTradeSkill"), "nothing crafted")
+  T.ok(not T.calledWith("BuyMerchantItem"), "nothing bought from the merchant")
+  T.ok(not T.calledWith("UseContainerItem"), "nothing sold to the merchant")
+  A.CraftUI.Toggle()
 end)
 
 T.test("switching to Blizzard's window mid-scan stops all queries and buys nothing", function()
