@@ -17,4 +17,5 @@ ahhook.lua
 theme.lua
 widgets.lua
 list.lua
+tooltip.lua
 core.lua
