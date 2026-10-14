@@ -25,7 +25,10 @@ end
 function TS.ReadRecipe(i)
   local link = GetTradeSkillItemLink(i)
   local key, id = remember(link, U.linkName(link))
-  if id then I.Vendor(id) end          -- ClassicAPI supplies the sell price the deposit needs
+  if id then
+    I.Resolve(id)                      -- max stack size, for the deposit
+    I.Vendor(id)
+  end          -- ClassicAPI supplies the sell price the deposit needs
   local lo, hi = GetTradeSkillNumMade(i)
   if not lo or lo < 1 then lo = 1 end
   if not hi or hi < lo then hi = lo end

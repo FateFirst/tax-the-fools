@@ -254,3 +254,10 @@ T.test("the strip is made by the poll when TradeSkillFrame appears after the fir
   T.eq(TS.strip:GetParent(), TradeSkillFrame)
   TradeSkillFrame, TS.strip = savedFrame, savedStrip
 end)
+
+T.test("capture resolves each product so its stack size is known", function()
+  WoW.items[4305] = { name = "Bolt of Silk Cloth", stack = 20 }
+  tailoring()
+  WoW.fire("TRADE_SKILL_SHOW")
+  T.eq(A.Items.Get(4305).st, 20, "stack size from GetItemInfo")
+end)
