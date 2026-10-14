@@ -77,3 +77,8 @@ T.test("clicking the minimap button opens options", function()
   WoW.runScript(Mini.button, "OnClick", "LeftButton")
   T.ok(Opt.frame:IsShown())
 end)
+
+T.test("the minimap button shows the goblin coin", function()
+  Mini.Create()
+  T.eq(Mini.button.icon:GetTexture(), TaxTheFools.Theme.MEDIA .. "minimap")
+end)

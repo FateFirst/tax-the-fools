@@ -372,8 +372,19 @@ function W.Window(name, width, height, title, opts)
   h.square:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", 0, 0)
   h.square:SetHeight(12)
   h.title = Th.Text(h, "display", 14, "white")
-  h.title:SetPoint("LEFT", h, "LEFT", 12, 0)
   h.title:SetText(string.upper(title))
+  -- The logo is full colour artwork, so it is never tinted.
+  if opts and opts.logo then
+    h.logo = h:CreateTexture(nil, "ARTWORK")
+    h.logo:SetTexture(Th.MEDIA .. "logo")
+    h.logo:SetWidth(24)
+    h.logo:SetHeight(24)
+    h.logo:SetPoint("LEFT", h, "LEFT", 8, 0)
+    h.title:SetPoint("LEFT", h.logo, "RIGHT", 6, 0)
+  else
+    h.logo = false
+    h.title:SetPoint("LEFT", h, "LEFT", 12, 0)
+  end
   h:EnableMouse(true)
   h:RegisterForDrag("LeftButton")
   h:SetScript("OnDragStart", function() f:StartMoving() end)

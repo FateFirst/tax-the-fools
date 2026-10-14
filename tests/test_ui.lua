@@ -119,3 +119,11 @@ T.test("hovering a Browse row puts the item tooltip at the cursor, not past the 
   T.eq(GameTooltip.owner, row)
   T.eq(GameTooltip.anchor, "ANCHOR_CURSOR")
 end)
+
+T.test("the auction window shows the logo before the title", function()
+  local Th = TaxTheFools.Theme
+  UI.CreateAH()
+  T.eq(UI.ah.header.logo:GetTexture(), Th.MEDIA .. "logo")
+  T.eq(UI.ah.header.logo:GetWidth(), 24)
+  T.eq(UI.ah.header.title.points[1][2], UI.ah.header.logo, "the title starts after the logo")
+end)
