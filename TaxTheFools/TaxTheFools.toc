@@ -12,4 +12,5 @@ stats.lua
 price.lua
 db.lua
 items.lua
+scan.lua
 core.lua
