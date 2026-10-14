@@ -176,26 +176,42 @@ function W.Dropdown(parent, width, options, get, set)
   menu = CreateFrame("Frame", nil, UIParent)
   menu:SetFrameStrata("FULLSCREEN_DIALOG")
   menu:SetWidth(width)
-  menu:SetHeight(8 + table.getn(options) * 20)
   Th.Panel(menu, "header")
   menu.items = {}
-  for i, o in ipairs(options) do
-    menu.items[i] = W.MenuItem(menu, i, o, function(value)
-      set(value)
-      menu:Hide()
-      b:Refresh()
-    end)
-  end
   menu:Hide()
   b.menu = menu
+  local function choose(value)
+    set(value)
+    menu:Hide()
+    b:Refresh()
+  end
   b:SetScript("OnHide", function() menu:Hide() end)
+  -- Replaces the choices; menu items are reused, spare ones hidden.
+  b.SetOptions = function(self, opts)
+    self.options = opts
+    for i, o in ipairs(opts) do
+      local item = menu.items[i]
+      if item then
+        item.text:SetText(o.label)
+        item.value = o.value
+      else
+        item = W.MenuItem(menu, i, o, choose)
+        menu.items[i] = item
+      end
+      item:Show()
+    end
+    for i = table.getn(opts) + 1, table.getn(menu.items) do menu.items[i]:Hide() end
+    menu:SetHeight(8 + table.getn(opts) * 20)
+    self:Refresh()
+  end
   b.Refresh = function(self)
     local v = get()
-    for _, o in ipairs(options) do
+    self:SetLabel("")
+    for _, o in ipairs(self.options) do
       if o.value == v then self:SetLabel(o.label) end
     end
   end
-  b:Refresh()
+  b:SetOptions(options)
   return b
 end
 

@@ -23,6 +23,7 @@ tooltip.lua
 tradeskill.lua
 ui_window.lua
 ui_browse.lua
+ui_craft.lua
 options.lua
 minimap.lua
 probe.lua
