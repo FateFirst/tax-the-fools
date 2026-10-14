@@ -18,4 +18,6 @@ theme.lua
 widgets.lua
 list.lua
 tooltip.lua
+ui_window.lua
+ui_browse.lua
 core.lua
