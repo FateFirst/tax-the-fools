@@ -10,6 +10,7 @@ D.PAGE_SIZE = 50
 D.QUERY_TIMEOUT = 15     -- seconds without a reply before a page is asked for again
 D.MAX_RETRIES = 3        -- resends before the scan stalls and asks the player
 D.SAFE_DELAY = 4         -- seconds between pages in safe pace
+D.MAX_DUPES = 3          -- re-asks of one page that repeats before it is taken as genuine
 D.NAME_WAIT = 1          -- seconds to wait for uncached item names on a page
 D.MARKET_DAYS = 30
 D.DECAY = 0.9

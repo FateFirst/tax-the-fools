@@ -21,7 +21,7 @@ end
 local function newJob(kind, queries, now)
   return { kind = kind, queries = queries, qi = 1, page = queries[1].page or 0, totalPages = nil,
            state = "wait", reason = nil, lastQueryAt = -1000, sentAt = 0, holdUntil = 0,
-           retries = 0, dupes = 0, safe = false, lastSig = nil, incompleteSince = nil,
+           retries = 0, dupes = 0, pageDupes = 0, safe = false, lastSig = nil, incompleteSince = nil,
            listings = {}, pagesDone = 0, pagesRun = 0, firstSentAt = nil,
            startedAt = now, day = U.day(time()) }
 end
@@ -84,7 +84,10 @@ end
 
 local function signature(rows)
   local parts = { table.getn(rows) }
-  for _, r in ipairs(rows) do table.insert(parts, r.key .. "/" .. r.count .. "/" .. r.buyout) end
+  for _, r in ipairs(rows) do
+    table.insert(parts, r.key .. "/" .. r.count .. "/" .. r.buyout .. "/" .. (r.owner or "")
+      .. "/" .. r.minBid .. "/" .. r.bid)
+  end
   return table.concat(parts, ";")
 end
 
@@ -104,16 +107,19 @@ function Scan.Accept(now, force)
     return
   end
   local sig = signature(rows)
-  if job.lastSig and sig == job.lastSig then
-    -- The server repeated the previous page. Ask again after a pause; twice
-    -- and the rest of this scan goes at safe pace.
+  -- A repeat is held and asked for again. Identical listings can also be a
+  -- genuine page (one seller, many identical stacks), so after MAX_DUPES
+  -- re-asks of this page it is accepted rather than asked for forever.
+  if job.lastSig and sig == job.lastSig and job.pageDupes < D.MAX_DUPES then
+    -- Twice in the scan as a whole and the rest of it goes at safe pace.
     job.dupes = job.dupes + 1
+    job.pageDupes = job.pageDupes + 1
     if job.dupes >= 2 then job.safe = true end
     job.state, job.holdUntil = "wait", now + D.SAFE_DELAY
     changed()
     return
   end
-  job.lastSig, job.retries = sig, 0
+  job.lastSig, job.retries, job.pageDupes = sig, 0, 0
   for _, r in ipairs(rows) do
     table.insert(job.listings, { key = r.key, unit = r.unit, qty = r.count, owner = r.owner })
   end

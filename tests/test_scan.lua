@@ -232,3 +232,14 @@ T.test("listeners hear about changes", function()
   Scan.StartFull(0) pump()
   T.ok(heard >= 2)
 end)
+
+T.test("genuinely identical pages are accepted once re-asks are exhausted", function()
+  for _ = 1, 120 do
+    table.insert(WoW.ah.listings, { id = 14047, name = "Runecloth", count = 20,
+      buyout = 8000, owner = "S1", minBid = 7000, bid = 0 })
+  end
+  T.ok(Scan.StartFull(WoW.clock))
+  pump()
+  T.eq(Scan.job, nil, "scan finished")
+  T.eq(day("14047:0").n, 120)
+end)
