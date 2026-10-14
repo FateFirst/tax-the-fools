@@ -71,6 +71,12 @@ function U.keyId(key)
   return tonumber(id)
 end
 
+-- The name between the brackets of an item link: "|H...|h[Bolt of Silk Cloth]|h|r".
+function U.linkName(link)
+  local _, _, n = string.find(link or "", "%[(.-)%]")
+  return n
+end
+
 function U.linkString(link)
   local _, _, s = string.find(link or "", "(item:[%d:%-]+)")
   return s

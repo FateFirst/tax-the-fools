@@ -52,3 +52,8 @@ T.test("words and trim", function()
   T.eq(U.trim("  a b  "), "a b")
   T.eq(table.getn(U.words(" watch  Silk Cloth ")), 3)
 end)
+
+T.test("the name is read from between a link's brackets", function()
+  T.eq(U.linkName(WoW.link(4305, "Bolt of Silk Cloth")), "Bolt of Silk Cloth")
+  T.eq(U.linkName(nil), nil)
+end)

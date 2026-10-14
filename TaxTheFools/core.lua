@@ -57,6 +57,8 @@ function Core.OnEvent(e)
     Core.Safe("items", A.Items.LearnVendorPrices)
     Core.Safe("items", A.Items.LearnMerchantPrices)
   elseif Core.INVENTORY_EVENTS[e] then Core.Safe("inventory", A.Inventory.OnEvent, e)
+  elseif e == "TRADE_SKILL_SHOW" or e == "TRADE_SKILL_UPDATE" or e == "TRADE_SKILL_CLOSE" then
+    Core.Safe("tradeskill", A.TradeSkill.OnEvent, e, GetTime())
   elseif e == "PLAYER_MONEY" then Core.Safe("interface", A.UI.RefreshGold)
   end
 end
@@ -77,6 +79,7 @@ function Core.Update(now)
   Core.Safe("auction tick", A.AH.Tick)
   Core.Safe("scan", A.Scan.Tick, now)
   Core.Safe("inventory", A.Inventory.Tick, now)
+  Core.Safe("tradeskill", A.TradeSkill.Tick, now)
   if not Core.pruned then Core.Safe("prune", Core.PruneTick) end
   if now - Core.uiAt >= 0.25 then
     Core.uiAt = now
@@ -158,7 +161,8 @@ SlashCmdList["TAXTHEFOOLS"] = function(msg) Core.Safe("command", Core.Command, m
 local frame = CreateFrame("Frame", "TaxTheFoolsCore")
 for _, e in ipairs({ "VARIABLES_LOADED", "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "AUCTION_ITEM_LIST_UPDATE",
                      "MERCHANT_SHOW", "PLAYER_MONEY", "BAG_UPDATE", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
-                     "PLAYERBANKSLOTS_CHANGED", "PLAYER_ENTERING_WORLD" }) do
+                     "PLAYERBANKSLOTS_CHANGED", "PLAYER_ENTERING_WORLD", "TRADE_SKILL_SHOW", "TRADE_SKILL_UPDATE",
+                     "TRADE_SKILL_CLOSE" }) do
   frame:RegisterEvent(e)
 end
 frame:SetScript("OnEvent", function() Core.OnEvent(event) end)

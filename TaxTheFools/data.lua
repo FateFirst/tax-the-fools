@@ -35,6 +35,7 @@ D.DEFAULTS = {
     safeMode = false,
     browseFeedsHistory = true,
     tooltip = { market = true, low = true, vendor = true },
+    craft = { autoWatch = true, staleDays = 7 },
   },
   items = {},
   realms = {},

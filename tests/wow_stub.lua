@@ -206,6 +206,7 @@ function WoW.reset()
   WoW.merchantOpen = false
   WoW.merchant = {}
   WoW.bankOpen = false
+  WoW.tradeskill = { name = "Tailoring", rank = 0, maxRank = 0, selected = 0, rows = {} }
   WoW.rejectFonts = false
   WoW.ah = { listings = {}, canQuery = true, pending = false, current = {}, total = 0, lastPage = false, duplicateNext = 0 }
   WoW.classicAPI(false)
@@ -350,6 +351,73 @@ function GetMerchantItemLink(i)
   return nil
 end
 function BuyMerchantItem(i, n) WoW.log("BuyMerchantItem", i, n) end
+
+-- ---------- tradeskill window ----------
+-- WoW.tradeskill = { name=, rank=, maxRank=, selected=, rows = {
+--   { header = true, name = "Cloth", collapsed = nil|true },
+--   { name = "Bolt of Silk Cloth", type = "medium", id = 4305, made = { 1, 1 }, available = 2, noLink = nil|true,
+--     reagents = { { id = 4306, name = "Silk Cloth", count = 4, have = 37, noLink = nil|true } } } } }
+-- Like the real list, a collapsed header hides the recipes under it from every call below.
+local function tsRows()
+  local out, hide = {}, false
+  for _, r in ipairs(WoW.tradeskill.rows) do
+    if r.header then
+      hide = r.collapsed and true or false
+      table.insert(out, r)
+    elseif not hide then
+      table.insert(out, r)
+    end
+  end
+  return out
+end
+local function tsRow(i)
+  local rows = tsRows()
+  return rows[i]
+end
+function GetTradeSkillLine()
+  local t = WoW.tradeskill
+  return t.name or "UNKNOWN", t.rank or 0, t.maxRank or 0
+end
+function GetNumTradeSkills() return table.getn(tsRows()) end
+function GetTradeSkillInfo(i)
+  local r = tsRow(i)
+  if not r then return nil end
+  if r.header then
+    if r.collapsed then return r.name, "header", 0, nil end
+    return r.name, "header", 0, 1
+  end
+  return r.name, r.type or "medium", r.available or 0, nil
+end
+function GetTradeSkillItemLink(i)
+  local r = tsRow(i)
+  if r and r.id and not r.noLink then return WoW.link(r.id, r.product or r.name) end
+  return nil
+end
+function GetTradeSkillNumMade(i)
+  local r = tsRow(i)
+  if not r or r.header then return 0, 0 end
+  local m = r.made or { 1, 1 }
+  return m[1], m[2]
+end
+function GetTradeSkillNumReagents(i)
+  local r = tsRow(i)
+  if not r or not r.reagents then return 0 end
+  return table.getn(r.reagents)
+end
+function GetTradeSkillReagentInfo(i, n)
+  local r = tsRow(i)
+  local g = r and r.reagents and r.reagents[n]
+  if not g then return nil end
+  return g.name, g.tex or "tex", g.count or 1, g.have or 0
+end
+function GetTradeSkillReagentItemLink(i, n)
+  local r = tsRow(i)
+  local g = r and r.reagents and r.reagents[n]
+  if g and g.id and not g.noLink then return WoW.link(g.id, g.name) end
+  return nil
+end
+function GetTradeSkillSelectionIndex() return WoW.tradeskill.selected or 0 end
+function DoTradeSkill(i, n) WoW.log("DoTradeSkill", i, n) end
 function GetInventoryItemLink() return nil end
 function GetInventoryItemCount() return 0 end
 

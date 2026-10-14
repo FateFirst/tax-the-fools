@@ -20,6 +20,7 @@ theme.lua
 widgets.lua
 list.lua
 tooltip.lua
+tradeskill.lua
 ui_window.lua
 ui_browse.lua
 options.lua
