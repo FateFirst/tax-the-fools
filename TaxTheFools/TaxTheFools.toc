@@ -13,4 +13,5 @@ price.lua
 db.lua
 items.lua
 scan.lua
+ahhook.lua
 core.lua
