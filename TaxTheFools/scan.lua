@@ -133,7 +133,8 @@ function Scan.Accept(now, force)
   end
   job.lastSig, job.lastLooseSig, job.retries, job.pageDupes = sig, loose, 0, 0
   for _, r in ipairs(rows) do
-    table.insert(job.listings, { key = r.key, unit = r.unit, qty = r.count, owner = r.owner })
+    table.insert(job.listings, { key = r.key, unit = r.unit, qty = r.count, owner = r.owner,
+                                 buyout = r.buyout, minBid = r.minBid })
   end
   job.pagesDone, job.pagesRun = job.pagesDone + 1, job.pagesRun + 1
   job.totalPages = math.ceil(total / D.PAGE_SIZE)
@@ -192,7 +193,10 @@ function Scan.Finish(now)
     Scan.QueueMarket(touched)
   end
   if job.kind == "full" then realm.scan.lastFull = time() end
-  if job.kind ~= "browse" then realm.scan.resume = nil end
+  if job.kind ~= "browse" then
+    realm.scan.resume = nil
+    Scan.SaveSnapshot(job)
+  end
   Scan.lastFinished = { kind = job.kind, pages = job.pagesDone, listings = table.getn(job.listings),
                         secs = now - job.startedAt }
   changed()
@@ -228,7 +232,8 @@ function Scan.Pause(reason)
     local saved = { kind = job.kind, queries = job.queries, qi = job.qi, page = job.page, day = job.day,
                     pagesDone = job.pagesDone, rows = {} }
     for _, l in ipairs(job.listings) do
-      table.insert(saved.rows, l.key .. "|" .. (l.unit or "") .. "|" .. l.qty .. "|" .. (l.owner or ""))
+      table.insert(saved.rows, l.key .. "|" .. (l.unit or "") .. "|" .. l.qty .. "|" .. (l.owner or "")
+        .. "|" .. (l.buyout or 0) .. "|" .. (l.minBid or 0))
     end
     DB.Realm().scan.resume = saved
   end
@@ -255,6 +260,21 @@ function Scan.Resumable()
   return saved
 end
 
+-- A paused listing: key|unit|qty|owner|buyout|minBid. Rows saved by 0.2.0
+-- stop after the owner; their buyout is unit x qty and their minimum bid unknown.
+function Scan.ParseSaved(s)
+  local _, _, key, unit, qty, owner, buyout, minBid = string.find(s, "^([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)|([^|]*)$")
+  if not key then
+    _, _, key, unit, qty, owner = string.find(s, "^([^|]*)|([^|]*)|([^|]*)|(.*)$")
+  end
+  if not key then return nil end
+  if owner == "" then owner = nil end
+  local l = { key = key, unit = tonumber(unit), qty = tonumber(qty) or 1, owner = owner,
+              buyout = tonumber(buyout), minBid = tonumber(minBid) or 0 }
+  if not l.buyout then l.buyout = l.unit and math.floor(l.unit * l.qty + 0.5) or 0 end
+  return l
+end
+
 function Scan.Resume(now)
   if Scan.job then return false end
   local saved = Scan.Resumable()
@@ -262,11 +282,8 @@ function Scan.Resume(now)
   local job = newJob(saved.kind, saved.queries, now)
   job.qi, job.page, job.pagesDone, job.day = saved.qi, saved.page, saved.pagesDone, saved.day
   for _, s in ipairs(saved.rows) do
-    local _, _, key, unit, qty, owner = string.find(s, "^([^|]*)|([^|]*)|([^|]*)|(.*)$")
-    if key then
-      if owner == "" then owner = nil end
-      table.insert(job.listings, { key = key, unit = tonumber(unit), qty = tonumber(qty) or 1, owner = owner })
-    end
+    local l = Scan.ParseSaved(s)
+    if l then table.insert(job.listings, l) end
   end
   DB.Realm().scan.resume = nil
   Scan.job = job
@@ -292,4 +309,83 @@ function Scan.Progress(now)
     p.eta = left * p.secsPerPage
   end
   return p
+end
+
+-- ---------- the listing snapshot (phase 3a spec section 3) ----------
+-- realm.snapshot = { at = time(), day = day, rows = { [key] = { "count|buyout|minBid|owner", ... } } }.
+-- Deals are read from it, so only listings with a buyout are kept.
+
+function Scan.SnapRow(l)
+  return l.qty .. "|" .. l.buyout .. "|" .. (l.minBid or 0) .. "|" .. (l.owner or "")
+end
+
+-- count, buyout, minBid, owner (nil when the server had not sent it).
+function Scan.ParseSnapRow(s)
+  local _, _, count, buyout, minBid, owner = string.find(s or "", "^(%d+)|(%d+)|(%d*)|(.*)$")
+  if not count then return nil end
+  if owner == "" then owner = nil end
+  return tonumber(count), tonumber(buyout), tonumber(minBid) or 0, owner
+end
+
+local function snapRows(listings)
+  local rows = {}
+  for _, l in ipairs(listings) do
+    if l.buyout and l.buyout > 0 then
+      local list = rows[l.key]
+      if not list then
+        list = {}
+        rows[l.key] = list
+      end
+      table.insert(list, Scan.SnapRow(l))
+    end
+  end
+  return rows
+end
+
+-- A full scan replaces the snapshot. A watchlist scan replaces the rows of every
+-- item it saw, and empties the rows of a watched item it searched for and did
+-- not find: that item has sold out. A browse never comes here.
+function Scan.SaveSnapshot(job)
+  local realm = DB.Realm()
+  local fresh = snapRows(job.listings)
+  if job.kind == "full" then
+    realm.snapshot = { at = time(), day = job.day, rows = fresh }
+    return
+  end
+  local snap = realm.snapshot
+  if not snap then
+    snap = { at = time(), day = job.day, rows = {} }
+    realm.snapshot = snap
+  end
+  local asked = {}
+  for _, q in ipairs(job.queries) do asked[q.name] = true end
+  for key in pairs(realm.watch) do
+    local rec = I.Get(U.keyId(key))
+    if rec and rec.n and asked[rec.n] then snap.rows[key] = nil end
+  end
+  for key, list in pairs(fresh) do snap.rows[key] = list end
+end
+
+-- Takes one listing out: sig = { key, count, buyout, owner }. The owner is only
+-- compared when both sides know it. True when a row was removed.
+function Scan.SnapshotRemove(sig)
+  local snap = DB.Realm().snapshot
+  local list = snap and snap.rows[sig.key]
+  if not list then return false end
+  for i, s in ipairs(list) do
+    local count, buyout, _, owner = Scan.ParseSnapRow(s)
+    if count == sig.count and buyout == sig.buyout and (not owner or not sig.owner or owner == sig.owner) then
+      table.remove(list, i)
+      if table.getn(list) == 0 then snap.rows[sig.key] = nil end
+      return true
+    end
+  end
+  return false
+end
+
+-- Whole days since the snapshot's scan, or nil without one.
+function Scan.SnapshotAge(today)
+  local snap = DB.Realm().snapshot
+  if not snap or not snap.day then return nil end
+  return today - snap.day
 end
