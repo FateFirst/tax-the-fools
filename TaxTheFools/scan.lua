@@ -21,7 +21,7 @@ end
 local function newJob(kind, queries, now)
   return { kind = kind, queries = queries, qi = 1, page = queries[1].page or 0, totalPages = nil,
            state = "wait", reason = nil, lastQueryAt = -1000, sentAt = 0, holdUntil = 0,
-           retries = 0, dupes = 0, pageDupes = 0, safe = false, lastSig = nil, incompleteSince = nil,
+           retries = 0, dupes = 0, pageDupes = 0, safe = false, lastSig = nil, lastLooseSig = nil, incompleteSince = nil,
            listings = {}, pagesDone = 0, pagesRun = 0, firstSentAt = nil,
            startedAt = now, day = U.day(time()) }
 end
@@ -82,10 +82,13 @@ function Scan.ReadRow(i)
            unit = unit, owner = owner, index = i }
 end
 
-local function signature(rows)
+-- The loose form leaves the owner out: on 1.12 owner names arrive after the
+-- rest, so one page can be read twice with different owners.
+local function signature(rows, loose)
   local parts = { table.getn(rows) }
   for _, r in ipairs(rows) do
-    table.insert(parts, r.key .. "/" .. r.count .. "/" .. r.buyout .. "/" .. (r.owner or "")
+    local owner = loose and "" or (r.owner or "")
+    table.insert(parts, r.key .. "/" .. r.count .. "/" .. r.buyout .. "/" .. owner
       .. "/" .. r.minBid .. "/" .. r.bid)
   end
   return table.concat(parts, ";")
@@ -106,7 +109,16 @@ function Scan.Accept(now, force)
     if not job.incompleteSince then job.incompleteSince = now end
     return
   end
-  local sig = signature(rows)
+  local sig, loose = signature(rows), signature(rows, true)
+  -- The client fires the update again for the page it already showed when owner
+  -- names arrive. If that lands after the next page was asked for it is a stale
+  -- repeat, not the reply: ignore it and keep waiting. It still counts toward
+  -- the page's re-ask cap so a genuinely identical page is taken in the end.
+  if job.lastLooseSig and loose == job.lastLooseSig and sig ~= job.lastSig
+      and job.pageDupes < D.MAX_DUPES then
+    job.pageDupes = job.pageDupes + 1
+    return
+  end
   -- A repeat is held and asked for again. Identical listings can also be a
   -- genuine page (one seller, many identical stacks), so after MAX_DUPES
   -- re-asks of this page it is accepted rather than asked for forever.
@@ -119,7 +131,7 @@ function Scan.Accept(now, force)
     changed()
     return
   end
-  job.lastSig, job.retries, job.pageDupes = sig, 0, 0
+  job.lastSig, job.lastLooseSig, job.retries, job.pageDupes = sig, loose, 0, 0
   for _, r in ipairs(rows) do
     table.insert(job.listings, { key = r.key, unit = r.unit, qty = r.count, owner = r.owner })
   end
@@ -130,7 +142,7 @@ function Scan.Accept(now, force)
     return Scan.Finish(now)
   end
   if batch == 0 or (job.page + 1) * D.PAGE_SIZE >= total then
-    job.qi, job.page, job.lastSig, job.totalPages = job.qi + 1, 0, nil, nil
+    job.qi, job.page, job.lastSig, job.lastLooseSig, job.totalPages = job.qi + 1, 0, nil, nil, nil
     if job.qi > table.getn(job.queries) then return Scan.Finish(now) end
   else
     job.page = job.page + 1
@@ -154,7 +166,13 @@ function Scan.Tick(now)
       elseif now - job.sentAt > D.QUERY_TIMEOUT then
         job.retries = job.retries + 1
         if job.retries > D.MAX_RETRIES then
-          job.state, job.reason = "stalled", "server not responding"
+          if job.kind == "browse" then
+            -- Nothing to resume and no strip button for it: drop it so searches work again.
+            Scan.job = nil
+            U.msg("Search got no reply from the auction house. Try again.")
+          else
+            job.state, job.reason = "stalled", "server not responding"
+          end
         else
           job.state = "wait"
         end

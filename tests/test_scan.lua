@@ -243,3 +243,53 @@ T.test("genuinely identical pages are accepted once re-asks are exhausted", func
   T.eq(Scan.job, nil, "scan finished")
   T.eq(day("14047:0").n, 120)
 end)
+
+local function fillNoOwner(n)
+  for i = 1, n do
+    table.insert(WoW.ah.listings, { id = 14047, name = "Runecloth", count = 20, buyout = 8000 + i })
+  end
+end
+
+T.test("a late repeat of the previous page with owners filled in is ignored", function()
+  fillNoOwner(120)
+  Scan.StartFull(0)
+  at(1, true)                                   -- page 0 accepted
+  at(2)                                         -- page 1 sent, not yet answered
+  T.eq(Scan.job.state, "sent")
+  WoW.ahRepeatLast(true)
+  Scan.OnListUpdate(2.1)                        -- page 0 again, owners now known
+  T.eq(Scan.job.page, 1, "still waiting for page 1")
+  T.eq(Scan.job.state, "sent")
+  T.eq(Scan.job.pagesDone, 1, "page 0 not recorded twice")
+  pump()
+  T.eq(day("14047:0").n, 120, "every listing counted once")
+end)
+
+T.test("a late repeat with owners unchanged does not switch to safe pace", function()
+  fillNoOwner(120)
+  Scan.StartFull(0)
+  at(1, true)
+  at(2)
+  WoW.ahRepeatLast(false)
+  Scan.OnListUpdate(2.1)
+  T.ok(not Scan.Progress(2.1).safe, "one stale repeat is not a slow server")
+  pump()
+  T.eq(day("14047:0").n, 120)
+end)
+
+T.test("a stalled browse is dropped with a message instead of sitting there", function()
+  fill(5)
+  local heard = 0
+  Scan.OnChange(function() heard = heard + 1 end)
+  Scan.Browse("Rune", 0, 0)
+  local before = heard
+  local t = 0
+  for _ = 1, 5 do
+    t = t + 1 Scan.Tick(t)
+    t = t + 16 Scan.Tick(t)
+  end
+  T.eq(Scan.job, nil, "job dropped")
+  T.ok(heard > before, "listeners told")
+  T.eq(T.count("Search got no reply from the auction house. Try again."), 1, "player told once")
+  T.ok(Scan.StartFull(t), "scans are not blocked afterwards")
+end)

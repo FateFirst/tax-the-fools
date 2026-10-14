@@ -246,6 +246,16 @@ function WoW.ahRespond()
   WoW.ah.current, WoW.ah.total, WoW.ah.lastPage = page, table.getn(matches), page
   WoW.fire("AUCTION_ITEM_LIST_UPDATE")
 end
+-- Models the 1.12 client re-presenting the page it already showed (the server
+-- fills in owner names late, so AUCTION_ITEM_LIST_UPDATE fires again for it).
+-- The visible page (WoW.ah.current) is left as is, and with withOwners every
+-- row on it gains an owner name first. This only changes what the client
+-- reads; the caller delivers the event itself (Scan.OnListUpdate(now)).
+function WoW.ahRepeatLast(withOwners)
+  if withOwners then
+    for _, l in ipairs(WoW.ah.current) do l.owner = "Late" .. (l.id or 0) end
+  end
+end
 function GetNumAuctionItems(kind)
   if kind ~= "list" then return 0, 0 end
   return table.getn(WoW.ah.current), WoW.ah.total
@@ -285,7 +295,7 @@ function UnitFactionGroup(u) return WoW.faction, WoW.faction end
 function GetMoney() return WoW.money end
 function IsShiftKeyDown() if WoW.shift then return 1 end return nil end
 function GetCursorPosition() return WoW.cursorX, WoW.cursorY end
-function GetBuildInfo() return "1.12.1", "5875", "Sep 19 2006", 11200 end
+function GetBuildInfo() return "1.12.1", "5875", "Sep 19 2006" end
 function ReloadUI() WoW.log("ReloadUI") end
 function getglobal(n) return _G[n] end
 function setglobal(n, v) _G[n] = v end
