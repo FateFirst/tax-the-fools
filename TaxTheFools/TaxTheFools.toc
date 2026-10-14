@@ -22,4 +22,5 @@ ui_window.lua
 ui_browse.lua
 options.lua
 minimap.lua
+probe.lua
 core.lua
