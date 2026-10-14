@@ -1,0 +1,40 @@
+Tax the Fools 0.1.0  client 1.18.1 build 7272 (Mar 20 2026)
+realm Medivh  character Wessymank  faction Horde
+ClassicAPI yes
+fn QueryAuctionItems yes
+fn CanSendAuctionQuery yes
+fn GetNumAuctionItems yes
+fn GetAuctionItemInfo yes
+fn GetAuctionItemLink yes
+fn GetAuctionItemTimeLeft yes
+fn PlaceAuctionBid yes
+fn StartAuction yes
+fn CancelAuction yes
+fn GetOwnerAuctionItems yes
+fn ClickAuctionSellItemButton yes
+fn GetAuctionSellItemInfo yes
+fn CalculateAuctionDeposit yes
+fn GetInboxHeaderInfo yes
+fn GetInboxInvoiceInfo yes
+fn GetInboxItem yes
+fn TakeInboxMoney yes
+fn GetTradeSkillInfo yes
+fn GetTradeSkillNumMade yes
+fn GetTradeSkillReagentInfo yes
+fn GetTradeSkillReagentItemLink yes
+fn GetTradeSkillItemLink yes
+fn GetMerchantItemLink yes
+fn GetItemInfo yes
+var TURTLE_WOW_VERSION = 1.18.1
+var SUPERWOW_VERSION = nil
+var AUCTION_SOLD_MAIL_SUBJECT = Auction successful: %s
+var AUCTION_EXPIRED_MAIL_SUBJECT = Auction expired: %s
+var AUCTION_REMOVED_MAIL_SUBJECT = Auction cancelled: %s
+var AUCTION_WON_MAIL_SUBJECT = Auction won: %s
+var AUCTION_OUTBID_MAIL_SUBJECT = Outbid on %s
+var ERR_AUCTION_SOLD_S = Your auction of %s sold.
+var AUCTION_DURATION_ONE = nil
+var AUCTION_DURATION_TWO = nil
+var AUCTION_DURATION_THREE = nil
+auction list empty: open the AH and search for something, then probe again
+last scan: browse, 1 pages, 50 listings, 0s, 0.12s/page
