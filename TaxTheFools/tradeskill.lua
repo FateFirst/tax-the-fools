@@ -183,4 +183,8 @@ function TS.RefreshStrip(force)
   Th.Color(s.text, token)
 end
 
-function TS.Poll(now) TS.RefreshStrip(false) end
+function TS.Poll(now)
+  -- TradeSkillFrame may have loaded after the show event that found it absent.
+  if TS.open and not TS.strip and TradeSkillFrame then TS.CreateStrip() end
+  TS.RefreshStrip(false)
+end

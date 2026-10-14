@@ -240,3 +240,17 @@ T.test("closing the window forgets the strip's selection memo, so a reopened win
   tick()
   T.eq(TS.strip.text:GetText(), "incomplete: Bolt of Linen Cloth, Coarse Thread", "session two: the robe, not the bolt")
 end)
+
+T.test("the strip is made by the poll when TradeSkillFrame appears after the first show", function()
+  local savedFrame, savedStrip = TradeSkillFrame, TS.strip
+  TradeSkillFrame, TS.strip = nil, nil
+  tailoring()
+  WoW.fire("TRADE_SKILL_SHOW")
+  T.eq(TS.strip, nil, "no frame yet")
+  TradeSkillFrame = CreateFrame("Frame", "TradeSkillFrame", UIParent)
+  WoW.clock = WoW.clock + 0.25
+  tick()
+  T.ok(TS.strip, "the poll made it once the frame exists")
+  T.eq(TS.strip:GetParent(), TradeSkillFrame)
+  TradeSkillFrame, TS.strip = savedFrame, savedStrip
+end)
