@@ -211,6 +211,7 @@ function WoW.reset()
   WoW.ah = { listings = {}, canQuery = true, pending = false, current = {}, total = 0, lastPage = false, duplicateNext = 0 }
   WoW.classicAPI(false)
   if AuctionFrame then AuctionFrame.shown = false end
+  if TradeSkillFrame then TradeSkillFrame.shown = false end
   TaxTheFoolsDB, TaxTheFoolsCharDB, TaxTheFoolsDB_broken = nil, nil, nil
   if TaxTheFools then
     for _, m in pairs(TaxTheFools) do
@@ -418,6 +419,17 @@ function GetTradeSkillReagentItemLink(i, n)
 end
 function GetTradeSkillSelectionIndex() return WoW.tradeskill.selected or 0 end
 function DoTradeSkill(i, n) WoW.log("DoTradeSkill", i, n) end
+-- TradeSkillFrame is load-on-demand: it does not exist until the first
+-- tradeskill window opens. WoW.openTradeSkill() does what the client does:
+-- load it if needed, show it, then fire TRADE_SKILL_SHOW.
+function WoW.openTradeSkill()
+  if not TradeSkillFrame then
+    TradeSkillFrame = newFrame("Frame", "TradeSkillFrame", UIParent)
+    TradeSkillFrame.shown = false
+  end
+  TradeSkillFrame:Show()
+  WoW.fire("TRADE_SKILL_SHOW")
+end
 function GetInventoryItemLink() return nil end
 function GetInventoryItemCount() return 0 end
 

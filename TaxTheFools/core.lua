@@ -84,6 +84,7 @@ function Core.Update(now)
   if now - Core.uiAt >= 0.25 then
     Core.uiAt = now
     Core.Safe("interface", A.UI.Tick, now)
+    Core.Safe("tradeskill", A.TradeSkill.Poll, now)
   end
 end
 

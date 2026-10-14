@@ -1,9 +1,13 @@
 TaxTheFools = TaxTheFools or {}
-local U, DB, I = TaxTheFools.Util, TaxTheFools.DB, TaxTheFools.Items
-local TS = { open = false, dirty = false, capturedAt = -1000 }
+local U, DB, I, Th, Craft, Inv = TaxTheFools.Util, TaxTheFools.DB, TaxTheFools.Items, TaxTheFools.Theme,
+  TaxTheFools.Craft, TaxTheFools.Inventory
+local TS = { open = false, dirty = false, capturedAt = -1000, strip = nil }
 TaxTheFools.TradeSkill = TS
 
 TS.THROTTLE = 0.5    -- seconds between captures; TRADE_SKILL_UPDATE fires in bursts
+-- TradeSkillFrame is 384x512 but its art leaves the bottom 75px and right 34px
+-- transparent (its HitRectInsets): the strip sits just under the visible panel.
+TS.STRIP_X, TS.STRIP_Y, TS.STRIP_W = 14, 73, 330
 
 function TS.ResetState() TS.open, TS.dirty, TS.capturedAt = false, false, -1000 end
 
@@ -77,6 +81,7 @@ function TS.Capture()
   end
   prof.rank, prof.maxRank, prof.at, prof.recipes = rank, maxRank, time(), stored
   if DB.S().craft.autoWatch then TS.Watch(recipes) end
+  TS.RefreshStrip(true)
   return prof
 end
 
@@ -93,7 +98,9 @@ end
 function TS.OnEvent(e, now)
   if e == "TRADE_SKILL_SHOW" then
     TS.open, TS.dirty = true, true
+    TS.CreateStrip()
     TS.Tick(now)
+    TS.RefreshStrip(true)
   elseif e == "TRADE_SKILL_UPDATE" then
     TS.dirty = true
   elseif e == "TRADE_SKILL_CLOSE" then
@@ -107,3 +114,69 @@ function TS.Tick(now)
   TS.dirty, TS.capturedAt = false, now
   TS.Capture()
 end
+
+-- ---------- the profit strip under the tradeskill window ----------
+
+-- Prices, every character's recipes and everything held, as of now.
+function TS.Context()
+  local realm = DB.Realm()
+  return Craft.Context(realm, TaxTheFoolsDB.items, Inv.Held(realm), U.day(time()))
+end
+
+-- Made the first time a tradeskill window opens: TradeSkillFrame is
+-- load-on-demand and does not exist before that.
+function TS.CreateStrip()
+  if TS.strip then return TS.strip end
+  if not TradeSkillFrame then return nil end
+  local s = CreateFrame("Frame", "TaxTheFoolsStrip", TradeSkillFrame)
+  s:SetWidth(TS.STRIP_W)
+  s:SetHeight(22)
+  s:SetPoint("TOPLEFT", TradeSkillFrame, "BOTTOMLEFT", TS.STRIP_X, TS.STRIP_Y)
+  Th.Panel(s, "header")
+  s.text = Th.Text(s, "body", 11, "text")
+  s.text:SetPoint("LEFT", s, "LEFT", 8, 0)
+  s.text:SetPoint("RIGHT", s, "RIGHT", -8, 0)
+  s.sel = false
+  TS.strip = s
+  return s
+end
+
+-- Text and colour token for one evaluation (nil: nothing selected).
+-- Plain money, so the whole line takes the good or bad colour.
+function TS.StripText(ev)
+  if not ev then return "Select a recipe to see its profit.", "dim" end
+  if not ev.profit then return "incomplete: " .. table.concat(ev.missing, ", "), "warn" end
+  local value = U.money(ev.value, true)
+  if ev.valueSource == "vendor" then value = value .. " (vendor)" end
+  local text = "Cost " .. U.money(ev.cost, true) .. "   Value " .. value .. "   Profit " .. U.money(ev.profit, true)
+  if ev.profit >= 0 then return text, "good" end
+  return text, "bad"
+end
+
+-- The recipe the window has selected, from this character's captured list.
+function TS.Selected()
+  local i = GetTradeSkillSelectionIndex()
+  if not i or i < 1 then return nil end
+  local name, kind = GetTradeSkillInfo(i)
+  if not name or kind == "header" then return nil end
+  local profs = DB.Char().professions
+  local prof = profs and profs[GetTradeSkillLine()]
+  return prof and prof.recipes[name]
+end
+
+-- Selecting a recipe fires no event, so this runs on a poll as well; it only
+-- repaints when the selection moved, unless forced (after a capture).
+function TS.RefreshStrip(force)
+  local s = TS.strip
+  if not s or not s:IsVisible() then return end
+  local i = GetTradeSkillSelectionIndex()
+  if not force and i == s.sel then return end
+  s.sel = i
+  local recipe = TS.Selected()
+  local ev = recipe and Craft.Evaluate(recipe, TS.Context())
+  local text, token = TS.StripText(ev)
+  s.text:SetText(text)
+  Th.Color(s.text, token)
+end
+
+function TS.Poll(now) TS.RefreshStrip(false) end
