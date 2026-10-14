@@ -261,3 +261,13 @@ T.test("capture resolves each product so its stack size is known", function()
   WoW.fire("TRADE_SKILL_SHOW")
   T.eq(A.Items.Get(4305).st, 20, "stack size from GetItemInfo")
 end)
+
+T.test("capture works with ClassicAPI installed, taking vendor prices by item id", function()
+  WoW.classicAPI(true)
+  WoW.items[4305] = { name = "Bolt of Silk Cloth", vendor = 150, stack = 10 }
+  tailoring()
+  WoW.fire("TRADE_SKILL_SHOW")
+  T.ok(not T.calledWith("stopped after an error"), "capture did not fail")
+  T.ok(tailoringRecipes()["Bolt of Silk Cloth"], "recipes captured")
+  T.eq(A.Items.Get(4305).v, 150, "sell price from GetItemSellPriceByID")
+end)

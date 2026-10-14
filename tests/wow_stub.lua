@@ -189,7 +189,13 @@ function WoW.classicAPI(on)
   if not on then C_Item = nil return end
   C_Item = {
     RequestLoadItemDataByID = function(id) WoW.log("RequestLoadItemDataByID", id) end,
-    GetItemSellPrice = function(id) local it = WoW.items[id] return it and it.vendor end,
+    -- As documented by ClassicAPI (docs/API.md): the plain name takes an
+    -- itemLocation table and errors on an item id; the ById form takes the id.
+    GetItemSellPrice = function(loc)
+      if type(loc) ~= "table" then error("usage: C_Item.GetItemSellPrice(itemLocation)", 2) end
+      return nil
+    end,
+    GetItemSellPriceByID = function(id) local it = WoW.items[id] return it and it.vendor end,
   }
 end
 

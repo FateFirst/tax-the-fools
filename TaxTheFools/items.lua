@@ -55,8 +55,10 @@ end
 function I.Vendor(id)
   local rec = TaxTheFoolsDB.items[id]
   if rec and rec.v then return rec.v end
-  if C_Item and C_Item.GetItemSellPrice then
-    local v = C_Item.GetItemSellPrice(id)
+  -- ClassicAPI's plain GetItemSellPrice takes a bag/slot location and errors
+  -- on an id; the ById form is the one that takes an item id.
+  if C_Item and C_Item.GetItemSellPriceByID then
+    local v = C_Item.GetItemSellPriceByID(id)
     if v and v > 0 then
       I.Remember(id).v = v
       return v
