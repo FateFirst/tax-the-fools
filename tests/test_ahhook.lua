@@ -85,3 +85,29 @@ T.test("Blizzard's window gets a button back to ours", function()
   T.ok(TaxTheFoolsBackButton, "button exists")
   T.eq(AuctionFrameAuctions.page, 0, "seeded so Blizzard's owner-list handler doesn't throw")
 end)
+
+T.test("switching to Blizzard's window pauses the scan so its list can't change under you", function()
+  local old = AH.window
+  AH.window = fakeWindow()
+  open()
+  for i = 1, 120 do table.insert(WoW.ah.listings, { id = 1, name = "x", count = 1, buyout = 5 + i }) end
+  Scan.StartFull(0)
+  AH.ShowBlizzard()
+  T.eq(Scan.job, nil, "scan stopped")
+  T.ok(DB.Realm().scan.resume, "progress saved to resume")
+  AH.window = old
+end)
+
+T.test("showing ours with replacement off still hooks Blizzard's window first", function()
+  local old = AH.window
+  AH.window = fakeWindow()
+  DB.S().replaceBlizzardAH = false
+  AH.hooked = false
+  AuctionFrame:Show()
+  AH.OnShow()
+  AH.hooked = false                  -- no hook yet, as if never opened with replacement on
+  AH.ShowOurs()
+  T.ok(AH.hooked, "hooked by ShowOurs")
+  T.ok(not T.calledWith("CloseAuctionHouse"), "session still open")
+  AH.window = old
+end)

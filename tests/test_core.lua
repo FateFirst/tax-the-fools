@@ -96,13 +96,38 @@ T.test("nothing is bought, bid on, posted or cancelled without a click", functio
     WoW.runScript(TaxTheFoolsCore, "OnUpdate")
     if WoW.ah.pending then WoW.ahRespond() end
   end
-  A.Browse.Search("Rune", 0)
+  T.ok(Scan.job == nil, "full scan finished")
+  T.ok(A.Browse.Search("Rune", 0), "search ran")
   for _ = 1, 5 do
     WoW.clock = WoW.clock + 0.5
     WoW.runScript(TaxTheFoolsCore, "OnUpdate")
     if WoW.ah.pending then WoW.ahRespond() end
   end
   T.ok(T.calledWith("QueryAuctionItems"), "it did scan")
+  T.ok(not T.calledWith("PlaceAuctionBid"), "no bid or buyout")
+  T.ok(not T.calledWith("StartAuction"), "no post")
+  T.ok(not T.calledWith("CancelAuction"), "no cancel")
+end)
+
+T.test("switching to Blizzard's window mid-scan stops all queries and buys nothing", function()
+  for i = 1, 120 do table.insert(WoW.ah.listings, { id = 14047, name = "Runecloth", count = 1, buyout = 100 + i }) end
+  AuctionFrame:Show()
+  WoW.fire("AUCTION_HOUSE_SHOW")
+  A.UI.StartScan("full")
+  for _ = 1, 2 do
+    WoW.clock = WoW.clock + 0.5
+    WoW.runScript(TaxTheFoolsCore, "OnUpdate")
+    if WoW.ah.pending then WoW.ahRespond() end
+  end
+  T.ok(Scan.job ~= nil, "scan is mid-way")
+  A.AH.ShowBlizzard()
+  local sent = T.count("QueryAuctionItems")
+  for _ = 1, 40 do
+    WoW.clock = WoW.clock + 0.5
+    WoW.runScript(TaxTheFoolsCore, "OnUpdate")
+    if WoW.ah.pending then WoW.ahRespond() end
+  end
+  T.eq(T.count("QueryAuctionItems"), sent, "no further queries")
   T.ok(not T.calledWith("PlaceAuctionBid"), "no bid or buyout")
   T.ok(not T.calledWith("StartAuction"), "no post")
   T.ok(not T.calledWith("CancelAuction"), "no cancel")

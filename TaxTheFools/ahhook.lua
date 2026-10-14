@@ -49,12 +49,16 @@ function AH.Tick()
 end
 
 function AH.ShowOurs()
+  AH.Hook()
   AH.keepOpen = true
   if AuctionFrame and AuctionFrame:IsShown() then HideUIPanel(AuctionFrame) end
   if AH.window then AH.window:Show() end
 end
 
 function AH.ShowBlizzard()
+  -- Scan pages replace the list under Blizzard's Browse tab, so a click there
+  -- could land on another auction. The scan runs only behind our window.
+  TaxTheFools.Scan.Pause("switch")
   AH.switching = true
   if AH.window then AH.window:Hide() end
   AH.switching = false
