@@ -4,7 +4,7 @@ Run this after every install, on the real client. The tests prove the logic
 against a fake client; this proves the fake client was right.
 
 ## Load
-1. Log in on the bank character. Chat shows `TTF: v0.2.0 loaded`.
+1. Log in on the bank character. Chat shows `TTF: v0.3.0 loaded`.
 2. `/ttf probe`. The window opens with text selected. Press Ctrl+C and paste it
    into `tools/probe-<date>.txt` in this repo. Check:
    - every `fn` line says `yes`, except possibly `GetInboxInvoiceInfo`, `CalculateAuctionDeposit` (spec §13 Q2)
@@ -76,4 +76,25 @@ against a fake client; this proves the fake client was right.
     incomplete recipes stay at the bottom.
 34. Options > Crafting, "Dim prices older than" 1 day: material lines priced from
     scans older than a day turn grey in the detail pane.
-35. At no point above was anything crafted, bought or sold without your click.
+
+## Buying (phase 3a)
+35. Browse: search for a cheap item that has a buyout. Select its row and press **Buy**
+    (it reads `Buy <price>`). Only that listing goes, and the gold drops by its price.
+36. Select an auction with a bid and press **Bid** (it reads `Bid <amount>`). The status
+    strip says `Bid ... on ...`. Confirm the bid is not treated as a purchase.
+37. Options > Deals & buying: set "Confirm buys at or above" to 1g. Press **Buy** on an
+    item at or above 1g: the Confirm purchase window opens and nothing is bought yet.
+    **Cancel** buys nothing; **Buy** in the window buys exactly once. Set it back to 5g.
+38. Set it to 0 (never). Buy an item above 5g: no window appears. Set it back to 5g.
+39. Deals: select a deal and press **Find** (`Searching...`, then `Found on page N`).
+    The button becomes **Buy <price>**. Press it and the listing is bought.
+40. Find a deal whose listing has since sold. The status says `Gone` and the row is removed.
+41. Start a Find and close the auction window before it finishes. Reopen it and press
+    **Find** again: it searches, rather than staying stuck on `Searching...`.
+42. Select a recipe with a long name on the tradeskill window: the profit strip widens to
+    fit the text (up to 600px), and narrows again for a short one.
+43. Options > Deals & buying lists the same switches, sliders and confidence dropdown as
+    the Deals rail. Change one in each place and check the other follows.
+44. Finish a full scan, open the Deals tab and press Find on a deal. Nothing is bought
+    until you press the Buy button yourself.
+45. At no point above was anything crafted, bought or sold without your click.

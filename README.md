@@ -3,9 +3,11 @@
 Auction house price history, deal finding and crafting profit for the Ravencraft
 server (Turtle WoW 1.18.1 client, WoW 1.12, Lua 5.0).
 
-This release (0.2.0): the auction window, scanning, price history, tooltips, and
-crafting profit for every recipe your characters know. Deals with one-click buying,
-selling, and sales tracking follow (see `docs/superpowers/specs/2026-10-14-tax-the-fools-design.md`).
+This release (0.3.0): the auction window, scanning, price history, tooltips, crafting
+profit for every recipe your characters know, and buying. The **Deals** tab finds
+below-market, below-vendor and cheap-materials listings; **Browse** buys and bids on
+the selected row. Selling and the Auctions tab come next (phase 3b). See
+`docs/superpowers/specs/2026-10-14-tax-the-fools-design.md` for the overall design.
 
 ## Install
 
@@ -36,11 +38,29 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
   never guesses.
 - **Vendor and bank.** Visiting a vendor teaches the addon its buy prices (thread,
   dye); opening your bank records what is in it, so "have" counts bags and bank.
+- **Buying from Browse.** Select a row. **Buy** buys out that listing at its price;
+  **Bid** places the next bid. Each is one click. Each is disabled, with a tooltip saying
+  why, when it doesn't apply: no buyout, your own auction, can't afford, already the high
+  bidder, or the auction house is still answering the last purchase.
+- **Deals.** The Deals tab lists listings that look like a bargain, sorted by profit:
+  - *Below market*: well under the usual price (default 70% of market).
+  - *Below vendor*: under what a vendor pays for the item.
+  - *Cheap materials*: a listing whose materials cost less than a recipe you know
+    would make it worth (default 85% of the value).
+  Use the left rail to switch each type on or off, set the thresholds, the minimum profit
+  and the minimum confidence. Select a deal and press **Find**: the addon pages through
+  the auction house until it finds that listing, and the button becomes **Buy <price>**.
+  If the listing has gone, the row says `Gone` and is removed. Find is refused while a
+  full scan or watchlist scan is running: pause it first.
+- **Confirmation.** Options > Deals & buying > "Confirm buys at or above" (default 5g,
+  0 = never). A buy at or above that amount opens a Confirm purchase window; nothing is
+  bought until you press its **Buy**. Bids are never confirmed.
 - **Blizzard UI** switches to the stock window at any time; its **Tax the Fools** button
-  switches back. Buying and selling from our own window arrives in phase 3.
+  switches back.
 
 Nothing is ever bought, bid on, posted, cancelled, crafted or sold without your
-click. The only thing that runs by itself is a scan turning pages.
+click. The only thing that runs by itself is a scan turning pages. Selling and the
+Auctions tab (posting, cancelling and sales tracking) come next, in phase 3b.
 
 ## Commands
 
