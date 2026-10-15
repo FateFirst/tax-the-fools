@@ -88,7 +88,7 @@ against a fake client; this proves the fake client was right.
 38. Set it to 0 (never). Buy an item above 5g: no window appears. Set it back to 5g.
 39. Deals: select a deal and press **Find** (`Searching...`, then `Found on page N`).
     The button becomes **Buy <price>**. Press it and the listing is bought.
-40. Find a deal whose listing has since sold. The status says `Gone` and the row is removed.
+40. Find a deal whose listing has since sold. The status bar says `Gone` and the deal is removed.
 41. Start a Find and close the auction window before it finishes. Reopen it and press
     **Find** again: it searches, rather than staying stuck on `Searching...`.
 42. Select a recipe with a long name on the tradeskill window: the profit strip widens to
@@ -97,4 +97,11 @@ against a fake client; this proves the fake client was right.
     the Deals rail. Change one in each place and check the other follows.
 44. Finish a full scan, open the Deals tab and press Find on a deal. Nothing is bought
     until you press the Buy button yourself.
-45. At no point above was anything crafted, bought or sold without your click.
+45. Find a deal, then Browse-search something else and return to Deals and press **Buy**:
+    it refuses ("Listing changed. Press Find again.") and the button goes back to
+    **Find**, which works again.
+46. A sniped deal (someone else, or another character, buys it first): **Buy** reports
+    `Gone: someone else bought it.` and the deal disappears from the list.
+47. A late "Bid accepted." after the 5-second no-reply message can be credited to the
+    next action. If a message looks wrong, search again.
+48. At no point above was anything crafted, bought or sold without your click.

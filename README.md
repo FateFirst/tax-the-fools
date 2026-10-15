@@ -45,12 +45,12 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
 - **Deals.** The Deals tab lists listings that look like a bargain, sorted by profit:
   - *Below market*: well under the usual price (default 70% of market).
   - *Below vendor*: under what a vendor pays for the item.
-  - *Cheap materials*: a listing whose materials cost less than a recipe you know
-    would make it worth (default 85% of the value).
+  - *Cheap materials*: a material listed at or under 85% of market that makes one
+    of your known recipes more profitable.
   Use the left rail to switch each type on or off, set the thresholds, the minimum profit
   and the minimum confidence. Select a deal and press **Find**: the addon pages through
   the auction house until it finds that listing, and the button becomes **Buy <price>**.
-  If the listing has gone, the row says `Gone` and is removed. Find is refused while a
+  If the listing has gone, the status bar says `Gone` and the deal is removed. Find is refused while a
   full scan or watchlist scan is running: pause it first.
 - **Confirmation.** Options > Deals & buying > "Confirm buys at or above" (default 5g,
   0 = never). A buy at or above that amount opens a Confirm purchase window; nothing is
