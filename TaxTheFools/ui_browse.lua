@@ -12,7 +12,15 @@ function Browse.SetBack(to)
   Browse.back = to or false
   if Browse.frame then
     if to then Browse.frame.back:Show() else Browse.frame.back:Hide() end
+    Browse.UpdatePager()
   end
+end
+
+-- At the narrowest window the "Page x of y" text would run into "< Crafting": it waits while that shows.
+function Browse.UpdatePager()
+  local p = Browse.frame
+  if not p then return end
+  if Browse.back then p.pageText:Hide() else p.pageText:Show() end
 end
 
 function Browse.GoBack()

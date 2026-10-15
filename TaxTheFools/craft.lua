@@ -150,11 +150,13 @@ local function nameOf(ctx, key, fallback)
 end
 
 -- The reagents of the recipe that makes `key` (the cheapest known, else the first), scaled to
--- `need` units of it. need is fractional (need x count / yield); show it rounded up.
+-- `need` units of it. need is fractional: need x count / yieldMin, the whole crafts' worth at the
+-- smallest yield, so it never understates what is used. Show it rounded up.
 local function subLines(key, need, options, ctx)
   local recipe = options.recipe or ctx.recipes[key][1]
   local out = {}
-  local y = Craft.Yield(recipe)
+  local y = recipe.yieldMin or 1
+  if y <= 0 then y = 1 end
   for _, g in ipairs(recipe.reagents or {}) do
     local s = { item = g.item, name = nameOf(ctx, g.item, g.name), need = need * (g.count or 1) / y }
     if g.item then s.unit, s.source = Craft.UnitCost(g.item, ctx, 1) end
@@ -164,8 +166,10 @@ local function subLines(key, need, options, ctx)
 end
 
 -- Cost, value, profit and cash profit of one craft. Never guesses: with any
--- price missing, profit and cash are nil and missing names the items.
-function Craft.Evaluate(recipe, ctx)
+-- price missing, profit and cash are nil and missing names the items. With `detail`, a material
+-- that has recipes also gets line.options (buy against craft) and line.sub (its reagents); that is
+-- extra work, so only the detail pane of the selected recipe asks for it.
+function Craft.Evaluate(recipe, ctx, detail)
   local ev = { missing = {}, lines = {} }
   local y = Craft.Yield(recipe)
   local product = recipe.item
@@ -178,7 +182,7 @@ function Craft.Evaluate(recipe, ctx)
       line.unit, line.source, line.day = Craft.UnitCost(g.item, ctx, 0)
       local rec = record(ctx, g.item)
       if line.source == "vendor" and rec and rec.vbLimited then line.limited = true end
-      if ctx.recipes[g.item] then
+      if detail and ctx.recipes[g.item] then
         line.options = Craft.Options(g.item, ctx, 0)
         line.sub = subLines(g.item, line.need, line.options, ctx)
       end

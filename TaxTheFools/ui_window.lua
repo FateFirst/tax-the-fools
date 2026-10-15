@@ -133,7 +133,10 @@ function UI.CreateAH()
     UI.RefreshStatus()
     if not f.tabs.selected then f.tabs:Select("browse") end
   end)
-  f:SetScript("OnHide", function() AH.OnWindowHidden() end)
+  f:SetScript("OnHide", function()
+    if TaxTheFools.Browse then TaxTheFools.Browse.SetBack(false) end
+    AH.OnWindowHidden()
+  end)
   f.onResize = function()
     for _, page in pairs(UI.pages) do
       if type(page.Layout) == "function" then page:Layout() end

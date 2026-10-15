@@ -295,14 +295,22 @@ function CraftUI.Fit(p)
   end
 end
 
+-- Rows are rebuilt on every repaint, so "the same recipe" is its view and name, not the table.
 local function show(p, lines, row)
   CraftUI.Fit(p)
-  if p.detail.row ~= row then p.detail.offset = 0 end
-  p.detail.row = row or false
+  local key = row and (p.view .. "|" .. row.name) or false
+  if p.detail.row ~= key then p.detail.offset = 0 end
+  p.detail.row = key
   CraftUI.Render(p, lines)
 end
 
+-- The selected row's evaluation again, with buy-against-craft options for its materials.
+local function detailed(row)
+  if row then row.ev = Craft.Evaluate(row.recipe or row.entry, TS.Context(), true) end
+end
+
 function CraftUI.ShowDetail(p, row)
+  detailed(row)
   show(p, CraftUI.DetailLines(row, U.day(time()), DB.S().craft.staleDays), row)
 end
 
@@ -467,6 +475,7 @@ function CraftUI.UnlearnedDetail(row, today, staleDays)
 end
 
 function CraftUI.ShowUnlearnedDetail(p, row)
+  detailed(row)
   show(p, CraftUI.UnlearnedDetail(row, U.day(time()), DB.S().craft.staleDays), row)
 end
 

@@ -211,13 +211,22 @@ T.test("Evaluate attaches options and scaled sub-lines to a craftable material",
     { [4306] = { n = "Silk Cloth" }, [4305] = { n = "Bolt of Silk Cloth" } }, { B = bolt() })
   local r = { item = "9100:0", reagents = { { item = "4305:0", name = "Bolt of Silk Cloth", count = 3 },
     { item = "4306:0", name = "Silk Cloth", count = 1 } } }
-  local ev = C.Evaluate(r, ctx)
+  local ev = C.Evaluate(r, ctx, true)
   local l = ev.lines[1]
   T.eq(l.options.craft, 1200) T.eq(l.options.buy, 2000)
   T.eq(table.getn(l.sub), 1)
-  T.eq(l.sub[1].need, 12, "3 bolts x 4 silk")
+  T.eq(l.sub[1].need, 12, "3 bolts x 4 silk, yield 1")
+  T.eq(C.Evaluate(r, ctx).lines[1].options, nil, "not computed unless asked")
+  T.eq(C.Evaluate(r, ctx).lines[1].sub, nil)
   T.eq(l.sub[1].name, "Silk Cloth") T.eq(l.sub[1].unit, 300) T.eq(l.sub[1].source, "ah")
   T.eq(ev.lines[2].options, nil, "silk has no recipe")
   T.eq(ev.lines[2].sub, nil)
   T.eq(ev.cost, 3 * 1200 + 300, "costing still uses the cheaper option")
+end)
+
+T.test("sub-line counts use the smallest yield: whole crafts' worth", function()
+  local two = { item = "4305:0", yieldMin = 1, yieldMax = 2, reagents = { { item = "4306:0", count = 3 } } }
+  local ctx = ctxOf({ ["4306:0"] = { v = 300 } }, { [4306] = { n = "Silk Cloth" } }, { B = two })
+  local r = { item = "9100:0", reagents = { { item = "4305:0", name = "Bolt", count = 1 } } }
+  T.eq(C.Evaluate(r, ctx, true).lines[1].sub[1].need, 3, "one craft uses 3, not 2")
 end)

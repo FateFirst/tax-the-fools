@@ -465,3 +465,42 @@ T.test("the detail pane grows with the page and scrolls when lines overflow", fu
   T.eq(p.detail.more:IsShown(), false)
   p:Layout()
 end)
+
+T.test("the detail pane keeps its scroll across a repaint that rebuilds the rows", function()
+  seed()
+  local reagents = {}
+  for i = 1, 14 do
+    DB.Realm().market["7" .. i .. "0:0"] = { v = 100, lowDay = 20375 }
+    A.Items.Remember(7000 + i * 10, "Mat " .. i)
+    table.insert(reagents, { item = (7000 + i * 10) .. ":0", name = "Mat " .. i, count = 1 })
+  end
+  DB.Realm().chars.Tailor.professions.Tailoring.recipes["Big Thing"] = { item = "9300:0", reagents = reagents }
+  local p = open()
+  for i, r in ipairs(p.list.data) do if r.name == "Big Thing" then WoW.runScript(p.list.rows[i], "OnClick", "LeftButton") end end
+  T.eq(p.list.selected.name, "Big Thing")
+  T.ok(p.detail.slots < 15)
+  CraftUI.Scroll(p, 3)
+  T.eq(p.detail.offset, 3)
+  local old = p.list.selected
+  CraftUI.Paint(p)                              -- rebuilt row tables, same recipe
+  T.ok(p.list.selected ~= old, "a new row table")
+  T.eq(p.list.selected.name, "Big Thing")
+  T.eq(p.detail.offset, 3, "scroll kept")
+  WoW.runScript(p.list.rows[1], "OnClick", "LeftButton")
+  T.eq(p.detail.offset, 0, "another recipe starts at the top")
+end)
+
+T.test("'< Crafting' clears when the AH closes and the pager text yields to it", function()
+  seed() openAH()
+  UI.ah.tabs:Select("craft")
+  local p = UI.pages.craft
+  p.list:SetHeight(200) p.list:Paint()
+  WoW.runScript(p.list.rows[1], "OnClick", "LeftButton")
+  WoW.runScript(p.detail.btns[2], "OnClick")
+  T.ok(Browse.frame.back:IsShown())
+  T.eq(Browse.frame.pageText:IsShown(), false, "no overlap with the page text")
+  AH.switching = true UI.ah:Hide() AH.switching = false
+  T.eq(Browse.back, false)
+  T.eq(Browse.frame.back:IsShown(), false)
+  T.ok(Browse.frame.pageText:IsShown())
+end)
