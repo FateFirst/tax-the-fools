@@ -12,6 +12,7 @@ TaxTheFools.SellUI = SellUI
 
 SellUI.COLS, SellUI.ROWS, SellUI.CELL = 6, 8, 38
 SellUI.RX = 252            -- left edge of the pricing panel
+SellUI.PW = 380            -- its width at the smallest window (660 wide, less the margins and the item grid)
 
 local function money(v)
   if v and v > 0 then return U.money(v) end
@@ -578,6 +579,8 @@ function SellUI.Build(parent)
   p.floorText:SetPoint("TOPLEFT", p, "TOPLEFT", RX, -292)
   p.warnText = Th.Text(p, "body", 12, "warn")
   p.warnText:SetPoint("TOPLEFT", p, "TOPLEFT", RX, -330)
+  p.warnText:SetWidth(SellUI.PW)          -- wraps inside the pricing panel instead of running off the window
+  p.warnText:SetJustifyH("LEFT")
   p.salesText = Th.Text(p, "body", 11, "dim")
   p.salesText:SetPoint("TOPLEFT", p, "TOPLEFT", RX, -346)
   p.allowSw = W.Switch(p, "Allow below floor", function() return p.allowBelow end,

@@ -239,6 +239,16 @@ function DealsUI.Click()
   return DealsUI.Find(d)
 end
 
+-- True when a bag slot holds this key (held counts also include the bank and other characters).
+local function inBags(key)
+  for bag = 0, 4 do
+    for slot = 1, GetContainerNumSlots(bag) do
+      if U.keyFromLink(GetContainerItemLink(bag, slot)) == key then return true end
+    end
+  end
+  return false
+end
+
 -- Switches to the Sell tab and selects the item. Never a buy, a search or a post.
 function DealsUI.Sell(d)
   -- The tab strip owns the highlight and calls UI.ShowPage("sell") itself.
@@ -249,7 +259,9 @@ function DealsUI.Sell(d)
     SellUI.Refresh()
     it = SellUI.Find(d.key)
   end
-  if it then SellUI.Select(it) else SellUI.Say("Can't auction that", "warn") end
+  if it then SellUI.Select(it)
+  elseif not inBags(d.key) then SellUI.Say("Not in your bags (it's in the bank or on another character).", "warn")
+  else SellUI.Say("Can't auction that", "warn") end
   return true
 end
 

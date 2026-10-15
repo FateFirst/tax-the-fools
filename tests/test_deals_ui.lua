@@ -373,6 +373,21 @@ T.test("the Under switch and the underPct and premiumPct settings (Options page)
   DB.S().deals.premiumPct = 110
 end)
 
+T.test("Sell on an Under deal for an item that is not in the bags says where it is (M4)", function()
+  local p = underPage()
+  WoW.items[14047] = { name = "Runecloth", stack = 20, quality = 1, tex = "rune" }
+  WoW.bags[0] = { {}, {}, {} }
+  local _, ud = underRow(p)
+  p.list.selected = ud
+  A.DealsUI.UpdateBar()
+  WoW.runScript(p.findBtn, "OnClick")
+  T.eq(UI.ah.tabs.selected, "sell")
+  T.eq(A.SellUI.frame.status:GetText(), "Not in your bags (it's in the bank or on another character).")
+  T.ok(not A.SellUI.frame.sel)
+  T.eq(T.count("PlaceAuctionBid"), 0) T.eq(T.count("StartAuction"), 0)
+  UI.ah.tabs:Select("deals")
+end)
+
 T.test("Sell on an Under deal switches to the Sell tab and selects it, with no buy call", function()
   local p = underPage()
   WoW.items[14047] = { name = "Runecloth", stack = 20, quality = 1, tex = "rune" }

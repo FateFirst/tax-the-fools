@@ -121,3 +121,11 @@ T.test("hovering a Browse row puts the item tooltip at the cursor, not past the 
   T.eq(GameTooltip.owner, row)
   T.eq(GameTooltip.anchor, "ANCHOR_CURSOR")
 end)
+
+T.test("UI.Approx rounds to hours from 59.5 minutes: 3599 s is ~1h, not ~60m (M4)", function()
+  T.eq(UI.Approx(3599), "~1h")
+  T.eq(UI.Approx(3570), "~1h", "59.5 minutes")
+  T.eq(UI.Approx(3569), "~59m", "floor(3569 / 60 + 0.5) = 59")
+  T.eq(UI.Approx(2400), "~40m") T.eq(UI.Approx(3600), "~1h") T.eq(UI.Approx(32400), "~9h") T.eq(UI.Approx(172800), "~2d")
+  T.eq(UI.Approx(10), "~1m")
+end)

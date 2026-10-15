@@ -19,10 +19,10 @@ end
 
 local SEP = "  -  "
 
--- A rough span for prose: "~40m", "~9h", "~2d".
+-- A rough span for prose: "~40m", "~9h", "~2d". Hours start at 59.5 minutes, so 3599 s is "~1h", not "~60m".
 function UI.Approx(s)
   s = s or 0
-  if s < 3600 then return "~" .. math.max(1, math.floor(s / 60 + 0.5)) .. "m" end
+  if s < 3570 then return "~" .. math.max(1, math.floor(s / 60 + 0.5)) .. "m" end
   if s < 86400 then return "~" .. math.floor(s / 3600 + 0.5) .. "h" end
   return "~" .. math.floor(s / 86400 + 0.5) .. "d"
 end
