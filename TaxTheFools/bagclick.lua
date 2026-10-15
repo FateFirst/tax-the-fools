@@ -40,8 +40,7 @@ function BagClick.Handle(button, bag, slot)
   if tab == "browse" then
     local name = U.linkName(link)
     if not name then return false end
-    Browse.frame.search:SetText(name)
-    Browse.Search(name, 0)
+    Browse.Lookup(name)
   else
     local it = SellUI.Find(key)
     if not it then

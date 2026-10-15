@@ -8,8 +8,13 @@ CraftUI.EMPTY = "Open your Tailoring window once on this character to load its r
 -- The client's own recipe colours (TradeSkillTypeColor).
 CraftUI.SKILL_COLOR = { optimal = "|cffff8040", medium = "|cffffff00", easy = "|cff40bf40", trivial = "|cff808080" }
 CraftUI.SOURCE = { ah = "AH", vendor = "vendor", craft = "craft" }
-CraftUI.DETAIL_LINES = 9      -- a heading and up to eight materials, the most a 1.12 recipe has
-CraftUI.DETAIL_H = 10 + 9 * 14
+CraftUI.DETAIL_LINES = 24     -- line buttons built: the most that fit on a tall window
+CraftUI.LINE_H = 14
+CraftUI.DETAIL_H = 10 + 9 * 14  -- the least height: a heading and eight materials
+CraftUI.DETAIL_MIN = 78         -- never below four lines plus the "more" hint
+CraftUI.LIST_KEEP = 132         -- page height kept above the pane: dropdowns, header and four rows
+CraftUI.NO_AH = "Open the auction house to search"
+CraftUI.SEARCH_TIP = "Click to search the auction house"
 CraftUI.EMPTY_UNLEARNED = "No recipe list for %s yet."
 CraftUI.GET_SOURCE = { ah = "AH", vendor = "vendor", trainer = "trainer" }
 
@@ -99,14 +104,92 @@ function CraftUI.DetailLines(row, today, staleDays)
   end
   for _, l in ipairs(ev.lines) do
     local age = l.day and (today - l.day) or nil
-    local src = (l.source and CraftUI.SOURCE[l.source]) or "no price"
-    if l.limited then src = src .. ", limited stock" end
-    local unit = l.unit and (U.money(l.unit, true) .. " each") or "-"
-    local text = l.need .. " x " .. l.name .. "   have " .. l.have .. "   " .. unit .. "   " .. src
+    local text = CraftUI.MaterialText(l)
     if age then text = text .. "   " .. U.daysAgo(age) end
-    table.insert(out, { text, (age and age > staleDays) and "dim" or "text" })
+    table.insert(out, { text, (age and age > staleDays) and "dim" or "text", CraftUI.SearchName(l.name, l.item) })
+    for _, s in ipairs(l.sub or {}) do
+      local st = "      " .. math.ceil(s.need - 0.000001) .. " x " .. s.name .. "   "
+      if s.unit then
+        st = st .. U.money(s.unit, true) .. " each (" .. (CraftUI.SOURCE[s.source] or "?") .. ")"
+      else
+        st = st .. "no price"
+      end
+      table.insert(out, { st, "dim", CraftUI.SearchName(s.name, s.item) })
+    end
   end
   return out
+end
+
+-- The item name to search the auction house for, or nil when this line has no real name.
+function CraftUI.SearchName(name, item)
+  if not item or not name or string.find(name, "^Unknown item") then return nil end
+  return name
+end
+
+-- One material's text. A material that can be both bought and crafted shows both and the saving:
+-- "3 x Bolt   have 1   buy 20s (AH)  -  craft 12s  -> craft saves 8s each". Otherwise as it always was.
+function CraftUI.MaterialText(l)
+  local head = l.need .. " x " .. l.name .. "   have " .. l.have .. "   "
+  local o = l.options
+  if o and o.buy and o.craft then
+    local text = head .. "buy " .. U.money(o.buy, true) .. " (" .. (CraftUI.SOURCE[o.buySource] or "?") .. ")  -  craft "
+      .. U.money(o.craft, true)
+    if o.craft < o.buy then text = text .. "  -> craft saves " .. U.money(o.buy - o.craft, true) .. " each"
+    elseif o.buy < o.craft then text = text .. "  -> buy saves " .. U.money(o.craft - o.buy, true) .. " each" end
+    return text
+  end
+  local src = (l.source and CraftUI.SOURCE[l.source]) or "no price"
+  if l.limited then src = src .. ", limited stock" end
+  local unit = l.unit and (U.money(l.unit, true) .. " each") or "-"
+  return head .. unit .. "   " .. src
+end
+
+-- The pane's height for a page of this height: the fixed minimum or 40% of the page, whichever is
+-- larger, but leaving the list above room for four rows. 0 (not laid out yet) gives the minimum.
+function CraftUI.DetailHeight(pageH)
+  if not pageH or pageH <= 0 then return CraftUI.DETAIL_H end
+  local h = math.max(CraftUI.DETAIL_H, math.floor(pageH * 0.4))
+  local cap = pageH - CraftUI.LIST_KEEP
+  if h > cap then h = cap end
+  if h < CraftUI.DETAIL_MIN then h = CraftUI.DETAIL_MIN end
+  return h
+end
+
+local function setTip(b)
+  local ok = CraftUI.CanSearch()
+  W.Tip(b, b.search or "Search", ok and CraftUI.SEARCH_TIP or CraftUI.NO_AH)
+end
+
+local function wheel(p, dir) CraftUI.Scroll(p, dir) end
+
+-- One line button: a transparent hit area over its text, with a highlight bar behind the text.
+local function lineButton(d, p, i)
+  local y = -6 - (i - 1) * CraftUI.LINE_H
+  local hl = Th.Solid(d, "BORDER", "subtle", 0.6)
+  hl:SetPoint("TOPLEFT", d, "TOPLEFT", 4, y + 1)
+  hl:SetPoint("RIGHT", d, "RIGHT", -4, 0)
+  hl:SetHeight(CraftUI.LINE_H)
+  hl:Hide()
+  d.hl[i] = hl
+  local b = CreateFrame("Button", nil, d)
+  b:SetHeight(CraftUI.LINE_H)
+  b:SetPoint("TOPLEFT", d, "TOPLEFT", 4, y + 1)
+  b:SetPoint("RIGHT", d, "RIGHT", -4, 0)
+  b.page, b.index, b.search = p, i, false
+  b:EnableMouseWheel(true)
+  b:SetScript("OnMouseWheel", function() wheel(this.page, -arg1) end)
+  b:SetScript("OnEnter", function()
+    setTip(this)
+    d.hl[this.index]:Show()
+    W.ShowTip(this)
+  end)
+  b:SetScript("OnLeave", function()
+    d.hl[this.index]:Hide()
+    W.HideTip()
+  end)
+  b:SetScript("OnClick", function() CraftUI.Jump(this.page, this.search) end)
+  b:Hide()
+  d.btns[i] = b
 end
 
 function CraftUI.Detail(p)
@@ -116,27 +199,111 @@ function CraftUI.Detail(p)
   d:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
   local bg = Th.Solid(d, "BACKGROUND", "panel3")
   bg:SetAllPoints(d)
-  d.lines = {}
+  d.lines, d.btns, d.hl = {}, {}, {}
+  d.all, d.offset, d.slots, d.fitH = {}, 0, CraftUI.DETAIL_LINES, false
   for i = 1, CraftUI.DETAIL_LINES do
     local fs = Th.Text(d, "body", 11, "text")
-    fs:SetPoint("TOPLEFT", d, "TOPLEFT", 8, -6 - (i - 1) * 14)
+    fs:SetPoint("TOPLEFT", d, "TOPLEFT", 8, -6 - (i - 1) * CraftUI.LINE_H)
     fs:SetPoint("RIGHT", d, "RIGHT", -8, 0)
     d.lines[i] = fs
+    lineButton(d, p, i)
   end
+  d.more = Th.Text(d, "body", 10, "dim", "ARTWORK")
+  d.more:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -8, 3)
+  d.more:SetJustifyH("RIGHT")
+  d.more:Hide()
+  d:EnableMouseWheel(true)
+  d:SetScript("OnMouseWheel", function() wheel(p, -arg1) end)
   return d
 end
 
-function CraftUI.ShowDetail(p, row)
-  local lines = CraftUI.DetailLines(row, U.day(time()), DB.S().craft.staleDays)
-  for i, fs in ipairs(p.detail.lines) do
-    local l = lines[i]
+-- True when a click on a material can search: our auction window is open.
+function CraftUI.CanSearch()
+  local f = UI.ah
+  return (f and f:IsVisible()) and true or false
+end
+
+-- A material line was clicked. From the AH's own Crafting tab the Browse tab gets a "< Crafting"
+-- button to come back; the standalone window has no AH to search without it open. Only ever searches.
+function CraftUI.Jump(p, name)
+  if not name then return false end
+  if not CraftUI.CanSearch() then
+    U.msg(CraftUI.NO_AH)
+    return false
+  end
+  return TaxTheFools.Browse.SearchFor(name, (UI.pages.craft == p) and "craft" or false)
+end
+
+-- Draw `lines` ({ text, token, searchName }) from the scroll offset. The "more" hint shows the
+-- visible range when they overflow; a line with a search name gets its click button.
+function CraftUI.Render(p, lines)
+  local d = p.detail
+  d.all = lines
+  local n = table.getn(lines)
+  local avail = math.floor((d:GetHeight() - 10) / CraftUI.LINE_H)
+  local slots = avail
+  if n > avail then slots = math.floor((d:GetHeight() - 22) / CraftUI.LINE_H) end
+  if slots > CraftUI.DETAIL_LINES then slots = CraftUI.DETAIL_LINES end
+  if slots < 1 then slots = 1 end
+  d.slots = slots
+  local maxOff = math.max(0, n - slots)
+  if d.offset > maxOff then d.offset = maxOff end
+  if d.offset < 0 then d.offset = 0 end
+  for i = 1, CraftUI.DETAIL_LINES do
+    local l = (i <= slots) and lines[d.offset + i] or nil
+    local fs, b = d.lines[i], d.btns[i]
     if l then
       fs:SetText(l[1])
       Th.Color(fs, l[2])
     else
       fs:SetText("")
     end
+    if l and l[3] then
+      b.search = l[3]
+      setTip(b)
+      b:Show()
+    else
+      b.search = false
+      b:Hide()
+      d.hl[i]:Hide()
+    end
   end
+  if n > slots then
+    d.more:SetText((d.offset + 1) .. "-" .. math.min(n, d.offset + slots) .. " of " .. n .. "  (scroll for more)")
+    d.more:Show()
+  else
+    d.more:Hide()
+  end
+end
+
+function CraftUI.Scroll(p, delta)
+  p.detail.offset = p.detail.offset + delta
+  CraftUI.Render(p, p.detail.all)
+end
+
+-- Sizes the pane for the page it sits in and gives the list the rest.
+function CraftUI.Fit(p)
+  local h = CraftUI.DetailHeight(p:GetHeight())
+  local d = p.detail
+  if d.fitH == h then return end
+  d.fitH = h
+  d:SetHeight(h)
+  for _, l in ipairs({ p.list, p.ulist }) do
+    l:ClearAllPoints()
+    l:SetPoint("TOPLEFT", p.charDD, "BOTTOMLEFT", 0, -8)
+    l:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, h + 6)
+  end
+end
+
+local function show(p, lines, row)
+  CraftUI.Fit(p)
+  if p.detail.row ~= row then p.detail.offset = 0 end
+  p.detail.row = row or false
+  CraftUI.Render(p, lines)
+end
+
+function CraftUI.ShowDetail(p, row)
+  show(p, CraftUI.DetailLines(row, U.day(time()), DB.S().craft.staleDays), row)
 end
 
 -- ---------- the "Not learned" view ----------
@@ -280,7 +447,7 @@ function CraftUI.UnlearnedDetail(row, today, staleDays)
   local out = { { row.name .. ": " .. head, token } }
   local mats = CraftUI.DetailLines(row, today, staleDays)
   table.remove(mats, 1)
-  if table.getn(mats) <= CraftUI.DETAIL_LINES - 2 then
+  do
     local e = row.entry
     local text = "Source: " .. ((e.src and table.getn(e.src) > 0) and table.concat(e.src, ", ") or "unknown")
     if e.pats and table.getn(e.pats) > 0 then
@@ -294,22 +461,13 @@ function CraftUI.UnlearnedDetail(row, today, staleDays)
     table.insert(out, { text, "dim" })
   end
   for _, l in ipairs(mats) do
-    if table.getn(out) < CraftUI.DETAIL_LINES then table.insert(out, l) end
+    table.insert(out, l)
   end
   return out
 end
 
 function CraftUI.ShowUnlearnedDetail(p, row)
-  local lines = CraftUI.UnlearnedDetail(row, U.day(time()), DB.S().craft.staleDays)
-  for i, fs in ipairs(p.detail.lines) do
-    local l = lines[i]
-    if l then
-      fs:SetText(l[1])
-      Th.Color(fs, l[2])
-    else
-      fs:SetText("")
-    end
-  end
+  show(p, CraftUI.UnlearnedDetail(row, U.day(time()), DB.S().craft.staleDays), row)
 end
 
 function CraftUI.SetView(p, view)
@@ -400,7 +558,12 @@ function CraftUI.Build(parent)
   p.empty:SetText(CraftUI.EMPTY)
   p.empty:Hide()
   p.Refresh = function(self) CraftUI.Paint(self) end
-  p.Layout = function(self) self.list:Paint() self.ulist:Paint() end
+  p.Layout = function(self)
+    CraftUI.Fit(self)
+    CraftUI.Render(self, self.detail.all)
+    self.list:Paint()
+    self.ulist:Paint()
+  end
   table.insert(CraftUI.pages, p)
   return p
 end

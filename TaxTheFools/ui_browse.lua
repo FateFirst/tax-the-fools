@@ -2,10 +2,46 @@ TaxTheFools = TaxTheFools or {}
 local U, Th, W, L, DB, Scan, UI = TaxTheFools.Util, TaxTheFools.Theme, TaxTheFools.Widgets, TaxTheFools.List,
   TaxTheFools.DB, TaxTheFools.Scan, TaxTheFools.UI
 local Auction = TaxTheFools.Auction
-local Browse = { query = "", page = 0, frame = nil }
+local Browse = { query = "", page = 0, frame = nil, back = false }
 TaxTheFools.Browse = Browse
 
-function Browse.ResetState() Browse.query, Browse.page = "", 0 end
+function Browse.ResetState() Browse.query, Browse.page, Browse.back = "", 0, false end
+
+-- The "< Crafting" button: shown after a jump from another tab, until used or a different search is made.
+function Browse.SetBack(to)
+  Browse.back = to or false
+  if Browse.frame then
+    if to then Browse.frame.back:Show() else Browse.frame.back:Hide() end
+  end
+end
+
+function Browse.GoBack()
+  local to = Browse.back
+  Browse.SetBack(false)
+  if to == "craft" and UI.ah then UI.ah.tabs:Select("craft") end
+end
+
+-- A search the user asked for by typing: it ends any way back.
+function Browse.Manual(text)
+  Browse.SetBack(false)
+  return Browse.Search(text, 0)
+end
+
+-- Put a name in the box and search for it (bag right-click, material click).
+function Browse.Lookup(name)
+  Browse.SetBack(false)
+  Browse.frame.search:SetText(name)
+  return Browse.Search(name, 0)
+end
+
+-- Jump to the Browse tab and look an item up. `back` names the tab a "< ..." button returns to.
+function Browse.SearchFor(name, back)
+  if not UI.ah then return false end
+  UI.ah.tabs:Select("browse")
+  local ok = Browse.Lookup(name)
+  Browse.SetBack(back)
+  return ok
+end
 
 -- Cheap against market reads green, dear reads red.
 function Browse.PctToken(p)
@@ -46,13 +82,17 @@ end
 
 function Browse.Build(parent)
   local p = CreateFrame("Frame", nil, parent)
-  p.search = W.EditBox(p, 220, function(text) Browse.Search(text, 0) end)
+  p.search = W.EditBox(p, 220, function(text) Browse.Manual(text) end)
   p.search:SetPoint("TOPLEFT", p, "TOPLEFT", 0, 0)
-  p.go = W.Button(p, "Search", 80, 22, function() Browse.Search(p.search:GetText(), 0) end, "accent")
+  p.go = W.Button(p, "Search", 80, 22, function() Browse.Manual(p.search:GetText()) end, "accent")
   p.go:SetPoint("LEFT", p.search, "RIGHT", 6, 0)
   p.watchBtn = W.Button(p, "Watch", 90, 22, function() Browse.ToggleWatch() end)
   p.watchBtn:SetPoint("LEFT", p.go, "RIGHT", 6, 0)
   W.Tip(p.watchBtn, "Watchlist", "Watched items are priced by the quick Watchlist scan.")
+  p.back = W.Button(p, "< Crafting", 100, 22, function() Browse.GoBack() end)
+  p.back:SetPoint("LEFT", p.watchBtn, "RIGHT", 6, 0)
+  W.Tip(p.back, "Back to Crafting", "Return to the recipe you came from.")
+  p.back:Hide()
   p.next = W.IconButton(p, "icon-arrow-right", 22, function() Browse.Search(Browse.query, Browse.page + 1) end)
   p.next:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
   p.prev = W.IconButton(p, "icon-arrow-left", 22, function() Browse.Search(Browse.query, Browse.page - 1) end)

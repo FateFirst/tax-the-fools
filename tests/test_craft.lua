@@ -167,3 +167,57 @@ T.test("recipes from every character are indexed by product", function()
   for _ in pairs(by) do n = n + 1 end
   T.eq(n, 1, "a recipe with no product link is left out")
 end)
+
+-- ---------- Craft.Options and the sub-lines ----------
+
+T.test("Options: buy only, craft only", function()
+  local ctx = ctxOf({ ["4305:0"] = { v = 2000, lowDay = 20370 } }, {}, {})
+  local o = C.Options("4305:0", ctx)
+  T.eq(o.buy, 2000) T.eq(o.buySource, "ah") T.eq(o.buyDay, 20370)
+  T.eq(o.craft, nil) T.eq(o.recipe, nil)
+  ctx = ctxOf({ ["4306:0"] = { v = 300, lowDay = 20374 } }, {}, { B = bolt() })
+  o = C.Options("4305:0", ctx)
+  T.eq(o.buy, nil) T.eq(o.buySource, nil)
+  T.eq(o.craft, 1200) T.eq(o.craftDay, 20374)
+  T.eq(o.recipe, ctx.recipes["4305:0"][1])
+end)
+
+T.test("Options: both known, craft cheaper and buy cheaper", function()
+  local ctx = ctxOf({ ["4306:0"] = { v = 300 }, ["4305:0"] = { v = 2000 } }, {}, { B = bolt() })
+  local o = C.Options("4305:0", ctx)
+  T.eq(o.buy, 2000) T.eq(o.craft, 1200)
+  ctx = ctxOf({ ["4306:0"] = { v = 300 }, ["4305:0"] = { v = 1000 } }, {}, { B = bolt() })
+  o = C.Options("4305:0", ctx)
+  T.eq(o.buy, 1000, "buy is reported even when crafting costs more") T.eq(o.craft, 1200)
+  T.eq(C.UnitCost("4305:0", ctx, 0), 1000, "costing is unchanged")
+end)
+
+T.test("Options: the cheapest of several recipes; a cycle does not loop", function()
+  local dear = { item = "4305:0", yieldMin = 1, yieldMax = 1, reagents = { { item = "4306:0", count = 9 } } }
+  local ctx = ctxOf({ ["4306:0"] = { v = 300 } }, {}, { A = dear, B = bolt() })
+  local o = C.Options("4305:0", ctx)
+  T.eq(o.craft, 1200)
+  T.eq(o.recipe.reagents[1].count, 4)
+  local cyc = ctxOf({ ["9102:0"] = { v = 30 } }, {}, { A = link("9102:0", "9101:0", 2), B = link("9101:0", "9102:0", 1) })
+  o = C.Options("9101:0", cyc)
+  T.eq(o.craft, 60) T.eq(o.buy, nil)
+  cyc.busy["9101:0"] = true
+  o = C.Options("9101:0", cyc)
+  T.eq(o.craft, nil, "a busy item is not crafted again")
+end)
+
+T.test("Evaluate attaches options and scaled sub-lines to a craftable material", function()
+  local ctx = ctxOf({ ["4306:0"] = { v = 300 }, ["4305:0"] = { v = 2000 }, ["9100:0"] = { v = 9000 } },
+    { [4306] = { n = "Silk Cloth" }, [4305] = { n = "Bolt of Silk Cloth" } }, { B = bolt() })
+  local r = { item = "9100:0", reagents = { { item = "4305:0", name = "Bolt of Silk Cloth", count = 3 },
+    { item = "4306:0", name = "Silk Cloth", count = 1 } } }
+  local ev = C.Evaluate(r, ctx)
+  local l = ev.lines[1]
+  T.eq(l.options.craft, 1200) T.eq(l.options.buy, 2000)
+  T.eq(table.getn(l.sub), 1)
+  T.eq(l.sub[1].need, 12, "3 bolts x 4 silk")
+  T.eq(l.sub[1].name, "Silk Cloth") T.eq(l.sub[1].unit, 300) T.eq(l.sub[1].source, "ah")
+  T.eq(ev.lines[2].options, nil, "silk has no recipe")
+  T.eq(ev.lines[2].sub, nil)
+  T.eq(ev.cost, 3 * 1200 + 300, "costing still uses the cheaper option")
+end)

@@ -116,12 +116,51 @@ function Craft.UnitCost(key, ctx, depth)
   return cost, source, day
 end
 
+-- Buy against craft for one material, for the detail pane. Costing never reads this: UnitCost
+-- already takes the cheaper. { buy, buySource, buyDay } is the AH or vendor price; { craft,
+-- craftDay, recipe } the cheapest per-unit cost over its known recipes and the recipe giving it.
+-- Fields are nil when unknown. A busy item (a cycle) or one at the depth limit only has a buy side.
+function Craft.Options(key, ctx, depth)
+  depth = depth or 0
+  local o = {}
+  local ov = ctx.override and ctx.override[key]
+  if ov then
+    o.buy, o.buySource = ov, "ah"
+    return o
+  end
+  o.buy, o.buySource, o.buyDay = Craft.BuyPrice(key, ctx)
+  local recipes = ctx.recipes[key]
+  if recipes and depth < D.CRAFT_DEPTH and not ctx.busy[key] then
+    ctx.busy[key] = true
+    for _, r in ipairs(recipes) do
+      local c, d = perUnit(r, ctx, depth)
+      if c and (not o.craft or c < o.craft) then o.craft, o.craftDay, o.recipe = c, d, r end
+    end
+    ctx.busy[key] = nil
+  end
+  return o
+end
+
 local function nameOf(ctx, key, fallback)
   local rec = key and record(ctx, key)
   if rec and rec.n then return rec.n end
   if fallback then return fallback end
   if key then return "Unknown item #" .. tostring(U.keyId(key)) end
   return "Unknown item"
+end
+
+-- The reagents of the recipe that makes `key` (the cheapest known, else the first), scaled to
+-- `need` units of it. need is fractional (need x count / yield); show it rounded up.
+local function subLines(key, need, options, ctx)
+  local recipe = options.recipe or ctx.recipes[key][1]
+  local out = {}
+  local y = Craft.Yield(recipe)
+  for _, g in ipairs(recipe.reagents or {}) do
+    local s = { item = g.item, name = nameOf(ctx, g.item, g.name), need = need * (g.count or 1) / y }
+    if g.item then s.unit, s.source = Craft.UnitCost(g.item, ctx, 1) end
+    table.insert(out, s)
+  end
+  return out
 end
 
 -- Cost, value, profit and cash profit of one craft. Never guesses: with any
@@ -139,6 +178,10 @@ function Craft.Evaluate(recipe, ctx)
       line.unit, line.source, line.day = Craft.UnitCost(g.item, ctx, 0)
       local rec = record(ctx, g.item)
       if line.source == "vendor" and rec and rec.vbLimited then line.limited = true end
+      if ctx.recipes[g.item] then
+        line.options = Craft.Options(g.item, ctx, 0)
+        line.sub = subLines(g.item, line.need, line.options, ctx)
+      end
     end
     if line.unit then
       cost = cost + line.unit * line.need

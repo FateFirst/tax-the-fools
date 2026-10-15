@@ -249,3 +249,18 @@ The trainer and vendor windows are only read. Nothing is bought from them; buy a
 102. **Minimap mail icon.** With new mail waiting, the minimap shows the mail icon. Collect all, then close
     the mailbox. The icon goes once nothing unread is left (a COD or GM mail, or one left for later, still
     counts as unread). It may take until the next mailbox visit or relog to update: the server decides.
+103. **Click a material.** In the AH window's Crafting tab, select a recipe and click a material line
+    (and an indented sub-line). The line highlights and its tooltip says "Click to search the auction
+    house". The click switches to Browse with the item name in the box and searches. Nothing is bought.
+    In the standalone Crafting window with the AH closed, clicking says "Open the auction house to
+    search" and does nothing else. Try it on the Not learned view too, and during a running scan (Browse
+    says a scan is using the auction house).
+104. **Buy or craft line.** Pick a recipe with a craftable material (for example Silk Headband with Bolt of
+    Silk Cloth). The line reads "buy X (AH)  -  craft Y  -> craft saves Z each" (or "buy saves"), with
+    the material's own reagents indented below. A material with only one known price shows as before.
+105. **Back to the recipe.** After a jump, Browse shows a "< Crafting" button beside Watch. Click it: the
+    Crafting tab returns with the same recipe selected. The button is gone afterwards, and also after you
+    type a different search and press Enter or Search.
+106. **Roomy, scrolling pane.** Make the AH window taller: the detail pane grows (about 40% of the
+    page). At the smallest size the recipe list still shows about four rows. With a recipe that has
+    more lines than fit, the mouse wheel over the pane scrolls it and a "n-m of N" hint shows.

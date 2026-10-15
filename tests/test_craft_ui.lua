@@ -27,7 +27,7 @@ end
 local function open()
   local f = CraftUI.Window()
   f:Hide()
-  f.page.char, f.page.prof = false, false
+  f.page.char, f.page.prof, f.page.view = false, false, "learned"
   f.page.list:SetHeight(200)
   f:Show()
   return f.page
@@ -97,8 +97,10 @@ T.test("materials show which source won: crafted, vendor, or nothing", function(
   local p = open()
   WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")    -- Silk Headband
   local d = p.detail.lines
-  T.eq(d[2]:GetText(), "3 x Bolt of Silk Cloth   have 0   12s each   craft   9d ago", "4 x 300 = 1200 < 2000")
-  T.eq(d[3]:GetText(), "1 x Fine Thread   have 0   1s each   vendor")
+  T.eq(d[2]:GetText(), "3 x Bolt of Silk Cloth   have 0   buy 20s (AH)  -  craft 12s  -> craft saves 8s each   9d ago",
+    "4 x 300 = 1200 < 2000")
+  T.eq(d[3]:GetText(), "      12 x Silk Cloth   3s each (AH)")
+  T.eq(d[4]:GetText(), "1 x Fine Thread   have 0   1s each   vendor")
   WoW.runScript(p.list.rows[3], "OnClick", "LeftButton")    -- Spider Silk Robe
   T.eq(d[1]:GetText(), "Spider Silk Robe: incomplete: Spider's Silk")
   T.eq(d[2]:GetText(), "1 x Spider's Silk   have 0   -   no price")
@@ -281,4 +283,185 @@ T.test("Not learned: a recipe with a missing price shows '-' payback, not never"
     T.eq(p.ulist.data[cape].payback, nil)
     T.eq(p.ulist.rows[cape].cells[5]:GetText(), "-")
   end)
+end)
+
+-- ---------- navigation: clickable materials, buy vs craft, round trip, scrolling ----------
+
+local Browse, Scan = A.Browse, A.Scan
+
+local function openAH()
+  UI.CreateAH()
+  AH.switching = true UI.ah:Hide() AH.switching = false
+  AH.open = true
+  AH.ShowOurs()
+  if UI.pages.craft then UI.pages.craft.char, UI.pages.craft.prof, UI.pages.craft.view = false, false, "learned" end
+end
+
+local function queries()
+  WoW.clock = WoW.clock + 1
+  Scan.Tick(WoW.clock)
+  return T.count("QueryAuctionItems")
+end
+
+local function noBuying()
+  T.eq(T.count("PlaceAuctionBid"), 0) T.eq(T.count("StartAuction"), 0) T.eq(T.count("CancelAuction"), 0)
+end
+
+T.test("a craftable material shows buy, craft and the saving, with indented sub-lines", function()
+  seed()
+  local p = open()
+  WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")    -- Silk Headband
+  local lines = CraftUI.DetailLines(p.list.selected, 20375, 7)
+  T.eq(lines[2][1], "3 x Bolt of Silk Cloth   have 0   buy 20s (AH)  -  craft 12s  -> craft saves 8s each   9d ago")
+  T.eq(lines[2][3], "Bolt of Silk Cloth")
+  T.eq(lines[3][1], "      12 x Silk Cloth   3s each (AH)")
+  T.eq(lines[3][3], "Silk Cloth")
+  T.eq(lines[4][1], "1 x Fine Thread   have 0   1s each   vendor", "no recipe: as before")
+  -- buying wins when the bolt is cheap
+  DB.Realm().market["4305:0"] = { v = 1000, lowDay = 20375 }
+  CraftUI.Paint(p)
+  T.eq(p.list.selected.name, "Silk Headband")
+  lines = CraftUI.DetailLines(p.list.selected, 20375, 7)
+  T.ok(string.find(lines[2][1], "buy 10s (AH)  -  craft 12s  -> buy saves 2s each", 1, true), lines[2][1])
+  T.ok(not string.find(lines[2][1], "UTF"), "ascii only")
+end)
+
+T.test("clicking a material in the AH Crafting tab searches Browse and buys nothing", function()
+  seed() openAH()
+  UI.ah.tabs:Select("craft")
+  local p = UI.pages.craft
+  p.list:SetHeight(200)
+  p.list:Paint()
+  WoW.runScript(p.list.rows[1], "OnClick", "LeftButton")    -- Bolt of Silk Cloth
+  local b = p.detail.btns[2]                                 -- 4 x Silk Cloth
+  T.ok(b:IsShown(), "material lines are buttons")
+  T.eq(b.tip.body, "Click to search the auction house")
+  WoW.runScript(b, "OnClick")
+  T.ok(UI.pages.browse:IsShown(), "switched to Browse")
+  T.eq(UI.ah.tabs.selected, "browse")
+  T.eq(Browse.frame.search:GetText(), "Silk Cloth")
+  T.eq(Browse.query, "Silk Cloth")
+  T.eq(queries(), 1)
+  T.ok(T.calledWith("QueryAuctionItems [Silk Cloth]"))
+  T.ok(not p.detail.btns[1]:IsShown(), "the heading is not a button")
+  noBuying()
+end)
+
+T.test("a sub-line is clickable too", function()
+  seed() openAH()
+  UI.ah.tabs:Select("craft")
+  local p = UI.pages.craft
+  p.list:SetHeight(200) p.list:Paint()
+  WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")    -- Silk Headband
+  WoW.runScript(p.detail.btns[3], "OnClick")                 -- 12 x Silk Cloth
+  T.eq(Browse.frame.search:GetText(), "Silk Cloth")
+  T.eq(queries(), 1)
+end)
+
+T.test("from the standalone window without the AH, a click only says to open it", function()
+  seed()
+  UI.CreateAH()
+  AH.switching = true UI.ah:Hide() AH.switching = false
+  AH.open = false
+  local p = open()
+  WoW.runScript(p.list.rows[1], "OnClick", "LeftButton")
+  local before = T.count("CHAT")
+  WoW.runScript(p.detail.btns[2], "OnClick")
+  T.eq(T.count("CHAT"), before + 1)
+  T.ok(T.calledWith("Open the auction house to search"))
+  T.eq(queries(), 0)
+  T.eq(p.detail.btns[2].tip.body, "Open the auction house to search")
+  noBuying()
+end)
+
+T.test("a search refused while a scan runs shows Browse's usual message", function()
+  seed() openAH()
+  UI.ah.tabs:Select("craft")
+  local p = UI.pages.craft
+  p.list:SetHeight(200) p.list:Paint()
+  WoW.runScript(p.list.rows[1], "OnClick", "LeftButton")
+  Scan.StartFull(GetTime())
+  WoW.runScript(p.detail.btns[2], "OnClick")
+  T.ok(T.calledWith("A scan is using the auction house. Pause it to search."))
+  noBuying()
+  Scan.Discard()
+end)
+
+T.test("'< Crafting' returns to the same recipe and hides after use or a manual search", function()
+  seed() openAH()
+  UI.ah.tabs:Select("craft")
+  local p = UI.pages.craft
+  p.list:SetHeight(200) p.list:Paint()
+  WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")    -- Silk Headband
+  Browse.SetBack(false)
+  T.eq(Browse.frame.back:IsShown(), false, "not before a jump")
+  WoW.runScript(p.detail.btns[2], "OnClick")
+  T.ok(Browse.frame.back:IsShown())
+  WoW.runScript(Browse.frame.back, "OnClick")
+  T.eq(UI.ah.tabs.selected, "craft")
+  T.ok(p:IsShown())
+  T.eq(p.list.selected.name, "Silk Headband")
+  T.ok(string.find(p.detail.lines[1]:GetText(), "Silk Headband", 1, true))
+  T.eq(Browse.frame.back:IsShown(), false, "used")
+  -- jump again, then search by hand
+  WoW.runScript(p.detail.btns[2], "OnClick")
+  T.ok(Browse.frame.back:IsShown())
+  Browse.frame.search:SetText("Linen")
+  WoW.runScript(Browse.frame.go, "OnClick")
+  T.eq(Browse.frame.back:IsShown(), false, "a different search hides it")
+  WoW.runScript(p.detail.btns[2], "OnClick")
+  Browse.frame.search:SetText("Wool")
+  WoW.runScript(Browse.frame.search, "OnEnterPressed")
+  T.eq(Browse.frame.back:IsShown(), false, "Enter too")
+  noBuying()
+end)
+
+T.test("Not learned material lines are clickable as well", function()
+  withData(function()
+    seed() openAH()
+    UI.ah.tabs:Select("craft")
+    local p = UI.pages.craft
+    DB.Realm().chars.Tailor.professions.Tailoring.rank = 140
+    A.Items.Remember(7000, "Pattern: Silk Cape").vb = 4000
+    p.ulist:SetHeight(200)
+    p.view, p.soon = "unlearned", true
+    CraftUI.Paint(p)
+    WoW.runScript(p.ulist.rows[1], "OnClick", "LeftButton")    -- Silk Cape
+    local found
+    for i, l in ipairs(p.detail.lines) do
+      if string.find(l:GetText(), "x Silk Cloth", 1, true) then found = p.detail.btns[i] end
+    end
+    T.ok(found and found:IsShown())
+    WoW.runScript(found, "OnClick")
+    T.eq(Browse.frame.search:GetText(), "Silk Cloth")
+    T.ok(Browse.frame.back:IsShown())
+    noBuying()
+  end)
+end)
+
+T.test("the detail pane grows with the page and scrolls when lines overflow", function()
+  seed()
+  T.eq(CraftUI.DetailHeight(0), CraftUI.DETAIL_H, "no layout yet")
+  T.eq(CraftUI.DetailHeight(300), CraftUI.DETAIL_H, "40% of 300 is less than the fixed height")
+  T.eq(CraftUI.DetailHeight(600), 240)
+  T.ok(CraftUI.DetailHeight(250) <= 250 - 132, "the list keeps about four rows")
+  local p = open()
+  p.detail.offset = 0
+  local many = {}
+  for i = 1, 20 do table.insert(many, { "line " .. i, "text", i > 1 and ("item " .. i) or nil }) end
+  CraftUI.Render(p, many)
+  local slots = p.detail.slots
+  T.ok(slots >= 4 and slots < 20)
+  T.eq(p.detail.lines[1]:GetText(), "line 1")
+  T.ok(p.detail.more:IsShown(), "a hint says there is more")
+  WoW.runScript(p.detail, "OnMouseWheel", -1)
+  T.eq(p.detail.lines[1]:GetText(), "line 2", "wheel down scrolls one line")
+  T.eq(p.detail.btns[1]:IsShown(), true)
+  for i = 1, 40 do WoW.runScript(p.detail, "OnMouseWheel", -1) end
+  T.eq(p.detail.lines[slots]:GetText(), "line 20", "stops at the end")
+  for i = 1, 40 do WoW.runScript(p.detail, "OnMouseWheel", 1) end
+  T.eq(p.detail.lines[1]:GetText(), "line 1")
+  CraftUI.Render(p, { { "only", "text" } })
+  T.eq(p.detail.more:IsShown(), false)
+  p:Layout()
 end)
