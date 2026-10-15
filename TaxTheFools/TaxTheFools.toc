@@ -17,6 +17,7 @@ recipes_learn.lua
 deals.lua
 sell.lua
 sales.lua
+ledger.lua
 mail.lua
 mailrules.lua
 mailbox.lua

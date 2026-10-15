@@ -46,6 +46,8 @@ D.DEFAULTS = {
     sell = { bidPct = 90, floorPct = 80, undercut = 1, duration = 480 },
     bagClick = true,                       -- right-click a bag item at the AH: search (Browse) or select (Sell)
     sales = { days = 30, warnPct = 120, tooltip = true },
+    ledger = { vendor = true },
+    trend = { tooltip = true },
     recipes = { tooltip = true, skillAhead = 25 },
     mail = { bankAlt = nil, rules = { crafted = true, tradeGoods = true, patterns = true, auctionable = false }, keep = {} },
   },
