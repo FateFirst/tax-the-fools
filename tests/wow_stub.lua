@@ -214,7 +214,8 @@ function WoW.reset()
   WoW.bankOpen = false
   WoW.tradeskill = { name = "Tailoring", rank = 0, maxRank = 0, selected = 0, rows = {} }
   WoW.rejectFonts = false
-  WoW.ah = { listings = {}, canQuery = true, pending = false, current = {}, total = 0, lastPage = false, duplicateNext = 0 }
+  WoW.ah = { listings = {}, canQuery = true, pending = false, current = {}, total = 0, lastPage = false, duplicateNext = 0,
+             bids = {}, bidReply = "auto" }
   WoW.classicAPI(false)
   if AuctionFrame then AuctionFrame.shown = false end
   if TradeSkillFrame then TradeSkillFrame.shown = false end
@@ -276,8 +277,14 @@ function GetAuctionItemInfo(kind, i)
   -- An item the client has not cached yet comes back without a name at first.
   local name = l.name
   if l.noName then name = nil end
+  -- 1.12 order: name, texture, count, quality, canUse, level, minBid, minIncrement, buyoutPrice,
+  -- bidAmount, highBidder, owner. The in-game probe (docs/ttf-probe-after-scan.txt) reads
+  -- "Amber Topaz, ..., 1, 2, 1, 1, 100, 0, 130, 0, nil, Tlaloc": highBidder is 1 when you hold
+  -- the high bid, else nil.
+  local high = nil
+  if l.highBidder then high = 1 end
   return name, l.tex or "Interface\\Icons\\INV_Fabric_Linen_01", l.count or 1, l.quality or 1, 1, l.level or 1,
-    l.minBid or 1, l.minInc or 0, l.buyout or 0, l.bid or 0, nil, l.owner
+    l.minBid or 1, l.minInc or 0, l.buyout or 0, l.bid or 0, high, l.owner
 end
 function GetAuctionItemLink(kind, i)
   local l = WoW.ah.current[i]
@@ -288,7 +295,59 @@ function GetAuctionItemTimeLeft(kind, i) if WoW.ah.current[i] then return 3 end 
 function CloseAuctionHouse() WoW.log("CloseAuctionHouse") end
 -- The calls that spend or list gold. Logged so a test can prove nothing ever
 -- makes them without a click.
-function PlaceAuctionBid(kind, i, amount) WoW.log("PlaceAuctionBid", kind, i, amount) end
+--
+-- PlaceAuctionBid(type, index, amount), as Blizzard's 1.12 AuctionUI calls it:
+-- PlaceAuctionBid("list", GetSelectedAuctionItem("list"), price). A bid at or
+-- above the buyout is a buyout (notes-aegis-exchange.md section 5). The real
+-- client throws a usage error on a wrong argument type, so this one does too.
+-- The server answers later; WoW.bidRespond() delivers that answer:
+--   * success: the money leaves at once (a bid is held in escrow), PLAYER_MONEY
+--     fires, then CHAT_MSG_SYSTEM with ERR_AUCTION_BID_PLACED, which aux waits
+--     for (notes-aux.md section 4). A buyout leaves the server's listings; the
+--     page the client shows keeps it until the next query, so indices only shift
+--     after a search.
+--   * failure: UI_ERROR_MESSAGE with the ERR_* text (UIErrorsFrame's event).
+-- WoW.ah.bidReply picks the answer: "auto" (decided as the server would),
+-- "money" or "notfound" (that error whatever happens), "none" (no reply ever).
+function PlaceAuctionBid(kind, i, amount)
+  if type(kind) ~= "string" or type(i) ~= "number" or type(amount) ~= "number" then
+    error("Usage: PlaceAuctionBid(\"type\", index, bid)", 2)
+  end
+  WoW.log("PlaceAuctionBid", kind, i, amount)
+  WoW.ah.bids = WoW.ah.bids or {}
+  table.insert(WoW.ah.bids, { index = i, amount = amount, listing = WoW.ah.current[i] })
+end
+function WoW.bidRespond()
+  local b = table.remove(WoW.ah.bids or {}, 1)
+  if not b then error("no outstanding bid") end
+  local reply = WoW.ah.bidReply
+  if reply == "none" then return end
+  local function fail(msg) WoW.fire("UI_ERROR_MESSAGE", msg) end
+  if reply == "money" then return fail(ERR_NOT_ENOUGH_MONEY) end
+  if reply == "notfound" then return fail(ERR_ITEM_NOT_FOUND) end
+  local l, at = b.listing, nil
+  for n, x in ipairs(WoW.ah.listings) do
+    if x == l then at = n end
+  end
+  if not at then return fail(ERR_ITEM_NOT_FOUND) end
+  if l.owner == WoW.player then return fail(ERR_AUCTION_BID_OWN) end
+  local buyout = l.buyout or 0
+  local isBuyout = buyout > 0 and b.amount >= buyout
+  local cost = b.amount
+  if isBuyout then cost = buyout end
+  if cost > WoW.money then return fail(ERR_NOT_ENOUGH_MONEY) end
+  if isBuyout then
+    table.remove(WoW.ah.listings, at)
+  else
+    local need = l.minBid or 1
+    if (l.bid or 0) > 0 then need = l.bid + (l.minInc or 0) end
+    if b.amount < need then return fail(ERR_AUCTION_HIGHER_BID) end
+    l.bid, l.highBidder = b.amount, true
+  end
+  WoW.money = WoW.money - cost
+  WoW.fire("PLAYER_MONEY")
+  WoW.fire("CHAT_MSG_SYSTEM", ERR_AUCTION_BID_PLACED)
+end
 function StartAuction(bid, buyout, minutes) WoW.log("StartAuction", bid, buyout, minutes) end
 function CancelAuction(i) WoW.log("CancelAuction", i) end
 function ShowUIPanel(f) WoW.log("ShowUIPanel", f:GetName()) f:Show() end
@@ -440,6 +499,14 @@ function GetInventoryItemLink() return nil end
 function GetInventoryItemCount() return 0 end
 
 STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+-- 1.12 GlobalStrings.lua. ERR_AUCTION_RESTRICTED_ACCOUNT is left undefined:
+-- the addon must only match the globals the client has.
+ERR_AUCTION_BID_PLACED = "Bid accepted."
+ERR_NOT_ENOUGH_MONEY = "You don't have enough money."
+ERR_ITEM_NOT_FOUND = "Item not found."
+ERR_AUCTION_HIGHER_BID = "There is already a higher bid on that item."
+ERR_AUCTION_BID_OWN = "You cannot bid on your own auction."
+ERR_AUCTION_DATABASE_ERROR = "Internal auction error."
 YES, NO = "Yes", "No"
 UIParent = newFrame("Frame", "UIParent")
 Minimap = newFrame("Frame", "Minimap")

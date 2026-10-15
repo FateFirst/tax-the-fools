@@ -1,6 +1,6 @@
 TaxTheFools = TaxTheFools or {}
-local U, Th, W, DB, Scan, AH = TaxTheFools.Util, TaxTheFools.Theme, TaxTheFools.Widgets, TaxTheFools.DB,
-  TaxTheFools.Scan, TaxTheFools.AH
+local U, Th, W, DB, Scan, AH, Auction = TaxTheFools.Util, TaxTheFools.Theme, TaxTheFools.Widgets, TaxTheFools.DB,
+  TaxTheFools.Scan, TaxTheFools.AH, TaxTheFools.Auction
 local UI = { pages = {}, builders = {}, ah = nil }
 TaxTheFools.UI = UI
 
@@ -124,6 +124,7 @@ function UI.CreateAH()
   UI.ah = f
   AH.window = f
   Scan.OnChange(function() UI.RefreshStatus() end)
+  Auction.OnChange(function() UI.RefreshStatus() end)
   return f
 end
 
@@ -149,7 +150,15 @@ function UI.RefreshStatus()
   if not f or not f:IsShown() then return end
   local s = f.status
   local d = UI.Describe(Scan.Progress(GetTime()), Scan.Resumable(), DB.Realm().scan.lastFull, time())
-  s.text:SetText(d.text)
+  -- The last buy or bid message, good or bad, wins for a few seconds.
+  local note = Auction.Note(GetTime())
+  if note then
+    s.text:SetText(note.text)
+    Th.Color(s.text, note.token)
+  else
+    s.text:SetText(d.text)
+    Th.Color(s.text, "dim")
+  end
   s.bar:SetFraction(d.fraction)
   if d.pause then
     s.pause:SetLabel(d.pause)

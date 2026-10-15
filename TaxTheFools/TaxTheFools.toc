@@ -15,6 +15,7 @@ db.lua
 items.lua
 inventory.lua
 scan.lua
+auction.lua
 ahhook.lua
 theme.lua
 widgets.lua

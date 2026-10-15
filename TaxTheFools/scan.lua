@@ -69,7 +69,7 @@ local function send(job, now)
 end
 
 function Scan.ReadRow(i)
-  local name, texture, count, quality, _, _, minBid, minInc, buyout, bid, _, owner = GetAuctionItemInfo("list", i)
+  local name, texture, count, quality, _, _, minBid, minInc, buyout, bid, high, owner = GetAuctionItemInfo("list", i)
   local link = GetAuctionItemLink("list", i)
   local key, id = U.keyFromLink(link)
   if not name or not key then return nil end
@@ -79,7 +79,7 @@ function Scan.ReadRow(i)
   if buyout and buyout > 0 then unit = buyout / count end
   return { key = key, id = id, name = name, link = link, texture = texture, quality = quality, count = count,
            minBid = minBid or 0, bid = bid or 0, minInc = minInc or 0, buyout = buyout or 0,
-           unit = unit, owner = owner, index = i }
+           unit = unit, owner = owner, index = i, high = high and true or false }
 end
 
 -- The loose form leaves the owner out: on 1.12 owner names arrive after the

@@ -21,6 +21,8 @@ D.PRUNE_PER_FRAME = 50
 D.CRAFT_DEPTH = 4         -- a material crafted from materials crafted from ..., at most this deep
 D.AH_CUT = 0.05
 D.DEPOSIT_MINUTES = 480   -- the middle duration (8h, shown as 24h on Turtle)
+D.ACTION_TIMEOUT = 5      -- seconds to wait for the reply to a buy or bid
+D.NOTE_SECS = 10          -- seconds a buy or bid message stays on the status strip
 
 D.DEFAULTS = {
   settings = {
@@ -36,6 +38,7 @@ D.DEFAULTS = {
     browseFeedsHistory = true,
     tooltip = { market = true, low = true, vendor = true },
     craft = { autoWatch = true, staleDays = 7 },
+    buy = { confirmAbove = 50000 },        -- copper; 0 never asks
   },
   items = {},
   realms = {},
