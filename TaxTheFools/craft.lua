@@ -88,6 +88,9 @@ end
 -- the same item reached by a shorter path may cost less.
 function Craft.UnitCost(key, ctx, depth)
   depth = depth or 0
+  -- A what-if price (Deals): ctx.override = { [key] = unit } wins over everything.
+  local ov = ctx.override and ctx.override[key]
+  if ov then return ov, "ah", nil end
   local memo = ctx.memo[key]
   if memo then return memo.cost, memo.source, memo.day end
   if ctx.busy[key] then
