@@ -54,9 +54,10 @@ end
 
 -- The header of mail i as the planner reads it.
 local function header(i)
-  local _, _, sender, subject, m, cod, daysLeft, hasItem, _, wasReturned, textCreated, _, isGM = GetInboxHeaderInfo(i)
+  local _, _, sender, subject, m, cod, daysLeft, hasItem, wasRead, wasReturned, textCreated, _, isGM =
+    GetInboxHeaderInfo(i)
   local h = { sender = sender, subject = subject, money = m or 0, cod = cod or 0, hasItem = hasItem and true or false,
-              wasReturned = wasReturned, textCreated = textCreated, isGM = isGM }
+              wasRead = wasRead, wasReturned = wasReturned, textCreated = textCreated, isGM = isGM }
   h.sig, h.daysLeft = sigOf(h, daysLeft), daysLeft
   return h
 end
@@ -326,6 +327,9 @@ local function collectStep(b, now)
         b.cur = { idx = i, sig = h.sig, n = n, money = h.money, action = h.money > 0 and "money" or "item" }
         waitFor(b)
         b.skipCur = false   -- a unique-item error from before this take must not skip this mail
+        -- A mail is read before anything is taken from it, as Blizzard's mailbox and TurtleMail do: the
+        -- minimap's new-mail icon stays up while any mail is unread.
+        if not h.wasRead then GetInboxText(i) end
         if h.money > 0 then TakeInboxMoney(i) else TakeInboxItem(i) end
         return false
       end
@@ -333,7 +337,7 @@ local function collectStep(b, now)
       -- auction house mail with nothing left: read first (marks it read, as TurtleMail does before deleting)
       b.cur = { idx = i, sig = h.sig, n = n, action = "delete" }
       waitFor(b)
-      GetInboxText(i)
+      if not h.wasRead then GetInboxText(i) end
       DeleteInboxItem(i)
       return false
     else

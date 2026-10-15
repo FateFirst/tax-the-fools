@@ -47,7 +47,7 @@ T.test("collect all takes money and items, deletes AH mail, keeps letters, skips
   T.eq(Mailbox.status.token, "good")
 end)
 
-T.test("an emptied player mail is never deleted, an emptied AH mail is, and only the AH mail is read", function()
+T.test("an emptied player mail is never deleted, an emptied AH mail is, and each is read once", function()
   setup()
   WoW.mail = { { sender = "Bob", subject = "two things", money = 5, item = linen(), body = "" },
                ah(0, linen()) }
@@ -55,8 +55,8 @@ T.test("an emptied player mail is never deleted, an emptied AH mail is, and only
   T.eq(T.count("TakeInboxMoney"), 1) T.eq(T.count("TakeInboxItem"), 2)
   T.eq(table.getn(WoW.mail), 1)
   T.eq(WoW.mail[1].sender, "Bob")
-  T.eq(T.count("GetInboxText"), 1, "the AH mail, just before its delete")
-  T.eq(T.count("GetInboxText 1"), 0, "never the player's mail")
+  T.eq(T.count("GetInboxText"), 2, "each mail read once, before its first take")
+  T.eq(T.count("GetInboxText 1"), 1, "the letter") T.eq(T.count("GetInboxText 2"), 1, "the AH mail")
 end)
 
 T.test("a duplicate MAIL_INBOX_UPDATE never causes a second take, and gold counts once", function()
@@ -392,16 +392,23 @@ T.test("CollectOne ends after its mail vanishes on its own", function()
   T.eq(T.count("TakeInboxMoney"), 1)
 end)
 
-T.test("an AH mail is read just before it is deleted, in the same step (I4)", function()
+T.test("each collected mail is read once before its first take, which clears the minimap mail icon", function()
   setup()
   WoW.mail = { ah(900), { sender = "Ann", subject = "hi", money = 5, body = "Dear" } }
   Mailbox.CollectAll() pump()
-  T.eq(T.count("GetInboxText"), 1, "only the AH mail, never the letter")
+  T.eq(T.count("GetInboxText"), 2, "the AH mail and the letter, once each")
   local seq = {}
   for _, c in ipairs(WoW.calls) do
-    if string.find(c, "GetInboxText", 1, true) or string.find(c, "DeleteInboxItem", 1, true) then table.insert(seq, c) end
+    if string.find(c, "GetInboxText", 1, true) or string.find(c, "TakeInboxMoney", 1, true) then table.insert(seq, c) end
   end
-  T.eq(table.concat(seq, ","), "GetInboxText 1,DeleteInboxItem 1")
+  T.eq(table.concat(seq, ","), "GetInboxText 1,TakeInboxMoney 1,GetInboxText 1,TakeInboxMoney 1")
+  T.eq(WoW.mail[1].sender, "Ann") T.ok(WoW.mail[1].wasRead, "the letter stays, read")
+end)
+
+T.test("an unread AH mail with nothing to take is read just before it is deleted, in the same step (I4)", function()
+  setup()
+  WoW.mail = { ah(0) }
+  Mailbox.CollectAll() pump()
   local gi, di
   for i, c in ipairs(WoW.calls) do
     if c == "GetInboxText 1" then gi = i end
@@ -593,6 +600,6 @@ T.test("only a Mailbox action calls them", function()
   T.eq(T.count("GetInboxText"), 0)
   Mailbox.CollectAll() pump()
   T.eq(T.count("TakeInboxMoney"), 1)
-  T.eq(T.count("GetInboxText"), 1, "read only by the click-started delete")
+  T.eq(T.count("GetInboxText"), 1, "read once, by the click-started collect")
   T.eq(T.count("DeleteInboxItem"), 1)
 end)

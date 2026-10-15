@@ -48,11 +48,12 @@ There is one `Mailbox.busy` lock with `kind = "collect"` or `"send"`. Events set
 - **`Mailbox.CollectAll()`** (click only):
   1. Run `Mail.Read()` first, so every AH result is recorded before anything leaves the inbox.
   2. Walk from index 1. For each mail, read the header and apply `Plan`. A plan of `"take+delete"` for non-AH mail needs the body, so `GetInboxText(i)` is read for it.
-  3. **On take:** call `TakeInboxMoney(i)` if money > 0, else `TakeInboxItem(i)` if it has an item. One call per tick, each waiting for `MAIL_INBOX_UPDATE`.
-  4. **When the mail is empty:** delete it if the plan is take+delete, then stay at the same index (the list shifts). Otherwise move to the next index.
-  5. **Errors:** `ERR_INV_FULL` stops the chain ("Bags full"). `ERR_ITEM_MAX_COUNT` skips that mail.
-  6. **When finished:** call `CheckInbox()` once, to load more if the server holds over 50. Report "Collected Xg from N mails".
-  7. A session money total shows in the Inbox footer.
+  3. **Before the first take from an unread mail:** call `GetInboxText(i)`. Reading it is what lets the server clear the minimap's new-mail icon, and Blizzard's mailbox and TurtleMail do the same.
+  4. **On take:** call `TakeInboxMoney(i)` if money > 0, else `TakeInboxItem(i)` if it has an item. One call per tick, each waiting for `MAIL_INBOX_UPDATE`.
+  5. **When the mail is empty:** delete it if the plan is take+delete, then stay at the same index (the list shifts). Otherwise move to the next index.
+  6. **Errors:** `ERR_INV_FULL` stops the chain ("Bags full"). `ERR_ITEM_MAX_COUNT` skips that mail.
+  7. **When finished:** call `CheckInbox()` once, to load more if the server holds over 50. Report "Collected Xg from N mails".
+  8. A session money total shows in the Inbox footer.
 - **`Mailbox.CollectOne(i)`** (click): the same as above for one mail. It never deletes a player's letter.
 - **`Mailbox.Delete(i)`** and **`Mailbox.Return(i)`** (click): refuse if the mail still has money or an item (Delete) or is AH mail (Return). Each is one call.
 - **`Mailbox.Send(to, subject, body, money, attachments)`** (click):

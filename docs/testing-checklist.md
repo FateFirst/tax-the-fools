@@ -246,3 +246,6 @@ The trainer and vendor windows are only read. Nothing is bought from them; buy a
 101. **Chat after a send.** Send a mail from the **Send** tab, then press Enter and type in chat,
     and move with the keyboard. Both work. If keys go nowhere (Blizzard's hidden send form held
     the keyboard focus), report it.
+102. **Minimap mail icon.** With new mail waiting, the minimap shows the mail icon. Collect all, then close
+    the mailbox. The icon goes once nothing unread is left (a COD or GM mail, or one left for later, still
+    counts as unread). It may take until the next mailbox visit or relog to update: the server decides.
