@@ -91,8 +91,8 @@ end
 function Browse.Search(text, page)
   if page < 0 then return false end
   if page > 0 and page * 50 >= Scan.lastTotal then return false end
-  Browse.query, Browse.page = text or "", page
-  local ok, why = Scan.Browse(Browse.query, page, GetTime())
+  local ok, why = Scan.Browse(text or "", page, GetTime())
+  if ok then Browse.query, Browse.page = text or "", page end
   if not ok and why == "busy" then U.msg("A scan is using the auction house. Pause it to search.") end
   return ok and true or false
 end

@@ -133,3 +133,34 @@ end)
 T.test("bagClick defaults to on", function()
   T.eq(A.Data.DEFAULTS.settings.bagClick, true)
 end)
+
+T.test("an error inside the handler falls through to the original click (M2)", function()
+  seed() openAH()
+  local keep = Browse.Search
+  Browse.Search = function() error("boom") end
+  click(btn())
+  Browse.Search = keep
+  T.eq(T.count("ContainerFrameItemButton_OnClick"), 1, "the original ran")
+  T.ok(T.calledWith("ContainerFrameItemButton_OnClick RightButton 0 1"))
+end)
+
+T.test("the caller's own button is forwarded to the original, nil stays nil (M2)", function()
+  seed() openAH()
+  local b = btn()
+  local oldThis, oldArg = this, arg1
+  this, arg1 = b, "LeftButton"
+  getglobal("ContainerFrameItemButton_OnClick")(nil)
+  this, arg1 = oldThis, oldArg
+  T.eq(T.count("ContainerFrameItemButton_OnClick"), 1)
+  T.ok(T.calledWith("ContainerFrameItemButton_OnClick nil 0 1"), "not replaced by arg1")
+end)
+
+T.test("a right-click while a scan is busy keeps the old Browse query (M4)", function()
+  seed() openAH()
+  Browse.query, Browse.page = "Old Query", 0
+  T.ok(Scan.StartFull(WoW.clock))
+  click(btn())
+  Scan.job = nil
+  T.eq(Browse.query, "Old Query", "refused search leaves the query")
+  T.eq(T.count("ContainerFrameItemButton_OnClick"), 0, "the click is still ours")
+end)

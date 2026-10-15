@@ -43,12 +43,21 @@ function BagClick.Handle(button, bag, slot)
   return true
 end
 
+-- A failure in our handling must never eat the player's click: it falls through to the original, which
+-- gets the caller's own button and modifiers argument untouched.
 local function onClick(button, ignoreModifiers)
   local b = this
-  button = button or arg1
-  if b and button then
+  local effective = button or arg1
+  if b and effective then
     local parent = b:GetParent()
-    if parent and BagClick.Handle(button, parent:GetID(), b:GetID()) then return end
+    if parent then
+      local ok, consumed = pcall(BagClick.Handle, effective, parent:GetID(), b:GetID())
+      if not ok then
+        U.debug("bag right-click: " .. tostring(consumed))
+      elseif consumed then
+        return
+      end
+    end
   end
   return BagClick.original(button, ignoreModifiers)
 end
