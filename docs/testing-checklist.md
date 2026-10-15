@@ -4,7 +4,7 @@ Run this after every install, on the real client. The tests prove the logic
 against a fake client; this proves the fake client was right.
 
 ## Load
-1. Log in on the bank character. Chat shows `TTF: v0.7.0 loaded`.
+1. Log in on the bank character. Chat shows `TTF: v0.8.0 loaded`.
 2. `/ttf probe`. The window opens with text selected. Press Ctrl+C and paste it
    into `tools/probe-<date>.txt` in this repo. Check:
    - every `fn` line says `yes`, except possibly `GetInboxInvoiceInfo`, `CalculateAuctionDeposit` (spec §13 Q2)
@@ -264,3 +264,38 @@ The trainer and vendor windows are only read. Nothing is bought from them; buy a
 106. **Roomy, scrolling pane.** Make the AH window taller: the detail pane grows (about 40% of the
     page). At the smallest size the recipe list still shows about four rows. With a recipe that has
     more lines than fit, the mouse wheel over the pane scrolls it and a "n-m of N" hint shows.
+
+## Ledger and trends (phase 6)
+107. **Buy shows as spending.** On Browse, buy a cheap item. Open the Ledger (AH tab): the purchase
+    appears under Buys in today's row, and the totals strip's Out goes up by its price.
+108. **Deposit.** Post an auction on Sell. Ledger shows its deposit under Deposits, once your purse
+    updates (within about 3 seconds of the post).
+109. **Won bid counts once it is read.** Bid on an auction and win it. Ledger shows nothing for it as
+    spending until the "Auction won" mail is read (open the mailbox so TTF records it). Then it appears
+    once as spending.
+110. **Outbid costs nothing.** Bid on an auction and get outbid. Ledger records nothing for it, and nothing
+    is spent.
+111. **Bid then buyout counts once.** Bid on an item, then buy it out. Ledger shows its price once under
+    spending, not once for the bid and again for the buyout.
+112. **Vendor trades.** Sell an item to a vendor and buy something from one. Ledger's Days view shows both in
+    the Vendor column. Options > Ledger, "Count vendor buys and sales" off: new vendor trades no longer
+    appear. Turn it back on.
+113. **Gold to the bank alt is a transfer.** Send gold to the bank alt with TTF's Send tab. Ledger's totals
+    show it under Transfers, and Net profit does not change.
+114. **Items view.** Switch Ledger to Items: the rows list the items you earn most on, highest Net first.
+115. **Period and character filters.** Change the period between 7, 30 and 90 days, and the character to one
+    alt. The totals and rows change to match.
+116. **`/ttf ledger`.** The Ledger opens in its own window, away from the auction house.
+117. **Blizzard mail window (expected gap).** Gold moved through Blizzard's own mail window is not recorded.
+    Confirm it is absent from the Ledger; this is by design.
+118. **Trend line.** Hover an item you have scanned for about two weeks. Its tooltip has a "Trend 7d" line
+    (rising, falling or steady, with a percentage). An item with less history shows no line. Options >
+    Tooltip, "Price trend line" off: the line goes. Turn it back on.
+119. **Browse Trend column.** Search on Browse. The Trend column reads "+12%", "-8%", "0%" or "-". Click its
+    header: the rows sort by it.
+120. **Chart on Browse.** Select an item on Browse: a 30-day price chart appears under the results. Hover a
+    bar: a tooltip shows its date and price. A line marks today's market value.
+121. **Chart on Sell.** Pick an item on Sell: the same chart sits under the competition list. Hover a bar for
+    its date and price.
+122. **Smallest window.** Resize the auction window to its smallest size. On Browse the chart never covers
+    the Buy or Bid buttons; on Sell it never covers the price fields. If there is no room, it hides.

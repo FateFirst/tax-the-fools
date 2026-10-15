@@ -3,7 +3,7 @@
 Auction house price history, deal finding and crafting profit for the Ravencraft
 server (Turtle WoW 1.18.1 client, WoW 1.12, Lua 5.0).
 
-This release (0.7.0): the auction window, scanning, price history, tooltips, crafting
+This release (0.8.0): the auction window, scanning, price history, tooltips, crafting
 profit for every recipe your characters know, buying, selling, and sales tracking from
 auction house mail. The **Deals** tab finds below-market, below-vendor, cheap-materials,
 undersupplied and recipe listings; **Browse** buys and bids on the selected row; **Sell** and
@@ -12,6 +12,10 @@ shows the recipes each character could still learn, with what they cost and how 
 back. **Mail** replaces the Blizzard mailbox: an Inbox with Collect all (sales mail is
 deleted, letters keep their text and have gold and items taken, COD is never touched) and a
 Send tab that fills a mail to your bank alt by rules and sends several stacks in one click.
+The **Ledger** (an AH tab, or `/ttf ledger`) totals gold in and out per day and per item for all your
+characters, keeping transfers between your own characters out of profit, and item tooltips and Browse
+show a 7-day price trend, with a 30-day price chart on Browse and Sell. Gold moved through Blizzard's
+own mail window is not recorded.
 Next is in-game testing and polish. See
 `docs/superpowers/specs/2026-10-14-tax-the-fools-design.md` for the overall design.
 
@@ -119,6 +123,14 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
   matches your rules (crafted goods, cloth and trade goods, patterns, anything auctionable)
   and is not on the keep list; **Keep** adds the selected item to that list. Right-click a bag
   item on Send to attach it. Options > Mail sets the bank alt, the rules and the keep list.
+- **Ledger.** The Ledger tab (after History) and `/ttf ledger` list what you earned and spent: Sales,
+  Buys, Deposits, Vendor and Mail per day, or Income, Spend and Net per item, for 7, 30 or 90 days and
+  any character. Bids count once a won-auction mail is read; outbids count nothing. Transfers to your
+  own characters show on their own line. Options > Ledger turns vendor trades off. Gold moved through
+  Blizzard's own mail window is not recorded.
+- **Price trends.** Item tooltips show a "Trend 7d" line (rising, falling or steady) once there are about
+  two weeks of scans. Browse has a sortable Trend column, and selecting an item on Browse or Sell shows a
+  30-day price chart; hover a bar for its date and price.
 - **Blizzard UI** switches to the stock window at any time; its **Tax the Fools** button
   switches back.
 
