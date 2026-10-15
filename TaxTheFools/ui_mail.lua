@@ -2,15 +2,16 @@ TaxTheFools = TaxTheFools or {}
 local A = TaxTheFools
 local U, Th, W, L, Sales, MailRules, Mailbox, MailHook = A.Util, A.Theme, A.Widgets, A.List, A.Sales, A.MailRules,
   A.Mailbox, A.MailHook
+local DB = A.DB
 local MailUI = { frame = nil, win = nil, pages = {}, builders = {}, dirty = false, statusDirty = false, wasBusy = false }
 A.MailUI = MailUI
 
 -- The mail window (phase 5b spec section 5). The Inbox list reads headers only: painting and opening never
 -- call an engine action or GetInboxText. Only a button's OnClick reaches Mailbox.
 
--- Tab order; a tab with no registered builder is left out of the strip. Task 5 adds its page with
+-- Tab order; a tab with no registered builder is left out of the strip. Pages register with
 --   MailUI.builders.send = function(parent) ... return page end
--- at load time (the "send" entry is already listed here), and the page may define Refresh and Layout.
+-- and may define Refresh and Layout.
 MailUI.TABS = { { key = "inbox", label = "Inbox" }, { key = "send", label = "Send" } }
 
 function MailUI.VisibleTabs()
@@ -120,6 +121,7 @@ function MailUI.RefreshFooter()
 end
 
 function MailUI.UpdateBar()
+  if MailUI.UpdateSend then MailUI.UpdateSend() end
   local p = MailUI.frame
   if not p then return end
   local busy = Mailbox.busy and true or false
@@ -353,3 +355,331 @@ function MailUI.Tick()
     MailUI.UpdateBar()
   end
 end
+
+-- ---------------------------------------------------------------------------------------------------
+-- The Send tab (phase 5b spec section 5). Opening, painting, Fill and right-click only build the
+-- attachment list; SendMail, ClickSendMailItemButton and SetSendMailMoney are reached only from the Send
+-- button, through Mailbox.Send.
+--
+-- The list widget has text cells only, so Remove and Keep work on the selected row (two buttons) instead
+-- of one pair per row. The body is a single-line edit box.
+
+MailUI.send = { rows = {}, page = false }
+
+MailUI.SEND_COLUMNS = {
+  { label = "Item", width = 300, fmt = function(r) return r.name or "?" end },
+  { label = "Count", width = 60, align = "RIGHT", fmt = function(r) return tostring(r.count or 1) end },
+  { label = "Bag", width = 80, fmt = function(r) return r.bag .. ":" .. r.slot, "dim" end },
+}
+
+local BAGS = { 0, 1, 2, 3, 4 }
+
+function MailUI.BankAlt()
+  local b = DB.S().mail.bankAlt
+  if b and b ~= "" then return b end
+  return nil
+end
+
+-- Reads one bag slot: { bag, slot, key, id, name, count } or nil.
+function MailUI.SlotItem(bag, slot)
+  local link = GetContainerItemLink(bag, slot)
+  if not link then return nil end
+  local key, id = U.keyFromLink(link)
+  if not key then return nil end
+  local _, count = GetContainerItemInfo(bag, slot)
+  return { bag = bag, slot = slot, key = key, id = id, name = U.linkName(link) or key, count = count or 1 }
+end
+
+function MailUI.Mailable(it)
+  return A.Sell.Auctionable(A.Sell.TipLines(it.bag, it.slot)) and true or false
+end
+
+function MailUI.Attached(bag, slot)
+  for _, r in ipairs(MailUI.send.rows) do
+    if r.bag == bag and r.slot == slot then return r end
+  end
+  return nil
+end
+
+-- Adds a bag slot. Returns "added", "dup", "empty" or "unmailable".
+function MailUI.AddSlot(bag, slot)
+  local it = MailUI.SlotItem(bag, slot)
+  if not it then return "empty" end
+  if MailUI.Attached(bag, slot) then return "dup" end
+  if not MailUI.Mailable(it) then return "unmailable" end
+  table.insert(MailUI.send.rows, { bag = bag, slot = slot, key = it.key, name = it.name, count = it.count })
+  return "added"
+end
+
+-- Right-click from the bags. Returns true when the click is ours (an empty slot passes through).
+function MailUI.Attach(bag, slot)
+  local r = MailUI.AddSlot(bag, slot)
+  if r == "empty" then return false end
+  local p = MailUI.send.page
+  if r == "unmailable" then MailUI.Note("Can't mail that", "warn")
+  elseif r == "dup" then MailUI.Note("Already attached", "dim")
+  else MailUI.Note("", "dim") end
+  if p then p:Refresh() end
+  return true
+end
+
+-- True when a bag right-click should attach: replacing is on and the Send page is the one showing.
+function MailUI.SendShown()
+  local f = MailUI.win
+  if not f or not f:IsShown() or not MailHook.Enabled() then return false end
+  local page = MailUI.pages.send
+  return (f.tabs.selected == "send" and page and page:IsShown()) and true or false
+end
+
+function MailUI.Note(text, token)
+  local p = MailUI.send.page
+  if not p then return end
+  p.note:SetText(text or "")
+  Th.Color(p.note, token or "dim")
+end
+
+-- Drops rows whose slot no longer holds the same item and count (sent, moved, stack changed).
+function MailUI.Revalidate()
+  local keep = {}
+  for _, r in ipairs(MailUI.send.rows) do
+    local it = MailUI.SlotItem(r.bag, r.slot)
+    if it and it.key == r.key and it.count == r.count then table.insert(keep, r) end
+  end
+  MailUI.send.rows = keep
+end
+
+-- Every bag stack that matches the ticked rules and isn't on the keep list; one attachment per stack.
+function MailUI.FillRows()
+  local mail = DB.S().mail
+  local ctx = { products = A.Craft.Index(DB.Realm().chars) }
+  local added = 0
+  for _, bag in ipairs(BAGS) do
+    for slot = 1, GetContainerNumSlots(bag) do
+      local it = MailUI.SlotItem(bag, slot)
+      if it and not MailUI.Attached(bag, slot) then
+        local _, _, _, _, itype = GetItemInfo(it.id)
+        local item = { key = it.key, name = it.name, type = itype, auctionable = MailUI.Mailable(it) }
+        if MailRules.Matches(item, mail.rules, mail.keep, ctx) then
+          table.insert(MailUI.send.rows, { bag = bag, slot = slot, key = it.key, name = it.name, count = it.count })
+          added = added + 1
+        end
+      end
+    end
+  end
+  return added
+end
+
+-- Fill for bank alt: attaches and sets the recipient. Never sends anything.
+function MailUI.Fill()
+  local alt = MailUI.BankAlt()
+  local p = MailUI.send.page
+  if not alt or not p then return false end
+  p.to:SetText(alt)
+  local n = MailUI.FillRows()
+  MailUI.Note(n == 0 and "Nothing matches" or ("Attached " .. n), "dim")
+  p:Refresh()
+  return true
+end
+
+function MailUI.SelRow()
+  local p = MailUI.send.page
+  return p and p.list.selected or nil
+end
+
+function MailUI.RemoveSel()
+  local sel = MailUI.SelRow()
+  if not sel then return false end
+  local keep = {}
+  for _, r in ipairs(MailUI.send.rows) do
+    if r ~= sel then table.insert(keep, r) end
+  end
+  MailUI.send.rows = keep
+  MailUI.send.page.list.selected = false
+  MailUI.send.page:Refresh()
+  return true
+end
+
+-- Keep: remove the row and never fill this item again.
+function MailUI.KeepSel()
+  local sel = MailUI.SelRow()
+  if not sel then return false end
+  DB.S().mail.keep[sel.key] = true
+  return MailUI.RemoveSel()
+end
+
+function MailUI.DefaultTo()
+  local alt = MailUI.BankAlt()
+  if alt and alt ~= DB.charName then return alt end
+  return ""
+end
+
+function MailUI.ClearSend()
+  local p = MailUI.send.page
+  MailUI.send.rows = {}
+  if not p then return end
+  p.to:SetText(MailUI.DefaultTo())
+  p.subject:SetText("")
+  p.body:SetText("")
+  p.money:SetValue(nil)
+  p.list.selected = false
+  MailUI.Note("", "dim")
+  p:Refresh()
+end
+
+function MailUI.SendNow()
+  local p = MailUI.send.page
+  if not p or Mailbox.busy then return false end
+  local atts = {}
+  for _, r in ipairs(MailUI.send.rows) do
+    table.insert(atts, { bag = r.bag, slot = r.slot, key = r.key, count = r.count })
+  end
+  local m = p.money:GetValue()
+  if m and m <= 0 then m = nil end
+  local started = Mailbox.Send(p.to:GetText(), p.subject:GetText(), p.body:GetText(), m, atts)
+  if started then p.pendingClear = true end
+  return started
+end
+
+-- How many mails Send would make.
+function MailUI.Mails()
+  local p = MailUI.send.page
+  local n = table.getn(MailUI.send.rows)
+  if n == 0 and p and (p.money:GetValue() or 0) > 0 then n = 1 end
+  return n
+end
+
+function MailUI.SendFooter(n, price)
+  local postage = (n > 0) and MailRules.Postage(price, n) or 0
+  return n .. ((n == 1) and " mail" or " mails") .. SEP .. "postage " .. U.money(postage)
+end
+
+function MailUI.SendOptions()
+  local out = {}
+  local names = {}
+  for name in pairs(DB.Realm().chars) do
+    if name ~= DB.charName then table.insert(names, name) end
+  end
+  table.sort(names)
+  for _, name in ipairs(names) do table.insert(out, { label = name, value = name }) end
+  return out
+end
+
+-- Enable states and the footer; also called from UpdateBar on every repaint.
+function MailUI.UpdateSend()
+  local p = MailUI.send.page
+  if not p then return end
+  local busy = Mailbox.busy and true or false
+  local sel = p.list.selected and true or false
+  p.sendBtn:SetEnabled(not busy)
+  p.removeBtn:SetEnabled(sel and not busy)
+  p.keepBtn:SetEnabled(sel and not busy)
+  p.clearBtn:SetEnabled(not busy)
+  p.fillBtn:SetEnabled(not busy)
+  local alt = MailUI.BankAlt()
+  if alt and alt ~= DB.charName then p.fillBtn:Show() else p.fillBtn:Hide() end
+  p.footer:SetText(MailUI.SendFooter(MailUI.Mails(), GetSendMailPrice() or 0))
+end
+
+-- After a finished chain that sent everything, the subject, body and money are spent.
+function MailUI.AfterSend()
+  local p = MailUI.send.page
+  if not p.pendingClear or Mailbox.busy then return end
+  p.pendingClear = false
+  local st = Mailbox.status
+  if table.getn(MailUI.send.rows) == 0 and not (st and st.token == "bad") then
+    p.subject:SetText("")
+    p.body:SetText("")
+    p.money:SetValue(nil)
+  end
+end
+
+function MailUI.RefreshSend()
+  local p = MailUI.send.page
+  MailUI.Revalidate()
+  if not Mailbox.busy then MailUI.AfterSend() end
+  p.dropdown:SetOptions(MailUI.SendOptions())
+  local prev = p.list.selected
+  p.list:SetData(MailUI.send.rows)
+  if prev then
+    for _, r in ipairs(MailUI.send.rows) do
+      if r == prev then p.list.selected = r end
+    end
+    p.list:Paint()
+  end
+  MailUI.UpdateSend()
+end
+
+-- BAG_UPDATE (through Core.Safe): the Send page re-checks its attachments on the next frame.
+function MailUI.OnBag()
+  local f = MailUI.win
+  if f and f.tabs.selected == "send" then MailUI.dirty = true end
+end
+
+local function sendLabel(p, text, x, y)
+  local t = Th.Text(p, "body", 11, "dim")
+  t:SetPoint("TOPLEFT", p, "TOPLEFT", x, y)
+  t:SetText(text)
+  return t
+end
+
+local function buildFields(p)
+  sendLabel(p, "To", 0, -5)
+  p.to = W.EditBox(p, 150, nil)
+  p.to:SetPoint("TOPLEFT", p, "TOPLEFT", 50, 0)
+  p.to:SetText(MailUI.DefaultTo())
+  p.dropdown = W.Dropdown(p, 110, MailUI.SendOptions(), function() return p.to:GetText() end,
+    function(v) p.to:SetText(v) end)
+  p.dropdown:SetPoint("LEFT", p.to, "RIGHT", 6, 0)
+  sendLabel(p, "Money", 330, -5)
+  p.money = W.MoneyInput(p, function() MailUI.UpdateSend() end)
+  p.money:SetPoint("TOPLEFT", p, "TOPLEFT", 372, 0)
+  sendLabel(p, "Subject", 0, -33)
+  p.subject = W.EditBox(p, 300, nil)
+  p.subject:SetPoint("TOPLEFT", p, "TOPLEFT", 50, -28)
+  p.subject:SetMaxLetters(64)
+  W.Tip(p.subject, "Subject", "Blank means automatic: the item's name and count.")
+  sendLabel(p, "Body", 0, -61)
+  p.body = W.EditBox(p, 300, nil)
+  p.body:SetPoint("TOPLEFT", p, "TOPLEFT", 50, -56)
+  p.body:SetMaxLetters(500)
+end
+
+local function buildSendButtons(p)
+  p.fillBtn = W.Button(p, "Fill for bank alt", 120, 24, function() MailUI.Fill() end, "accent")
+  p.fillBtn:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 0, 0)
+  W.Tip(p.fillBtn, "Fill for bank alt", "Attach every bag item that matches your mail rules and isn't on the keep list, and address the mail to your bank alt. Nothing is sent until you press Send.")
+  p.clearBtn = W.Button(p, "Clear", 60, 24, function() MailUI.ClearSend() end)
+  p.clearBtn:SetPoint("LEFT", p.fillBtn, "RIGHT", 6, 0)
+  p.removeBtn = W.Button(p, "Remove", 70, 24, function() MailUI.RemoveSel() end)
+  p.removeBtn:SetPoint("LEFT", p.clearBtn, "RIGHT", 6, 0)
+  W.Tip(p.removeBtn, "Remove", "Take the selected row off the mail.")
+  p.keepBtn = W.Button(p, "Keep", 60, 24, function() MailUI.KeepSel() end)
+  p.keepBtn:SetPoint("LEFT", p.removeBtn, "RIGHT", 6, 0)
+  W.Tip(p.keepBtn, "Keep", "Take the selected row off and never fill this item again.")
+  p.sendBtn = W.Button(p, "Send", 80, 24, function() MailUI.SendNow() end, "accent")
+  p.sendBtn:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
+  W.Tip(p.sendBtn, "Send", "Send one mail per attached stack.")
+  p.footer = Th.Text(p, "body", 12, "dim")
+  p.footer:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 0, 30)
+  p.footer:SetJustifyH("LEFT")
+  p.note = Th.Text(p, "body", 11, "dim")
+  p.note:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 30)
+  p.note:SetJustifyH("RIGHT")
+end
+
+function MailUI.BuildSend(parent)
+  local p = CreateFrame("Frame", nil, parent)
+  p.pendingClear = false
+  MailUI.send.page = p
+  buildFields(p)
+  p.list = L.New(p, MailUI.SEND_COLUMNS, 18, function() MailUI.UpdateSend() end)
+  p.list:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -88)
+  p.list:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 54)
+  buildSendButtons(p)
+  p.Refresh = function(self) MailUI.RefreshSend() end
+  p.Layout = function(self) self.list:Paint() end
+  MailUI.RefreshSend()
+  return p
+end
+
+MailUI.builders.send = MailUI.BuildSend

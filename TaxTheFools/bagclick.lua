@@ -20,8 +20,18 @@ function BagClick.Wants(button)
   return (page and page:IsVisible()) and sel or false
 end
 
+-- Mail: a plain right-click attaches the item while our Send tab is showing (never with TurtleMail loaded).
+function BagClick.WantsMail(button)
+  if not DB.S().bagClick then return false end
+  if button ~= "RightButton" then return false end
+  if keyDown(IsShiftKeyDown) or keyDown(IsControlKeyDown) or keyDown(IsAltKeyDown) then return false end
+  local M = TaxTheFools.MailUI
+  return (M and M.SendShown()) and true or false
+end
+
 -- Returns true when the click was consumed.
 function BagClick.Handle(button, bag, slot)
+  if BagClick.WantsMail(button) then return TaxTheFools.MailUI.Attach(bag, slot) end
   local tab = BagClick.Wants(button)
   if not tab then return false end
   local link = GetContainerItemLink(bag, slot)

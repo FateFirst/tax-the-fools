@@ -330,5 +330,12 @@ T.test("selling and auctions: nothing posts, cancels, splits or bids without a c
   WoW.runScript(A.MailUI.frame.list.rows[1], "OnClick")
   pump()
   quiet("mail window painted, hovered and selected")
+  A.MailUI.win.tabs:Select("send")
+  A.MailUI.pages.send:Refresh()
+  if A.MailUI.send.page.fillBtn.enabled then WoW.runScript(A.MailUI.send.page.fillBtn, "OnClick") end
+  WoW.fire("BAG_UPDATE")
+  pump()
+  quiet("Send tab shown, filled and bag-updated")
+  A.MailUI.win.tabs:Select("inbox")
   UI.ah.tabs:Select("browse")
 end)

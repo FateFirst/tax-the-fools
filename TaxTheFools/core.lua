@@ -60,7 +60,9 @@ function Core.OnEvent(e)
   elseif e == "MERCHANT_SHOW" then
     Core.Safe("items", A.Items.LearnVendorPrices)
     Core.Safe("items", A.Items.LearnMerchantPrices)
-  elseif Core.INVENTORY_EVENTS[e] then Core.Safe("inventory", A.Inventory.OnEvent, e)
+  elseif Core.INVENTORY_EVENTS[e] then
+    Core.Safe("inventory", A.Inventory.OnEvent, e)
+    if e == "BAG_UPDATE" then Core.Safe("mail window", A.MailUI.OnBag) end
   elseif e == "TRADE_SKILL_SHOW" or e == "TRADE_SKILL_UPDATE" or e == "TRADE_SKILL_CLOSE" then
     Core.Safe("tradeskill", A.TradeSkill.OnEvent, e, GetTime())
   elseif e == "PLAYER_MONEY" then

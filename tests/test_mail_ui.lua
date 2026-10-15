@@ -38,8 +38,9 @@ T.test("the window is built at init, registered with the hook, with Inbox first"
   T.eq(MU.win:GetName(), "TaxTheFoolsMail")
   T.eq(MH.window, MU.win)
   T.ok(MU.builders.inbox)
-  T.eq(table.getn(MU.VisibleTabs()), 1, "Send joins in task 5")
+  T.eq(table.getn(MU.VisibleTabs()), 2)
   T.eq(MU.VisibleTabs()[1].key, "inbox")
+  T.eq(MU.VisibleTabs()[2].key, "send")
 end)
 
 T.test("opening the mailbox shows our window on the Inbox tab with rows, tags and the footer", function()
@@ -252,4 +253,217 @@ T.test("a chain still ends with the list repainted", function()
   T.eq(table.getn(p.list.data), 0)
   T.eq(MU.win.status.stop:IsShown(), false)
   T.eq(WoW.money, 1000 + 10 * 6 + 21)
+end)
+
+-- ---------- Send tab ----------
+local DB = A.DB
+local function sendSetup(alt)
+  setup()
+  A.BagClick.Install()
+  WoW.items[100] = { name = "Linen Cloth", stack = 20, type = "Trade Goods" }
+  WoW.items[200] = { name = "Iron Sword", stack = 1, type = "Weapon" }
+  WoW.items[300] = { name = "Wool Cloth", stack = 20, type = "Trade Goods" }
+  WoW.bags = { [0] = { { id = 100, name = "Linen Cloth", count = 20 }, { id = 200, name = "Iron Sword", count = 1 },
+                       { id = 300, name = "Wool Cloth", count = 7 }, {} } }
+  WoW.addons.TurtleMail = nil
+  MU.send.rows = {}
+  local m = DB.S().mail
+  m.bankAlt, m.keep, m.rules = alt, {}, { crafted = true, tradeGoods = true, patterns = false, auctionable = false }
+  DB.Realm().chars["Banker"] = DB.Realm().chars["Banker"] or {}
+  WoW.mail = {}
+  WoW.openMailbox()
+  frame() frame()
+  MU.win.tabs:Select("send")
+  return MU.pages.send
+end
+local function bag(slot) return WoW.bagButton(0, slot) end
+local function rclick(slot) WoW.clickBag(bag(slot), "RightButton") end
+local function keys() local o = {} for _, r in ipairs(MU.send.rows) do table.insert(o, r.key) end return o end
+
+T.test("the Send page fits the minimum window", function()
+  local p = sendSetup("Banker")
+  local w = 560 - 20
+  T.ok(p.money:GetWidth() + 372 <= w, "money input ends inside the body")
+  local cols = 0
+  for _, c in ipairs(MU.SEND_COLUMNS) do cols = cols + c.width end
+  T.ok(cols <= w - 12, "columns " .. cols)
+  -- buttons along the bottom: Fill 120, Clear 60, Remove 70, Keep 60 (+6 gaps) leave room for Send 80
+  T.ok(120 + 60 + 70 + 60 + 18 + 80 <= w)
+  -- height: body is 380 - 31 - 28 - 38 - 8 - 22 = 253; the list sits between 88 and 54
+  T.ok(253 - 88 - 54 - 20 >= 3 * 18, "at least three list rows")
+end)
+
+T.test("Fill for bank alt attaches matching stacks, addresses the mail, and sends nothing", function()
+  local p = sendSetup("Banker")
+  click(p.fillBtn)
+  T.eq(p.to:GetText(), "Banker")
+  T.eq(table.getn(MU.send.rows), 2, "linen and wool, not the sword")
+  T.eq(MU.send.rows[1].key, "100:0")
+  T.eq(MU.send.rows[1].count, 20)
+  T.eq(MU.send.rows[2].key, "300:0")
+  for _, n in ipairs({ "SendMail", "ClickSendMailItemButton", "SetSendMailMoney", "PickupContainerItem" }) do
+    T.eq(T.count(n), 0, n)
+  end
+end)
+
+T.test("Fill skips kept items and stacks already attached", function()
+  local p = sendSetup("Banker")
+  DB.S().mail.keep["300:0"] = true
+  click(p.fillBtn)
+  T.eq(table.getn(MU.send.rows), 1)
+  click(p.fillBtn)
+  T.eq(table.getn(MU.send.rows), 1, "not added twice")
+end)
+
+T.test("Fill is hidden for the bank alt itself and with no bank alt", function()
+  local p = sendSetup(nil)
+  T.eq(p.fillBtn:IsShown(), false)
+  p = sendSetup(WoW.player)
+  T.eq(p.fillBtn:IsShown(), false)
+  p = sendSetup("Banker")
+  T.eq(p.fillBtn:IsShown(), true)
+end)
+
+T.test("Remove drops the selected row; Keep drops it and remembers the item", function()
+  local p = sendSetup("Banker")
+  click(p.fillBtn)
+  p.list:SetHeight(300)
+  p.list:Paint()
+  T.eq(p.removeBtn.enabled, false, "nothing selected")
+  WoW.runScript(p.list.rows[1], "OnClick")
+  T.eq(p.removeBtn.enabled, true)
+  click(p.removeBtn)
+  T.eq(table.getn(MU.send.rows), 1)
+  T.eq(MU.send.rows[1].key, "300:0")
+  T.ok(not DB.S().mail.keep["100:0"], "remove does not keep")
+  WoW.runScript(p.list.rows[1], "OnClick")
+  click(p.keepBtn)
+  T.eq(table.getn(MU.send.rows), 0)
+  T.ok(DB.S().mail.keep["300:0"])
+end)
+
+T.test("right-click on the Send tab attaches, once, and consumes the click", function()
+  sendSetup("Banker")
+  rclick(1)
+  T.eq(table.getn(MU.send.rows), 1)
+  T.eq(MU.send.rows[1].key, "100:0")
+  rclick(1)
+  T.eq(table.getn(MU.send.rows), 1, "same slot not added twice")
+  T.eq(T.count("ContainerFrameItemButton_OnClick"), 0)
+  T.eq(T.count("SendMail"), 0)
+end)
+
+T.test("right-click on an unmailable item says so and still consumes the click", function()
+  local p = sendSetup("Banker")
+  local keep, soul = A.Sell.TipLines, getglobal("ITEM_SOULBOUND")
+  setglobal("ITEM_SOULBOUND", "Soulbound")
+  A.Sell.TipLines = function() return { "Iron Sword", "Soulbound" } end
+  rclick(2)
+  A.Sell.TipLines = keep
+  setglobal("ITEM_SOULBOUND", soul)
+  T.eq(table.getn(MU.send.rows), 0)
+  T.eq(p.note:GetText(), "Can't mail that")
+  T.eq(T.count("ContainerFrameItemButton_OnClick"), 0)
+end)
+
+T.test("right-click passes through on the Inbox tab, with a modifier, and with TurtleMail loaded", function()
+  sendSetup("Banker")
+  MU.win.tabs:Select("inbox")
+  rclick(1)
+  T.eq(T.count("ContainerFrameItemButton_OnClick"), 1, "inbox")
+  T.eq(table.getn(MU.send.rows), 0)
+  MU.win.tabs:Select("send")
+  WoW.shift = true rclick(1) WoW.shift = false
+  T.eq(T.count("ContainerFrameItemButton_OnClick"), 2, "shift")
+  WoW.addons.TurtleMail = true
+  rclick(1)
+  T.eq(T.count("ContainerFrameItemButton_OnClick"), 3, "TurtleMail")
+  WoW.addons.TurtleMail = nil
+  T.eq(table.getn(MU.send.rows), 0)
+end)
+
+T.test("the footer shows the mail count and postage", function()
+  local p = sendSetup("Banker")
+  T.eq(p.footer:GetText(), "0 mails  -  postage " .. A.Util.money(0))
+  click(p.fillBtn)
+  T.eq(p.footer:GetText(), "2 mails  -  postage " .. A.Util.money(60))
+  p.list:SetHeight(300) p.list:Paint()
+  WoW.runScript(p.list.rows[1], "OnClick")
+  click(p.removeBtn)
+  T.eq(p.footer:GetText(), "1 mail  -  postage " .. A.Util.money(30))
+end)
+
+T.test("Send goes through the engine with the attachments, and the sent rows clear", function()
+  local p = sendSetup("Banker")
+  click(p.fillBtn)
+  p.subject:SetText("")
+  p.money:SetValue(500)
+  click(p.sendBtn)
+  T.ok(MB.busy)
+  T.eq(p.sendBtn.enabled, true, "enabled state is refreshed on the next paint")
+  pump()
+  frame() frame()
+  T.eq(table.getn(WoW.sent), 2)
+  T.eq(WoW.sent[1].to, "Banker")
+  T.eq(WoW.sent[1].item.id, 100)
+  T.eq(WoW.sent[1].item.count, 20)
+  T.eq(WoW.sent[1].subject, "Linen Cloth (20)")
+  T.eq(WoW.sent[1].money, 500)
+  T.eq(WoW.sent[2].item.id, 300)
+  T.eq(table.getn(MU.send.rows), 0, "sent stacks are gone from the list")
+  T.eq(p.money:GetValue(), nil)
+end)
+
+T.test("Send is disabled while a chain runs", function()
+  local p = sendSetup("Banker")
+  click(p.fillBtn)
+  click(p.sendBtn)
+  MB.OnChange()
+  frame()
+  T.eq(p.sendBtn.enabled, false)
+  pump()
+  frame() frame()
+  T.eq(p.sendBtn.enabled, true)
+end)
+
+T.test("a row whose stack changed in the bags is dropped after BAG_UPDATE", function()
+  local p = sendSetup("Banker")
+  click(p.fillBtn)
+  WoW.bags[0][3] = {}
+  WoW.fire("BAG_UPDATE")
+  frame()
+  T.eq(table.getn(MU.send.rows), 1)
+  T.eq(MU.send.rows[1].key, "100:0")
+end)
+
+T.test("sending to yourself is refused", function()
+  local p = sendSetup("Banker")
+  click(p.fillBtn)
+  p.to:SetText(WoW.player)
+  click(p.sendBtn)
+  T.eq(MB.busy, false)
+  T.eq(T.count("SendMail"), 0)
+  T.eq(T.count("ClickSendMailItemButton"), 0)
+  T.eq(MB.status.text, "You can't mail yourself")
+  T.eq(table.getn(MU.send.rows), 2, "attachments stay")
+end)
+
+T.test("opening, painting, Fill and right-click never reach a send call", function()
+  local p = sendSetup("Banker")
+  click(p.fillBtn)
+  rclick(2)
+  p:Refresh()
+  frame() frame()
+  for _, n in ipairs({ "SendMail", "ClickSendMailItemButton", "SetSendMailMoney" }) do T.eq(T.count(n), 0, n) end
+end)
+
+T.test("Clear empties the form and restores the default recipient", function()
+  local p = sendSetup("Banker")
+  click(p.fillBtn)
+  p.to:SetText("Someone")
+  p.subject:SetText("x")
+  click(p.clearBtn)
+  T.eq(table.getn(MU.send.rows), 0)
+  T.eq(p.to:GetText(), "Banker")
+  T.eq(p.subject:GetText(), "")
 end)
