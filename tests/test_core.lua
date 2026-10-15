@@ -237,7 +237,6 @@ T.test("login prunes posting-log entries older than the retention", function()
 end)
 
 T.test("selling and auctions: nothing posts, cancels, splits or bids without a click; each click does it once", function()
-  local SellUI = A.SellUI
   WoW.items[14047] = { name = "Runecloth", stack = 20, quality = 1, tex = "rune" }
   WoW.bags[0] = { { id = 14047, name = "Runecloth", count = 20, vendor = 100 }, {}, {}, {} }
   WoW.bags[1], WoW.bags[2], WoW.bags[3], WoW.bags[4] = nil, nil, nil, nil
@@ -311,5 +310,4 @@ T.test("selling and auctions: nothing posts, cancels, splits or bids without a c
   T.eq(T.count("SplitContainerItem"), 1)
   T.eq(T.count("StartAuction"), 0)
   UI.ah.tabs:Select("browse")
-  UI.pages.auctions, UI.pages.sell = nil, nil     -- later files build them afresh (test_sell_ui assumes Auctions is unbuilt)
 end)

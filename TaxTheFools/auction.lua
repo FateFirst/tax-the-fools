@@ -6,8 +6,8 @@ TaxTheFools.Auction = Auction
 -- PlaceAuctionBid is called in exactly one place, place() below, and only from
 -- Auction.Buy and Auction.Bid, which run from a button's OnClick (phase 3a
 -- spec section 2). StartAuction, CancelAuction and SplitContainerItem are each
--- called in exactly one place too: Auction.Post, Auction.Cancel (via place-like
--- code below) and Auction.Split, from a click or a confirmation window's button
+-- called in exactly one place too, in Auction.Post, Auction.Cancel and Auction.Split
+-- respectively, each run from a click or a confirmation window's button
 -- (phase 3b spec section 2). One pending action at a time: Auction.busy.
 
 -- Replies that end a pending buy or bid as a failure. Matched only where the
@@ -16,6 +16,7 @@ Auction.FAILURES = { "ERR_NOT_ENOUGH_MONEY", "ERR_ITEM_NOT_FOUND", "ERR_AUCTION_
                      "ERR_AUCTION_DATABASE_ERROR", "ERR_AUCTION_RESTRICTED_ACCOUNT",
                      "ERR_AUCTION_LIMITED_DURATION_ITEM", "ERR_AUCTION_REPAIR_ITEM", "ERR_AUCTION_USED_CHARGES" }
 Auction.LEARN_SECS = 3
+Auction.NO_REPLY_ACTION = "No reply from the auction house. Check the Auctions tab."   -- post and cancel
 Auction.NO_REPLY = "No reply from the auction house. Search again to see whether it went through."
 
 function Auction.ResetState() Auction.busy, Auction.note, Auction.pending = false, false, false end
@@ -182,9 +183,14 @@ end
 -- (the deposit is lost and the bidder refunded); confirmed is set only by that window's button.
 function Auction.Cancel(index, sig, after, onFail, confirmed)
   if Auction.busy then return refuse("Wait for the auction house to answer the last action.") end
-  if not index or not sig then return refuse("Auction changed. Check the Auctions tab.") end
+  -- A refused cancel means the list on screen is stale: ask for it again.
+  local function changed()
+    GetOwnerAuctionItems(0)
+    return refuse("Auction changed. Check the Auctions tab.")
+  end
+  if not index or not sig then return changed() end
   local r = matchRow(Auction.OwnerRow(index), sig)
-  if not r then return refuse("Auction changed. Check the Auctions tab.") end
+  if not r then return changed() end
   if r.bid > 0 and not confirmed then
     TaxTheFools.Confirm.OpenCancel(index, sig, r, after, onFail)
     return "confirm"
@@ -305,5 +311,5 @@ function Auction.Tick(now)
   local p = Auction.pending
   if p and now - p.at > Auction.LEARN_SECS then Auction.pending = false end
   local b = Auction.busy
-  if b and now - b.at >= D.ACTION_TIMEOUT then finish(false, Auction.NO_REPLY) end
+  if b and now - b.at >= D.ACTION_TIMEOUT then finish(false, (b.kind == "post" or b.kind == "cancel") and Auction.NO_REPLY_ACTION or Auction.NO_REPLY) end
 end

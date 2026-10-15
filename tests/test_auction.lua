@@ -129,7 +129,7 @@ T.test("no reply within 5 seconds releases the lock", function()
   WoW.clock = WoW.clock + 0.1
   frame()
   T.eq(Auction.busy, false, "released at 5s")
-  T.ok(T.calledWith("No reply from the auction house"))
+  T.ok(T.calledWith("No reply from the auction house. Search again to see whether it went through."))
 end)
 
 T.test("messages that are not auction replies leave the lock alone", function()

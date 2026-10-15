@@ -293,7 +293,7 @@ T.test("no reply to a post within 5 seconds releases the lock", function()
   WoW.clock = WoW.clock + 0.1
   frame()
   T.eq(Auction.busy, false)
-  T.ok(T.calledWith("No reply from the auction house"))
+  T.ok(T.calledWith("No reply from the auction house. Check the Auctions tab."))
 end)
 
 T.test("ERR_AUCTION_STARTED is accepted on UI_ERROR_MESSAGE, and a bid reply does not end a post", function()
@@ -387,6 +387,7 @@ T.test("Cancel refuses a row that changed", function()
   T.eq(Auction.Cancel(3, s), false, "no row 3")
   T.eq(T.count("CancelAuction"), 0)
   T.ok(T.calledWith("Auction changed"))
+  T.eq(T.count("GetOwnerAuctionItems"), 3, "setup request, plus one for each of the two refusals (Review M3)")
 end)
 
 T.test("Cancelling an auction that has a bid asks first (Review Focus 4)", function()
@@ -431,6 +432,8 @@ T.test("a cancel failure or silence releases the lock", function()
   WoW.clock = WoW.clock + 5
   frame()
   T.eq(Auction.busy, false)
+  T.ok(T.calledWith("No reply from the auction house. Check the Auctions tab."), "post and cancel point at the Auctions tab")
+  T.eq(T.calledWith("Search again to see"), false, "not the buy wording")
   local failed = nil
   WoW.ah.cancelReply = "auto"
   WoW.ah.listings = {}                                  -- already gone on the server

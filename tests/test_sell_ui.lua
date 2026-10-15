@@ -77,8 +77,8 @@ T.test("Sell sits third in the tabs and Browse is still selected on open", funct
 end)
 
 T.test("a tab whose builder is missing is left out of the strip and ShowPage ignores it", function()
-  local keep = UI.builders.auctions
-  UI.builders.auctions = nil
+  local keep, keepPage = UI.builders.auctions, UI.pages.auctions
+  UI.builders.auctions, UI.pages.auctions = nil, nil     -- the builder and any page it built earlier
   local keys = {}
   for _, t in ipairs(UI.VisibleTabs()) do table.insert(keys, t.key) end
   T.eq(table.concat(keys, ","), "deals,browse,sell,craft")
@@ -86,7 +86,7 @@ T.test("a tab whose builder is missing is left out of the strip and ShowPage ign
   UI.ah.tabs:Select("browse")
   T.eq(UI.ShowPage("auctions"), false)
   T.ok(UI.pages.browse:IsShown(), "the current page stays")
-  UI.builders.auctions = keep
+  UI.builders.auctions, UI.pages.auctions = keep, keepPage
 end)
 
 T.test("the grid combines slots, sorts by name and shows only auctionable items", function()
