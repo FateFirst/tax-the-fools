@@ -254,6 +254,7 @@ T.test("selling and auctions: nothing posts, cancels, splits or bids without a c
   local function quiet(why)
     for _, name in ipairs({ "StartAuction", "CancelAuction", "SplitContainerItem", "PlaceAuctionBid", "GetInboxText",
                             "GetInboxInvoiceInfo", "TakeInboxMoney", "TakeInboxItem", "DeleteInboxItem", "ReturnInboxItem",
+                            "SendMail", "ClickSendMailItemButton", "SetSendMailMoney", "CheckInbox",
                             "BuyTrainerService", "SetTrainerServiceTypeFilter", "BuyMerchantItem" }) do
       T.eq(T.count(name), 0, why .. ": " .. name)
     end
@@ -317,6 +318,7 @@ T.test("selling and auctions: nothing posts, cancels, splits or bids without a c
                { subject = "Auction expired: Runecloth", money = 0, daysLeft = 28, hasItem = 1 } }
   WoW.fire("MAIL_SHOW")
   WoW.fire("MAIL_INBOX_UPDATE") WoW.fire("MAIL_INBOX_UPDATE")
+  WoW.fire("MAIL_SEND_SUCCESS")
   pump()
   T.ok(T.count("GetInboxHeaderInfo") >= 2, "the headers were read")
   quiet("mailbox open with AH mail")

@@ -19,6 +19,7 @@ sell.lua
 sales.lua
 mail.lua
 mailrules.lua
+mailbox.lua
 db.lua
 items.lua
 inventory.lua

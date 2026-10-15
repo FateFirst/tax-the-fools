@@ -1,7 +1,10 @@
 local A = TaxTheFools
 local Mail, Sales, DB, Auction = A.Mail, A.Sales, A.DB, A.Auction
 
-local FORBIDDEN = { "GetInboxText", "GetInboxInvoiceInfo", "TakeInboxMoney", "TakeInboxItem", "DeleteInboxItem", "ReturnInboxItem" }
+-- Phase 5b spec section 1: these are never called without a click on a Mailbox action. Header reading,
+-- events and ticks (everything in this file) never call them; GetInboxInvoiceInfo is never called at all.
+local FORBIDDEN = { "GetInboxText", "GetInboxInvoiceInfo", "TakeInboxMoney", "TakeInboxItem", "DeleteInboxItem", "ReturnInboxItem",
+                    "SendMail", "ClickSendMailItemButton", "SetSendMailMoney", "CheckInbox" }
 local function noForbidden(why)
   for _, name in ipairs(FORBIDDEN) do T.eq(T.count(name), 0, (why or "") .. " " .. name) end
 end

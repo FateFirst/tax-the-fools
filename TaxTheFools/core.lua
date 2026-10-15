@@ -67,11 +67,16 @@ function Core.OnEvent(e)
     Core.Safe("auction money", A.Auction.OnMoney, GetTime())
     Core.Safe("auction", A.Auction.Changed)
   elseif e == "AUCTION_OWNED_LIST_UPDATE" then Core.Safe("auctions", A.AuctionsUI.Read)
-  elseif e == "MAIL_SHOW" or e == "MAIL_INBOX_UPDATE" then Core.Safe("mail", A.Mail.OnEvent, e)
+  elseif e == "MAIL_SHOW" or e == "MAIL_INBOX_UPDATE" then
+    Core.Safe("mail", A.Mail.OnEvent, e)
+    Core.Safe("mailbox", A.Mailbox.OnEvent, e)
+  elseif e == "MAIL_SEND_SUCCESS" then Core.Safe("mailbox", A.Mailbox.OnEvent, e)
+  elseif e == "MAIL_CLOSED" then Core.Safe("mailbox", A.Mailbox.OnClosed)
   elseif e == "TRAINER_SHOW" or e == "TRAINER_UPDATE" then Core.Safe("trainer", A.RecipesLearn.OnTrainer)
   elseif e == "CHAT_MSG_SYSTEM" or e == "UI_ERROR_MESSAGE" then
     Core.Safe("auction", A.Auction.OnMessage, arg1)
-    if e == "CHAT_MSG_SYSTEM" then Core.Safe("mail note", A.Mail.OnMessage, arg1) end
+    if e == "CHAT_MSG_SYSTEM" then Core.Safe("mail note", A.Mail.OnMessage, arg1)
+    else Core.Safe("mailbox", A.Mailbox.OnError, arg1) end
   end
 end
 
@@ -94,6 +99,7 @@ function Core.Update(now)
   Core.Safe("inventory", A.Inventory.Tick, now)
   Core.Safe("tradeskill", A.TradeSkill.Tick, now)
   Core.Safe("mail", A.Mail.Tick)
+  Core.Safe("mailbox", A.Mailbox.Tick, now)
   Core.Safe("trainer", A.RecipesLearn.Tick)
   if not Core.pruned then Core.Safe("prune", Core.PruneTick) end
   if now - Core.uiAt >= 0.25 then
@@ -181,7 +187,7 @@ for _, e in ipairs({ "VARIABLES_LOADED", "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CL
                      "MERCHANT_SHOW", "PLAYER_MONEY", "BAG_UPDATE", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
                      "PLAYERBANKSLOTS_CHANGED", "PLAYER_ENTERING_WORLD", "TRADE_SKILL_SHOW", "TRADE_SKILL_UPDATE",
                      "TRADE_SKILL_CLOSE", "CHAT_MSG_SYSTEM", "UI_ERROR_MESSAGE", "AUCTION_OWNED_LIST_UPDATE",
-                     "MAIL_SHOW", "MAIL_INBOX_UPDATE", "TRAINER_SHOW", "TRAINER_UPDATE" }) do
+                     "MAIL_SHOW", "MAIL_INBOX_UPDATE", "MAIL_SEND_SUCCESS", "MAIL_CLOSED", "TRAINER_SHOW", "TRAINER_UPDATE" }) do
   frame:RegisterEvent(e)
 end
 frame:SetScript("OnEvent", function() Core.OnEvent(event) end)
