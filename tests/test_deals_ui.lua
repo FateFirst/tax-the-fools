@@ -347,7 +347,13 @@ T.test("an undersupplied item shows as an Under row with its profit", function()
   T.eq(p.list.rows[i].cells[8]:GetText(), "Under")
 end)
 
-T.test("the Under switch and sliders write settings.deals and refresh the list", function()
+T.test("the Deals rail has the Under switch but not the underPct and premiumPct sliders (I2)", function()
+  local p = underPage()
+  T.ok(p.underSw)
+  T.eq(rawget(p, "underSl"), nil) T.eq(rawget(p, "premiumSl"), nil)
+end)
+
+T.test("the Under switch and the underPct and premiumPct settings (Options page) refresh the list", function()
   local p = underPage()
   T.ok(underRow(p))
   WoW.runScript(p.underSw, "OnClick")
@@ -355,16 +361,13 @@ T.test("the Under switch and sliders write settings.deals and refresh the list",
   T.eq(underRow(p), nil)
   WoW.runScript(p.underSw, "OnClick")
   T.ok(underRow(p))
-  p.underSl.slider:SetValue(10)
-  WoW.runScript(p.underSl.slider, "OnMouseUp")
-  T.eq(DB.S().deals.underPct, 10)
+  DB.S().deals.underPct = 10
+  A.DealsUI.Paint()
   -- 1 listing of a median 6 is 16.7%: over 10%, so the row goes.
   T.eq(underRow(p), nil)
-  p.underSl.slider:SetValue(33)
-  WoW.runScript(p.underSl.slider, "OnMouseUp")
-  p.premiumSl.slider:SetValue(150)
-  WoW.runScript(p.premiumSl.slider, "OnMouseUp")
-  T.eq(DB.S().deals.premiumPct, 150)
+  DB.S().deals.underPct = 33
+  DB.S().deals.premiumPct = 150
+  A.DealsUI.Paint()
   local _, d = underRow(p)
   T.eq(d.suggest, 1500)          -- floor(1000 * 150/100)
   DB.S().deals.premiumPct = 110

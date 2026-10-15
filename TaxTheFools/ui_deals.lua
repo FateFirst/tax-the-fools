@@ -1,7 +1,7 @@
 TaxTheFools = TaxTheFools or {}
 local U, Th, W, L, DB, Scan, UI = TaxTheFools.Util, TaxTheFools.Theme, TaxTheFools.Widgets, TaxTheFools.List,
   TaxTheFools.DB, TaxTheFools.Scan, TaxTheFools.UI
-local Auction, Deals, TS, I, Inv, Price = TaxTheFools.Auction, TaxTheFools.Deals, TaxTheFools.TradeSkill, TaxTheFools.Items, TaxTheFools.Inventory, TaxTheFools.Price
+local Auction, Deals, TS, I, Price = TaxTheFools.Auction, TaxTheFools.Deals, TaxTheFools.TradeSkill, TaxTheFools.Items, TaxTheFools.Price
 local DealsUI = { frame = nil }
 TaxTheFools.DealsUI = DealsUI
 
@@ -109,10 +109,7 @@ function DealsUI.BuildRail(p)
   p.confDD = W.Dropdown(rail, DealsUI.RAIL, DealsUI.CONFIDENCE, function() return DB.S().deals.minConfidence end,
     function(v) DB.S().deals.minConfidence = v DealsUI.Paint() end)
   p.confDD:SetPoint("TOPLEFT", p.confLabel, "BOTTOMLEFT", 0, -4)
-  p.underSl = slider(p, "Listed at most", "underPct", 10, 90, 5, pct)
-  p.underSl:SetPoint("TOPLEFT", p.confDD, "BOTTOMLEFT", 0, -8)
-  p.premiumSl = slider(p, "Suggest at", "premiumPct", 100, 150, 5, pct)
-  p.premiumSl:SetPoint("TOPLEFT", p.underSl, "BOTTOMLEFT", 0, -8)
+  -- underPct and premiumPct are Options-page settings only: more rail rows overflow the minimum window height.
 end
 
 function DealsUI.Build(parent)
@@ -159,8 +156,7 @@ function DealsUI.Paint()
   local text, token = DealsUI.BannerText(Scan.SnapshotAge(U.day(time())))
   p.banner:SetText(text)
   Th.Color(p.banner, token)
-  for _, c in ipairs({ p.marketSw, p.vendorSw, p.matsSw, p.underSw, p.belowSl, p.profitSl, p.matSl, p.confDD,
-    p.underSl, p.premiumSl }) do c:Refresh() end
+  for _, c in ipairs({ p.marketSw, p.vendorSw, p.matsSw, p.underSw, p.belowSl, p.profitSl, p.matSl, p.confDD }) do c:Refresh() end
   local keep = p.list.selected and Auction.Sig(p.list.selected)
   local ctx = TS.Context()
   local deals = Deals.Find(snap, ctx, DB.S().deals, DB.charName)
