@@ -215,7 +215,10 @@ function WoW.reset()
   WoW.tradeskill = { name = "Tailoring", rank = 0, maxRank = 0, selected = 0, rows = {} }
   WoW.rejectFonts = false
   WoW.ah = { listings = {}, canQuery = true, pending = false, current = {}, total = 0, lastPage = false, duplicateNext = 0,
-             bids = {}, bidReply = "auto" }
+             bids = {}, bidReply = "auto",
+             owned = {}, ownerPending = false, posts = {}, postReply = "auto", cancels = {}, cancelReply = "auto",
+             depositFactor = 0.6 }
+  WoW.cursor, WoW.sellSlot = nil, nil
   WoW.classicAPI(false)
   if AuctionFrame then AuctionFrame.shown = false end
   if TradeSkillFrame then TradeSkillFrame.shown = false end
@@ -267,12 +270,21 @@ function WoW.ahRepeatLast(withOwners)
     for _, l in ipairs(WoW.ah.current) do l.owner = "Late" .. (l.id or 0) end
   end
 end
+-- The client keeps two lists: "list" (the last search page) and "owner" (your own
+-- auctions, filled by GetOwnerAuctionItems + AUCTION_OWNED_LIST_UPDATE). Other types read empty.
+local function auctionList(kind)
+  if kind == "list" then return WoW.ah.current end
+  if kind == "owner" then return WoW.ah.owned end
+  return nil
+end
 function GetNumAuctionItems(kind)
+  if type(kind) ~= "string" then error("Usage: GetNumAuctionItems(\"type\")", 2) end
+  if kind == "owner" then return table.getn(WoW.ah.owned), table.getn(WoW.ah.owned) end
   if kind ~= "list" then return 0, 0 end
   return table.getn(WoW.ah.current), WoW.ah.total
 end
 function GetAuctionItemInfo(kind, i)
-  local l = WoW.ah.current[i]
+  local l = auctionList(kind) and auctionList(kind)[i]
   if not l then return nil end
   -- An item the client has not cached yet comes back without a name at first.
   local name = l.name
@@ -287,11 +299,15 @@ function GetAuctionItemInfo(kind, i)
     l.minBid or 1, l.minInc or 0, l.buyout or 0, l.bid or 0, high, l.owner
 end
 function GetAuctionItemLink(kind, i)
-  local l = WoW.ah.current[i]
+  local l = auctionList(kind) and auctionList(kind)[i]
   if not l then return nil end
   return WoW.link(l.id, l.name, l.suffix)
 end
-function GetAuctionItemTimeLeft(kind, i) if WoW.ah.current[i] then return 3 end return nil end
+function GetAuctionItemTimeLeft(kind, i)
+  local list = auctionList(kind)
+  if list and list[i] then return 3 end
+  return nil
+end
 function CloseAuctionHouse() WoW.log("CloseAuctionHouse") end
 -- The calls that spend or list gold. Logged so a test can prove nothing ever
 -- makes them without a click.
@@ -348,8 +364,6 @@ function WoW.bidRespond()
   WoW.fire("PLAYER_MONEY")
   WoW.fire("CHAT_MSG_SYSTEM", ERR_AUCTION_BID_PLACED)
 end
-function StartAuction(bid, buyout, minutes) WoW.log("StartAuction", bid, buyout, minutes) end
-function CancelAuction(i) WoW.log("CancelAuction", i) end
 function ShowUIPanel(f) WoW.log("ShowUIPanel", f:GetName()) f:Show() end
 function HideUIPanel(f) WoW.log("HideUIPanel", f:GetName()) f:Hide() end
 
@@ -399,7 +413,8 @@ end
 function GetContainerItemInfo(bag, slot)
   local it = slotItem(bag, slot)
   if not it or not it.id then return nil end
-  return it.tex or "tex", it.count or 1
+  -- 1.12: texture, itemCount, locked, quality, readable
+  return it.tex or "tex", it.count or 1, it.locked and 1 or nil
 end
 -- Selling at a merchant is a right-click on a bag item, which is this call.
 function UseContainerItem(bag, slot) WoW.log("UseContainerItem", bag, slot) end
@@ -418,6 +433,180 @@ function GetMerchantItemLink(i)
 end
 function BuyMerchantItem(i, n) WoW.log("BuyMerchantItem", i, n) end
 
+-- ---------- posting, splitting and cancelling ----------
+-- Cursor and sell slot. Source: Blizzard 1.12 AuctionFrame.lua and aux-addon (notes-aux.md section 4),
+-- which post with ClearCursor(); ClickAuctionSellItemButton(); PickupContainerItem(bag, slot);
+-- ClickAuctionSellItemButton(); StartAuction(minBid, buyout, runTime).
+-- WoW.cursor = nil | { item =, count =, bag =, slot =, split = bool }: what the hand holds. The source
+-- slot stays occupied but locked until the item is dropped or sold, as in the client.
+-- WoW.sellSlot = nil | { item =, count =, bag =, slot = }: the auction frame's one item slot.
+local function needNumbers(usage, ...)
+  for i = 1, arg.n do
+    if type(arg[i]) ~= "number" then error("Usage: " .. usage, 3) end
+  end
+end
+local function unlock(c) if c and c.item then c.item.locked = nil end end
+function ClearCursor()
+  WoW.log("ClearCursor")
+  unlock(WoW.cursor)
+  WoW.cursor = nil
+end
+-- SplitContainerItem(bag, slot, count) (1.12 API, wowwiki): the hand then holds `count` of the stack.
+function SplitContainerItem(bag, slot, count)
+  needNumbers("SplitContainerItem(bag, slot, count)", bag, slot, count)
+  WoW.log("SplitContainerItem", bag, slot, count)
+  local it = slotItem(bag, slot)
+  if not it or not it.id or it.locked or WoW.cursor then return end
+  if count < 1 or count >= (it.count or 1) then return end
+  it.locked = true
+  WoW.cursor = { item = it, count = count, bag = bag, slot = slot, split = true }
+end
+-- PickupContainerItem(bag, slot): an empty hand takes the stack (locking it); a full hand drops into
+-- the slot: empty slot (a split creates the new stack there), the same item (merge), another item (swap).
+function PickupContainerItem(bag, slot)
+  needNumbers("PickupContainerItem(bag, slot)", bag, slot)
+  WoW.log("PickupContainerItem", bag, slot)
+  local it = slotItem(bag, slot)
+  local c = WoW.cursor
+  if not c then
+    if it and it.id and not it.locked then
+      it.locked = true
+      WoW.cursor = { item = it, count = it.count or 1, bag = bag, slot = slot }
+    end
+    return
+  end
+  if not WoW.bags[bag] or not WoW.bags[bag][slot] then return end
+  if it == c.item then ClearCursor() return end
+  if it and it.locked then return end
+  if not it or not it.id then
+    if c.split then
+      local copy = {}
+      for k, v in pairs(c.item) do copy[k] = v end
+      copy.count, copy.locked = c.count, nil
+      c.item.count = (c.item.count or 1) - c.count
+      WoW.bags[bag][slot] = copy
+    else
+      WoW.bags[bag][slot] = c.item
+      WoW.bags[c.bag][c.slot] = {}
+    end
+    unlock(c)
+    WoW.cursor = nil
+    WoW.fire("BAG_UPDATE")
+    return
+  end
+  if it.id == c.item.id and c.split then
+    c.item.count = (c.item.count or 1) - c.count
+    it.count = (it.count or 1) + c.count
+    unlock(c)
+    WoW.cursor = nil
+    WoW.fire("BAG_UPDATE")
+    return
+  end
+  if not c.split then
+    WoW.bags[bag][slot], WoW.bags[c.bag][c.slot] = c.item, it
+    unlock(c)
+    WoW.cursor = nil
+    WoW.fire("BAG_UPDATE")
+  end
+end
+-- ClickAuctionSellItemButton(): hand holds an item and the slot is empty: it goes in the slot; hand
+-- empty and slot full: it comes back to the hand; both full: they swap.
+function ClickAuctionSellItemButton()
+  WoW.log("ClickAuctionSellItemButton")
+  local c, s = WoW.cursor, WoW.sellSlot
+  if c then
+    WoW.sellSlot = { item = c.item, count = c.count, bag = c.bag, slot = c.slot }
+    WoW.cursor = s and { item = s.item, count = s.count, bag = s.bag, slot = s.slot } or nil
+  elseif s then
+    WoW.cursor, WoW.sellSlot = { item = s.item, count = s.count, bag = s.bag, slot = s.slot }, nil
+  end
+end
+-- 1.12 returns name, texture, count, quality, canUse, price; nothing for an empty slot.
+function GetAuctionSellItemInfo()
+  local s = WoW.sellSlot
+  if not s then return nil end
+  return s.item.name, s.item.tex or "tex", s.count, s.item.quality or 1, 1, (s.item.vendor or 0) * s.count
+end
+-- CalculateAuctionDeposit(runTime) is the client's figure for the item in the slot: here 15% of the
+-- vendor price per 2 hours, scaled by duration. On Turtle the server charges about 0.6x of it
+-- (notes-aegis-exchange.md): WoW.ah.depositFactor.
+function CalculateAuctionDeposit(minutes)
+  if type(minutes) ~= "number" then error("Usage: CalculateAuctionDeposit(runTime)", 2) end
+  local s = WoW.sellSlot
+  if not s then return 0 end
+  return math.floor((s.item.vendor or 0) * s.count * 0.15 * minutes / 120)
+end
+-- StartAuction(minBid, buyoutPrice, runTime): run time must be 120, 480 or 1440 on Turtle. The server
+-- answers later; WoW.postRespond() delivers the answer. WoW.ah.postReply: "auto", "none" (never),
+-- "money" or "limited" (that error whatever happens).
+function StartAuction(bid, buyout, minutes)
+  needNumbers("StartAuction(minBid, buyoutPrice, runTime)", bid, buyout, minutes)
+  if minutes ~= 120 and minutes ~= 480 and minutes ~= 1440 then
+    error("Usage: StartAuction(minBid, buyoutPrice, runTime): runTime is 120, 480 or 1440", 2)
+  end
+  WoW.log("StartAuction", bid, buyout, minutes)
+  local s = WoW.sellSlot
+  if not s then return end
+  table.insert(WoW.ah.posts, { bid = bid, buyout = buyout, minutes = minutes, slot = s })
+end
+function WoW.postRespond()
+  local p = table.remove(WoW.ah.posts, 1)
+  if not p then error("no outstanding post") end
+  local reply = WoW.ah.postReply
+  if reply == "none" then return end
+  local function fail(msg) WoW.fire("UI_ERROR_MESSAGE", msg) end
+  if reply == "money" then return fail(ERR_NOT_ENOUGH_MONEY) end
+  if reply == "limited" then return fail(ERR_AUCTION_LIMITED_DURATION_ITEM) end
+  local s = p.slot
+  local deposit = math.floor(((s.item.vendor or 0) * s.count * 0.15 * p.minutes / 120) * WoW.ah.depositFactor)
+  if deposit > WoW.money then return fail(ERR_NOT_ENOUGH_MONEY) end
+  WoW.money = WoW.money - deposit
+  -- the stack leaves the bag; the auction joins the server's listings
+  WoW.bags[s.bag][s.slot] = {}
+  WoW.sellSlot = nil
+  table.insert(WoW.ah.listings, { id = s.item.id, name = s.item.name, count = s.count, buyout = p.buyout,
+    minBid = p.bid, owner = WoW.player, quality = s.item.quality, tex = s.item.tex })
+  WoW.fire("PLAYER_MONEY")
+  WoW.fire("CHAT_MSG_SYSTEM", ERR_AUCTION_STARTED)
+  WoW.fire("BAG_UPDATE")
+end
+-- GetOwnerAuctionItems(page) asks for your auctions; WoW.ownerRespond() answers with
+-- AUCTION_OWNED_LIST_UPDATE (the page the client then shows is a copy, stale until asked again).
+function GetOwnerAuctionItems(page)
+  if type(page) ~= "number" then error("Usage: GetOwnerAuctionItems(page)", 2) end
+  WoW.log("GetOwnerAuctionItems", page)
+  WoW.ah.ownerPending = true
+end
+function WoW.ownerRespond()
+  if not WoW.ah.ownerPending then error("no outstanding owner request") end
+  WoW.ah.ownerPending = false
+  local owned = {}
+  for _, l in ipairs(WoW.ah.listings) do
+    if l.owner == WoW.player then table.insert(owned, l) end
+  end
+  WoW.ah.owned = owned
+  WoW.fire("AUCTION_OWNED_LIST_UPDATE")
+end
+-- CancelAuction(index) cancels row `index` of the owner list (1.12 AuctionFrame.lua passes
+-- GetSelectedAuctionItem("owner")). The server answers later: WoW.cancelRespond() sends
+-- ERR_AUCTION_REMOVED, or ERR_ITEM_NOT_FOUND if that auction is already gone.
+function CancelAuction(i)
+  needNumbers("CancelAuction(index)", i)
+  WoW.log("CancelAuction", i)
+  table.insert(WoW.ah.cancels, { listing = WoW.ah.owned[i] })
+end
+function WoW.cancelRespond()
+  local c = table.remove(WoW.ah.cancels, 1)
+  if not c then error("no outstanding cancel") end
+  if WoW.ah.cancelReply == "none" then return end
+  local at = nil
+  for n, x in ipairs(WoW.ah.listings) do
+    if x == c.listing then at = n end
+  end
+  if not at then return WoW.fire("UI_ERROR_MESSAGE", ERR_ITEM_NOT_FOUND) end
+  table.remove(WoW.ah.listings, at)
+  WoW.fire("CHAT_MSG_SYSTEM", ERR_AUCTION_REMOVED)
+end
 -- ---------- tradeskill window ----------
 -- WoW.tradeskill = { name=, rank=, maxRank=, selected=, rows = {
 --   { header = true, name = "Cloth", collapsed = nil|true },
@@ -507,6 +696,11 @@ ERR_ITEM_NOT_FOUND = "Item not found."
 ERR_AUCTION_HIGHER_BID = "There is already a higher bid on that item."
 ERR_AUCTION_BID_OWN = "You cannot bid on your own auction."
 ERR_AUCTION_DATABASE_ERROR = "Internal auction error."
+ERR_AUCTION_STARTED = "Auction created."
+ERR_AUCTION_REMOVED = "Auction cancelled."
+ERR_AUCTION_LIMITED_DURATION_ITEM = "Items with a limited duration cannot be auctioned."
+ERR_AUCTION_REPAIR_ITEM = "You must repair that item first."
+ERR_AUCTION_USED_CHARGES = "Items with used charges cannot be auctioned."
 YES, NO = "Yes", "No"
 UIParent = newFrame("Frame", "UIParent")
 Minimap = newFrame("Frame", "Minimap")

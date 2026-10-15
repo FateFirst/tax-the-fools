@@ -50,16 +50,38 @@ function Confirm.Open(index, sig, r, after, onFail)
   local m = DB.Realm().market[r.key]
   local lines = Confirm.Lines(r, m and m.v)
   for i, fs in ipairs(f.lines) do fs:SetText(lines[i]) end
+  f.header.title:SetText("CONFIRM PURCHASE")
+  f.buy:SetLabel("Buy")
   f:Show()
-  Confirm.pending = { index = index, sig = sig, after = after or false, onFail = onFail or false }
+  Confirm.pending = { kind = "buy", index = index, sig = sig, after = after or false, onFail = onFail or false }
 end
 
--- The window's Buy click: one more listing check inside Auction.Buy, then at most one PlaceAuctionBid.
+-- The window's three lines for cancelling your own auction r that has a bid.
+function Confirm.CancelLines(r)
+  return { U.quality(r.quality) .. r.name .. "|r  x" .. r.count,
+           "Current bid " .. U.money(r.bid) .. "   Buyout " .. U.money(r.buyout),
+           "The bidder is refunded and you lose the deposit." }
+end
+
+-- Called by Auction.Cancel for an auction that has a bid.
+function Confirm.OpenCancel(index, sig, r, after, onFail)
+  local f = Confirm.Create()
+  local lines = Confirm.CancelLines(r)
+  for i, fs in ipairs(f.lines) do fs:SetText(lines[i]) end
+  f.header.title:SetText("CONFIRM CANCEL")
+  f.buy:SetLabel("Cancel auction")
+  f:Show()
+  Confirm.pending = { kind = "cancel", index = index, sig = sig, after = after or false, onFail = onFail or false }
+end
+
+-- The window's Buy click: one more listing check inside Auction.Buy (or Auction.Cancel), then at most one
+-- PlaceAuctionBid (or CancelAuction).
 function Confirm.Buy()
   local p = Confirm.pending
   Confirm.pending = false
   if Confirm.frame then Confirm.frame:Hide() end
   if not p then return false end
+  if p.kind == "cancel" then return Auction.Cancel(p.index, p.sig, p.after, p.onFail, true) end
   return Auction.Buy(p.index, p.sig, p.after, true, p.onFail)
 end
 

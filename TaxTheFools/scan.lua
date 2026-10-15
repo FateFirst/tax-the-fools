@@ -92,9 +92,11 @@ local function send(job, now)
   if not job.firstSentAt then job.firstSentAt = now end
 end
 
-function Scan.ReadRow(i)
-  local name, texture, count, quality, _, _, minBid, minInc, buyout, bid, high, owner = GetAuctionItemInfo("list", i)
-  local link = GetAuctionItemLink("list", i)
+-- kind is "list" (the search page, the default) or "owner" (your own auctions).
+function Scan.ReadRow(i, kind)
+  kind = kind or "list"
+  local name, texture, count, quality, _, _, minBid, minInc, buyout, bid, high, owner = GetAuctionItemInfo(kind, i)
+  local link = GetAuctionItemLink(kind, i)
   local key, id = U.keyFromLink(link)
   if not name or not key then return nil end
   I.Remember(id, name, quality, nil, texture)

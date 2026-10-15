@@ -1,16 +1,20 @@
 TaxTheFools = TaxTheFools or {}
-local U, D, DB, Scan = TaxTheFools.Util, TaxTheFools.Data, TaxTheFools.DB, TaxTheFools.Scan
+local U, D, DB, Scan, Sell = TaxTheFools.Util, TaxTheFools.Data, TaxTheFools.DB, TaxTheFools.Scan, TaxTheFools.Sell
 local Auction = { busy = false, note = false, listeners = {} }
 TaxTheFools.Auction = Auction
 
 -- PlaceAuctionBid is called in exactly one place, place() below, and only from
 -- Auction.Buy and Auction.Bid, which run from a button's OnClick (phase 3a
--- spec section 2). One pending action at a time: Auction.busy.
+-- spec section 2). StartAuction, CancelAuction and SplitContainerItem are each
+-- called in exactly one place too: Auction.Post, Auction.Cancel (via place-like
+-- code below) and Auction.Split, from a click or a confirmation window's button
+-- (phase 3b spec section 2). One pending action at a time: Auction.busy.
 
 -- Replies that end a pending buy or bid as a failure. Matched only where the
 -- client defines the global.
 Auction.FAILURES = { "ERR_NOT_ENOUGH_MONEY", "ERR_ITEM_NOT_FOUND", "ERR_AUCTION_HIGHER_BID", "ERR_AUCTION_BID_OWN",
-                     "ERR_AUCTION_DATABASE_ERROR", "ERR_AUCTION_RESTRICTED_ACCOUNT" }
+                     "ERR_AUCTION_DATABASE_ERROR", "ERR_AUCTION_RESTRICTED_ACCOUNT",
+                     "ERR_AUCTION_LIMITED_DURATION_ITEM", "ERR_AUCTION_REPAIR_ITEM", "ERR_AUCTION_USED_CHARGES" }
 Auction.NO_REPLY = "No reply from the auction house. Search again to see whether it went through."
 
 function Auction.ResetState() Auction.busy, Auction.note = false, false end
@@ -41,14 +45,20 @@ function Auction.Sig(r) return { key = r.key, count = r.count, buyout = r.buyout
 
 -- Row index of the current "list" page, re-read now, if it is still the auction
 -- sig describes. The owner is compared only when both sides know it.
-function Auction.Match(index, sig)
-  if not index or not sig then return nil end
-  local r = Scan.ReadRow(index)
+local function matchRow(r, sig)
   if not r then return nil end
   if r.key ~= sig.key or r.count ~= sig.count or r.buyout ~= sig.buyout then return nil end
   if r.owner and sig.owner and r.owner ~= sig.owner then return nil end
   return r
 end
+
+function Auction.Match(index, sig)
+  if not index or not sig then return nil end
+  return matchRow(Scan.ReadRow(index), sig)
+end
+
+-- Row i of your own auctions (the "owner" list), in the shape of Scan.ReadRow.
+function Auction.OwnerRow(i) return Scan.ReadRow(i, "owner") end
 
 -- The next acceptable bid: the current bid plus the increment, or the minimum bid.
 function Auction.BidAmount(r)
@@ -67,6 +77,87 @@ local function place(kind, index, r, amount, after, onFail)
   Auction.busy = { kind = kind, key = r.key, count = r.count, amount = amount, at = GetTime(),
                    sig = Auction.Sig(r), name = r.name, after = after or false, onFail = onFail or false }
   PlaceAuctionBid("list", index, amount)
+  Auction.Changed()
+  return true
+end
+
+local function clearSellSlot()
+  ClearCursor()
+  if GetAuctionSellItemInfo() then
+    ClickAuctionSellItemButton()
+    ClearCursor()
+  end
+end
+
+-- Post one stack of `stack` units of `key` from bag slot (bag, slot) for the given
+-- starting bid and buyout (both totals, as StartAuction takes them) and duration in
+-- minutes. Refuses, with no StartAuction, when the slot no longer holds key x stack,
+-- the bid is above the buyout, the buyout is under the price floor (unless
+-- allowBelowFloor) or the deposit can't be paid. after(busy) runs on success;
+-- onFail(text) when the reply (or its absence) says it failed.
+function Auction.Post(bag, slot, stack, bid, buyout, minutes, key, allowBelowFloor, after, onFail)
+  if Auction.busy then return refuse("Wait for the auction house to answer the last action.") end
+  local k, id = U.keyFromLink(GetContainerItemLink(bag, slot))
+  local _, have = GetContainerItemInfo(bag, slot)
+  if not k or k ~= key or have ~= stack then return refuse("Your bags changed. Pick the item again.") end
+  if bid > buyout then return refuse("The starting bid is above the buyout.") end
+  local m = DB.Realm().market[key]
+  local s = DB.S().sell
+  if m and m.v and not allowBelowFloor then
+    local floor = math.ceil(m.v * s.floorPct / 100)
+    if buyout < floor * stack then return refuse("That is below your floor. Tick Allow below floor to post it.") end
+  end
+  -- Get the stack into the sell slot, then check the deposit: the learned figure, or the client's.
+  clearSellSlot()
+  PickupContainerItem(bag, slot)
+  ClickAuctionSellItemButton()
+  local deposit = Sell.Deposit(TaxTheFoolsDB.items, id, minutes, stack) or CalculateAuctionDeposit(minutes)
+  if deposit > GetMoney() then
+    clearSellSlot()
+    return refuse("You can't afford the deposit of " .. U.money(deposit, true) .. ".")
+  end
+  local name = GetItemInfo(id) or key
+  Auction.busy = { kind = "post", key = key, id = id, count = stack, bid = bid, buyout = buyout, minutes = minutes,
+                   before = GetMoney(), at = GetTime(), name = name, after = after or false, onFail = onFail or false }
+  StartAuction(bid, buyout, minutes)
+  Auction.Changed()
+  return true
+end
+
+-- Split `size` units off the stack at (bag, slot) into an empty bag slot. No server reply
+-- and no lock: the new stack shows on the next BAG_UPDATE. Returns true, or nil and why.
+function Auction.Split(bag, slot, size)
+  local function no(text) refuse(text) return nil, text end
+  if Auction.busy then return no("Wait for the auction house to answer the last action.") end
+  local _, have = GetContainerItemInfo(bag, slot)
+  if not have or not size or size < 1 or size >= have then return no("Nothing to split.") end
+  local eb, es = nil, nil
+  for b = 0, 4 do
+    for sl = 1, GetContainerNumSlots(b) do
+      if not eb and not GetContainerItemInfo(b, sl) then eb, es = b, sl end
+    end
+  end
+  if not eb then return no("No empty bag slot to split into") end
+  ClearCursor()
+  SplitContainerItem(bag, slot, size)
+  PickupContainerItem(eb, es)
+  return true
+end
+
+-- Cancel your auction at owner-list row `index` if it is still `sig`. One with a bid asks first
+-- (the deposit is lost and the bidder refunded); confirmed is set only by that window's button.
+function Auction.Cancel(index, sig, after, onFail, confirmed)
+  if Auction.busy then return refuse("Wait for the auction house to answer the last action.") end
+  if not index or not sig then return refuse("Auction changed. Check the Auctions tab.") end
+  local r = matchRow(Auction.OwnerRow(index), sig)
+  if not r then return refuse("Auction changed. Check the Auctions tab.") end
+  if r.bid > 0 and not confirmed then
+    TaxTheFools.Confirm.OpenCancel(index, sig, r, after, onFail)
+    return "confirm"
+  end
+  Auction.busy = { kind = "cancel", key = r.key, count = r.count, at = GetTime(), sig = Auction.Sig(r),
+                   name = r.name, after = after or false, onFail = onFail or false }
+  CancelAuction(index)
   Auction.Changed()
   return true
 end
@@ -114,6 +205,17 @@ local function finish(ok, text)
   if b.kind == "buy" then
     Scan.SnapshotRemove(b.sig)
     Auction.Say("Bought " .. b.name .. " x" .. b.count .. " for " .. U.money(b.amount, true) .. ".", "good")
+  elseif b.kind == "post" then
+    -- The deposit is what the server took: money before the post less money now.
+    local deposit = b.before - GetMoney()
+    if deposit < 0 then deposit = 0 end
+    Sell.Log(DB.Char(), { key = b.key, stack = b.count, bid = b.bid, buyout = b.buyout, minutes = b.minutes,
+                          deposit = deposit }, time())
+    if deposit > 0 and b.id then Sell.LearnDeposit(TaxTheFoolsDB.items, b.id, b.minutes, deposit / b.count) end
+    Auction.Say("Posted " .. b.name .. " x" .. b.count .. " for " .. U.money(b.buyout, true) .. ".", "good")
+  elseif b.kind == "cancel" then
+    GetOwnerAuctionItems(0)
+    Auction.Say("Cancelled " .. b.name .. " x" .. b.count .. ".", "good")
   else
     Auction.Say("Bid " .. U.money(b.amount, true) .. " on " .. b.name .. " x" .. b.count .. ".", "good")
   end
@@ -123,7 +225,10 @@ end
 -- CHAT_MSG_SYSTEM and UI_ERROR_MESSAGE: arg1 is the message text.
 function Auction.OnMessage(msg)
   if not Auction.busy or type(msg) ~= "string" then return end
-  if ERR_AUCTION_BID_PLACED and msg == ERR_AUCTION_BID_PLACED then return finish(true) end
+  local b = Auction.busy
+  local okText = ERR_AUCTION_BID_PLACED
+  if b.kind == "post" then okText = ERR_AUCTION_STARTED elseif b.kind == "cancel" then okText = ERR_AUCTION_REMOVED end
+  if okText and msg == okText then return finish(true) end
   for _, name in ipairs(Auction.FAILURES) do
     local text = getglobal(name)
     if text and msg == text then return finish(false, msg) end
