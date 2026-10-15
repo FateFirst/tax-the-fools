@@ -433,8 +433,9 @@ function SellUI.Click()
     return ok and true or false
   end
   local n = p.stackSize
-  local bid = st.bid or bidFor(st.buyout)
-  local r = Auction.Post(plan.bag, plan.slot, n, bid * n, st.buyout * n, p.minutes, p.sel.key, p.allowBelow,
+  local bid = math.floor(st.bid or bidFor(st.buyout))
+  local unit = math.floor(st.buyout)
+  local r = Auction.Post(plan.bag, plan.slot, n, bid * n, unit * n, p.minutes, p.sel.key, p.allowBelow,
     SellUI.Posted, SellUI.PostFailed)
   SellUI.Update()
   return r and true or false

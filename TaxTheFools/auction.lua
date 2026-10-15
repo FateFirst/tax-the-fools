@@ -96,6 +96,7 @@ end
 -- allowBelowFloor) or the deposit can't be paid. after(busy) runs on success;
 -- onFail(text) when the reply (or its absence) says it failed.
 function Auction.Post(bag, slot, stack, bid, buyout, minutes, key, allowBelowFloor, after, onFail)
+  bid, buyout = math.floor(bid), math.floor(buyout)          -- whole copper only
   if Auction.busy then return refuse("Wait for the auction house to answer the last action.") end
   local k, id = U.keyFromLink(GetContainerItemLink(bag, slot))
   local _, have = GetContainerItemInfo(bag, slot)

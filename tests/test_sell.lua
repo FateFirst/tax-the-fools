@@ -20,6 +20,20 @@ T.test("suggest undercuts the cheapest listing at or above the floor", function(
   T.eq(S.Suggest({ L(799), L(1200) }, 1000, 50, opts()).buyout, 1199, "799 < floor 800 is skipped")
 end)
 
+T.test("suggest returns whole copper (Review I3)", function()
+  -- market 1000, floor 800. Cheapest 900.7, undercut 1 -> 899.7 -> floor 899. bid = floor(899*0.9) = floor(809.1) = 809.
+  local r = S.Suggest({ L(900.7) }, 1000, nil, opts())
+  T.eq(r.buyout, 899) T.eq(r.bid, 809)
+  -- undercut 0.5: 900.7 - 0.5 = 900.2 -> 900.
+  T.eq(S.Suggest({ L(900.7) }, 1000, nil, opts({ undercut = 0.5 })).buyout, 900)
+  -- a fractional market value: 1000.6 -> 1000, and its floor is rounded up (ceil(800.48) = 801), not under it.
+  local m = S.Suggest({}, 1000.6, nil, opts())
+  T.eq(m.buyout, 1000) T.eq(m.floor, 801)
+  -- vendor 33.3 x 3 = 99.9 -> 99. bid = floor(99*0.9) = floor(89.1) = 89.
+  local v = S.Suggest({}, nil, 33.3, opts())
+  T.eq(v.buyout, 99) T.eq(v.bid, 89)
+end)
+
 T.test("suggest never goes below the floor", function()
   -- market 1000, floor 800. Listing at 850, undercut 5 -> 845 (above the floor, kept).
   T.eq(S.Suggest({ L(850) }, 1000, nil, opts({ undercut = 5 })).buyout, 845)

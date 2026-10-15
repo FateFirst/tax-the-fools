@@ -171,6 +171,13 @@ T.test("Post refuses a bid above the buyout, and an unaffordable deposit", funct
   T.eq(Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true), true, "exactly the deposit")
 end)
 
+T.test("Post hands StartAuction whole copper only (Review I3)", function()
+  stock() WoW.money = 100000
+  T.eq(Auction.Post(0, 1, 20, 100.7, 200.9, 480, "14047:0", true), true)
+  T.ok(T.calledWith("StartAuction 100 200 480"), "floored bid and buyout")
+  T.eq(Auction.busy.bid, 100) T.eq(Auction.busy.buyout, 200)
+end)
+
 T.test("a learned deposit is what affordability uses", function()
   stock() WoW.money = 800
   Sell.LearnDeposit(TaxTheFoolsDB.items, 14047, 480, 36)   -- 36 x 20 = 720

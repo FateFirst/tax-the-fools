@@ -19,7 +19,7 @@ end
 -- Suggested price per unit from competing listings { unit, count, owner }.
 -- Your own listings (l.own, or owner == s.me) are ignored. s = { floorPct, undercut, bidPct, me }.
 -- floor is floorPct% of market, rounded up to whole copper; with no market value there is no floor,
--- so the cheapest competing listing counts.
+-- so the cheapest competing listing counts. Prices are whole copper (StartAuction takes no fractions).
 function Sell.Suggest(listings, market, vendorSell, s)
   local floorPct, undercut, bidPct = setting(s, "floorPct"), setting(s, "undercut"), setting(s, "bidPct")
   local me = s and s.me
@@ -34,12 +34,12 @@ function Sell.Suggest(listings, market, vendorSell, s)
   end
   local out = { floor = floor }
   if cheapest then
-    out.buyout, out.source = cheapest - undercut, "undercut"
+    out.buyout, out.source = math.floor(cheapest - undercut), "undercut"
     if floor and out.buyout < floor then out.buyout = floor end
   elseif market then
-    out.buyout, out.source = market, "market"
+    out.buyout, out.source = math.floor(market), "market"
   elseif vendorSell then
-    out.buyout, out.source = vendorSell * 3, "vendor"
+    out.buyout, out.source = math.floor(vendorSell * 3), "vendor"
   end
   if out.buyout then
     if out.buyout < 1 then out.buyout = 1 end
