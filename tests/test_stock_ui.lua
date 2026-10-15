@@ -114,6 +114,18 @@ T.test("the stack preset falls back to the default when the bags hold fewer than
   T.eq(p.nStacks, 1)
 end)
 
+T.test("the Repost tooltip carries the name, when it came back and both prices", function()
+  seed()
+  local p = page()
+  click(p.viewBtns.repost)
+  StockUI.RepostTip(p.rlist.rows[1], p.rlist.data[1])
+  local all = ""
+  for _, l in ipairs(GameTooltip.lines) do all = all .. l[1] .. "|" end
+  T.ok(string.find(all, "Runecloth|", 1, true)) T.ok(string.find(all, "expired", 1, true))
+  T.ok(string.find(all, "Last posted: 5 at 10s each", 1, true), all)
+  T.ok(string.find(all, "Now: 10s each", 1, true), all)
+end)
+
 T.test("Stock rows, totals and the tooltip breakdown", function()
   seed()
   local p = page()
@@ -166,6 +178,7 @@ T.test("the Repost and Stock columns fit the smallest window", function()
   sum = 0
   for _, c in ipairs(StockUI.REPOST_COLUMNS) do sum = sum + c.width end
   T.ok(sum <= SellUI.RX - 12 - 12, "repost columns need " .. sum)
+  T.ok(L.Widths(StockUI.REPOST_COLUMNS, SellUI.RX - 12 - 12)[1] >= 140, "item column at the minimum")
   T.ok(SellUI.GY + SellUI.ROWS * SellUI.CELL <= 304, "grid no taller than before")
   local w = L.Widths(StockUI.STOCK_COLUMNS, 628)
   local total = 0

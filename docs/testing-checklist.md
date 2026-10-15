@@ -334,8 +334,8 @@ The trainer and vendor windows are only read. Nothing is bought from them; buy a
 136. **The switch.** On Sell, the top left reads Bags, Repost and Stock. Pick Repost, close the window
      and reopen it (or `/reload`): Sell opens on Repost. Bags shows the item grid as before.
 137. **Repost.** Post an item for 12h, let it expire (or cancel it), collect it from the mail so it is in
-     your bags again, then open Repost. It is listed with Have, the last price, the price now and the
-     change (green up, red down). Hover the row for the last stack and outcome.
+     your bags again, then open Repost. It is listed with Have and the
+     change (green up, red down). Hover the row for the last price, the price now and when it came back.
 138. **Repost in one click per stack.** Click that row: the item is selected in the pricing panel with the
      stack size of your last posting (when the bags hold that many; otherwise the usual default). Post
      is still one click per stack. Nothing posts on the row click.

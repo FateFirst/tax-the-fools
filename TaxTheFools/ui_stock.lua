@@ -29,13 +29,11 @@ local function pctText(v)
   return ((v > 0) and "+" or "") .. v .. "%"
 end
 
--- Repost: the 240 px the bag grid takes, less the scroll bar.
+-- Repost: the 240 px the bag grid takes, less the scroll bar. Prices are in the row tooltip.
 StockUI.REPOST_COLUMNS = {
-  { label = "Item", width = 56, flex = 1, sort = "name", fmt = function(r) return r.name end },
-  { label = "Have", width = 30, align = "RIGHT", sort = "have", fmt = function(r) return tostring(r.have) end },
-  { label = "Last", width = 48, align = "RIGHT", sort = "lastBuyout", fmt = function(r) return short(r.lastBuyout) end },
-  { label = "Now", width = 48, align = "RIGHT", sort = "suggest", fmt = function(r) return short(r.suggest) end },
-  { label = "Change", width = 46, align = "RIGHT", sort = "change",
+  { label = "Item", width = 140, flex = 1, sort = "name", fmt = function(r) return r.name end },
+  { label = "Have", width = 36, align = "RIGHT", sort = "have", fmt = function(r) return tostring(r.have) end },
+  { label = "Change", width = 52, align = "RIGHT", sort = "change",
     fmt = function(r)
       if not r.change then return "-", "dim" end
       return pctText(r.change), (r.change > 0 and "good") or (r.change < 0 and "bad") or "dim"
@@ -176,11 +174,13 @@ end
 function StockUI.RepostTip(row, r)
   GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
   GameTooltip:SetText(r.name)
+  GameTooltip:AddLine("It " .. r.outcome .. " " .. TaxTheFools.UI.Approx(math.max(0, time() - r.lastAt)) .. " ago.", 1, 1, 1)
   if r.lastStack then
-    GameTooltip:AddLine("Last posted: " .. r.lastStack .. " at " .. short(r.lastBuyout) .. " each, " .. r.outcome, 1, 1, 1)
+    GameTooltip:AddLine("Last posted: " .. r.lastStack .. " at " .. U.money(r.lastBuyout, true) .. " each", 1, 1, 1)
   else
-    GameTooltip:AddLine("It " .. r.outcome .. ". No posting is on record.", 1, 1, 1)
+    GameTooltip:AddLine("No posting is on record.", 1, 1, 1)
   end
+  GameTooltip:AddLine("Now: " .. (r.suggest and (U.money(r.suggest, true) .. " each") or "no market value"), 1, 1, 1)
   GameTooltip:Show()
 end
 

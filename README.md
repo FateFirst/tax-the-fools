@@ -94,7 +94,7 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
   **Allow below floor**. Items that are soulbound, quest items or conjured are not listed.
 - **Repost and Stock.** The Sell tab has a **Bags | Repost | Stock** switch (the last view is kept).
   **Repost** lists items in your bags whose auctions expired or were cancelled in the last 7 days
-  (Options > Selling, 1 to 30), with the last price, the price now and the change; clicking a row
+  (Options > Selling, 1 to 30), with the change in price (last price and price now are in the row tooltip); clicking a row
   selects the item with your last stack size, and Post stays one click per stack. **Stock** lists
   everything your characters hold in bags and bank plus what is on the auction house, with each,
   value, sell rate and trend, a per-character tooltip and a total. Mail is not counted.
