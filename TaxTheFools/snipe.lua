@@ -45,7 +45,8 @@ end
 
 -- "Silk Cloth 20s", "Silk Cloth 1g 5s", "Silk Cloth 1g5s", "Silk Cloth 2g 50s 3c" or "Silk Cloth 2050"
 -- (bare copper) -> name, copper. The name is everything before the money, trimmed. A trailing bare
--- number is always taken as copper, so an item whose name ends in a number needs a unit on the price.
+-- number alone is copper; after a money part it is the next unit down ("1g 50" is 1g 50s, "2s 5" is 2s 5c).
+-- An item whose name ends in a number needs a unit on the price.
 -- nil when there is no name or no price above zero.
 function Snipe.Parse(text)
   if type(text) ~= "string" then return nil end
@@ -54,15 +55,21 @@ function Snipe.Parse(text)
   local n = table.getn(words)
   if n < 2 then return nil end
   local copper, first = 0, n + 1
+  local walk = true
   if string.find(words[n], "^%d+$") then
     copper, first = tonumber(words[n]), n
-  else
-    while first > 1 do
-      local v = moneyWord(words[first - 1])
-      if not v then break end
-      copper = copper + v
-      first = first - 1
+    -- After a money part the bare number is the next unit down: "1g 50" is 1g 50s, "2s 5" is 2s 5c.
+    if n > 2 and moneyWord(words[n - 1]) then
+      local unit = string.sub(words[n - 1], -1)
+      if string.lower(unit) == "g" then copper = copper * 100
+      elseif string.lower(unit) ~= "s" then walk = false end
     end
+  end
+  while walk and first > 1 do
+    local v = moneyWord(words[first - 1])
+    if not v then break end
+    copper = copper + v
+    first = first - 1
   end
   if first > n or first <= 1 or copper <= 0 then return nil end
   local name = words[1]

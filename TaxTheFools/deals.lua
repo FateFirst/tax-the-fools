@@ -131,7 +131,7 @@ end
 -- ---------- snipe list (phase 7 spec section 3) ----------
 -- Pure. list = { [key] = { max = copper each } }. Every listing that is not yours, has a buyout and
 -- costs at most max each is a deal; profit = (max - unit) x count.
-function Deals.FindSnipes(snapshot, list, me)
+function Deals.FindSnipes(snapshot, list, me, market)
   local out = {}
   if not snapshot or not snapshot.rows or not list then return out end
   for key, e in pairs(list) do
@@ -140,8 +140,11 @@ function Deals.FindSnipes(snapshot, list, me)
       if count and count > 0 and buyout and buyout > 0 and not (me and owner and owner == me) then
         local unit = buyout / count
         if e.max and unit <= e.max then
+          local m = market and market[key]
+          local mv = m and m.v
           table.insert(out, { type = "snipe", key = key, count = count, buyout = buyout, unit = unit,
-                              max = e.max, owner = owner, profit = (e.max - unit) * count })
+                              max = e.max, owner = owner, profit = (e.max - unit) * count,
+                              market = mv, pct = (mv and mv > 0) and (unit / mv * 100) or nil })
         end
       end
     end

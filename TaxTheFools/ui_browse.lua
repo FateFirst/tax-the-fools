@@ -57,10 +57,16 @@ function Browse.NextMaterial()
   if n == 0 or not Browse.shopIdx then return false end
   local i = Browse.shopIdx + 1
   if i > n then i = 1 end
-  local back = Browse.back
+  local back, was, text = Browse.back, Browse.shopIdx, Browse.frame.search:GetText()
   local ok = Browse.Lookup(names[i])
   Browse.SetBack(back)
-  Browse.SetShop(i)
+  if ok then
+    Browse.SetShop(i)
+  else
+    -- Refused (a scan or the last search is still running): stay on this material.
+    Browse.frame.search:SetText(text)
+    Browse.SetShop(was)
+  end
   return ok
 end
 

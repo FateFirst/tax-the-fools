@@ -86,3 +86,12 @@ T.test("Snipe.SetMax sets the exact value, lower included, and ignores unlisted 
   T.eq(Sn.SetMax(l, "1:0", 0), nil) T.eq(Sn.SetMax(l, "1:0", nil), nil)
   T.eq(l["1:0"].max, 900)
 end)
+
+T.test("Snipe.Parse reads a bare trailing number as the next unit down after a money part", function()
+  parse("Silk Cloth 1g 50", "Silk Cloth", 15000)
+  parse("Silk Cloth 2s 5", "Silk Cloth", 205)
+  parse("Silk Cloth 2g 50s 3", "Silk Cloth", 25003)
+  parse("Silk Cloth 1g5s 7", "Silk Cloth", 10507)
+  parse("Silk Cloth 50", "Silk Cloth", 50)
+  parse("Silk Cloth 2050", "Silk Cloth", 2050)
+end)

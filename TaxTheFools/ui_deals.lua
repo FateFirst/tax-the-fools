@@ -60,8 +60,8 @@ function DealsUI.SnipeRows(list, snap, market)
     local rec = TaxTheFoolsDB.items[U.keyId(key)]
     local listed
     for _, row in ipairs((snap and snap.rows and snap.rows[key]) or {}) do
-      local count, buyout = Scan.ParseSnapRow(row)
-      if count and count > 0 and buyout and buyout > 0 then
+      local count, buyout, _, owner = Scan.ParseSnapRow(row)
+      if count and count > 0 and buyout and buyout > 0 and not (DB.charName and owner and owner == DB.charName) then
         local unit = buyout / count
         if not listed or unit < listed then listed = unit end
       end
@@ -188,7 +188,7 @@ function DealsUI.Build(parent)
   p.maxLabel = Th.Text(p, "body", 12, "dim")
   p.maxLabel:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", DealsUI.RAIL + 12, 6)
   p.maxLabel:SetText("Max each")
-  p.maxInput = W.MoneyInput(p, function(v) DealsUI.SnipeEdit(v) end)
+  p.maxInput = W.MoneyInput(p, nil, function(v) DealsUI.SnipeEdit(v) end)
   p.maxInput:SetPoint("LEFT", p.maxLabel, "RIGHT", 8, 0)
   p.removeBtn:Hide() p.maxLabel:Hide() p.maxInput:Hide()
   -- The action bar: Find pages through a search (a scan); only Buy spends, one click each.
@@ -223,7 +223,7 @@ end
 
 function DealsUI.SnipeSelected(item)
   local p = DealsUI.frame
-  p.maxInput:SetValue(item and item.max or nil)
+  if not p.maxInput.editing then p.maxInput:SetValue(item and item.max or nil) end
   p.removeBtn:SetEnabled(item and true or false)
 end
 
@@ -292,7 +292,7 @@ function DealsUI.Paint()
   -- A pattern that is already a market or vendor deal is listed once, under that type.
   Deals.MergeOnce(deals, Deals.FindRecipes(snap, ctx, DB.S().deals, DB.charName, DealsUI.RecipeSource()))
   if DB.S().deals.snipe then
-    Deals.MergeOnce(deals, Deals.FindSnipes(snap, DB.Realm().snipe, DB.charName))
+    Deals.MergeOnce(deals, Deals.FindSnipes(snap, DB.Realm().snipe, DB.charName, ctx.market))
   end
   table.sort(deals, function(a, b)
     if a.profit ~= b.profit then return a.profit > b.profit end

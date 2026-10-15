@@ -136,7 +136,7 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
   alt hold. Click a Buy line to search for it on Browse; **Next material** steps through them and
   **Snipe these** adds them to the snipe list.
 - **Snipe list.** A max price each per item. The **Snipe** button on Browse adds the selected item at its
-  price; `/ttf snipe Silk Cloth 20s` sets one and `/ttf snipe` lists them. Deals > **Snipe** lists
+  price; `/ttf snipe Silk Cloth 20s` sets one (a bare number after a money part is the next unit down: `1g 50` is 1g 50s) and `/ttf snipe` lists them. Deals > **Snipe** lists
   matching listings (not yours) with Find and Buy, and the Quick scan menu has a Snipe list scan.
 - **Alerts.** During any scan or search, a chat line and a sound (at most every 5 seconds) tell you of a
   deal or snipe match, once per listing. Nothing is bought for you. Options > Alerts sets them.

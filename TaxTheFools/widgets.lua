@@ -262,15 +262,22 @@ end
 
 -- Gold, silver and copper boxes standing for one copper amount. onChange(copper) runs on every
 -- edit the user makes; SetValue (copper or nil to blank) never calls it. GetValue is nil when blank.
-function W.MoneyInput(parent, onChange)
+-- onCommit(copper) runs on Enter or when a box loses focus. f.editing is true while a box has focus.
+function W.MoneyInput(parent, onChange, onCommit)
   local f = CreateFrame("Frame", nil, parent)
   f:SetHeight(22)
   f.updating = false
+  f.editing = false
   local parts = { { "gold", 54, "g" }, { "silver", 34, "s" }, { "copper", 34, "c" } }
   local x = 0
   for _, d in ipairs(parts) do
-    local e = W.EditBox(f, d[2], nil)
+    local e = W.EditBox(f, d[2], function() if onCommit then onCommit(f:GetValue()) end end)
     e:SetNumeric(true)
+    e:SetScript("OnEditFocusGained", function() f.editing = true end)
+    e:SetScript("OnEditFocusLost", function()
+      f.editing = false
+      if onCommit then onCommit(f:GetValue()) end
+    end)
     e:SetMaxLetters(d[1] == "gold" and 7 or 2)
     e:SetPoint("LEFT", f, "LEFT", x, 0)
     e:SetScript("OnTextChanged", function()

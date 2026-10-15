@@ -568,6 +568,16 @@ T.test("Snipe these adds every AH line at its unit price and buys nothing", func
   noBuying()
 end)
 
+-- Lets the running search finish, so the next one is not refused as busy.
+local function finishSearch()
+  for _ = 1, 40 do
+    WoW.clock = WoW.clock + 0.5
+    Scan.Tick(WoW.clock)
+    if WoW.ah.pending then WoW.ahRespond() Scan.OnListUpdate(WoW.clock) end
+    if not Scan.job then return end
+  end
+end
+
 T.test("shopping line clicks search, show Next material, cycle and hide it", function()
   local p = listPage()
   WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")
@@ -583,10 +593,12 @@ T.test("shopping line clicks search, show Next material, cycle and hide it", fun
   -- fits beside the arrows at the 660 window (about 640 wide page)
   local used = Browse.SEARCH_W_NEXT + 6 + 80 + 6 + 90 + 6 + 100 + 6 + Browse.NEXT_W
   T.ok(used <= 640 - 48 - 8, "needs " .. used)
+  finishSearch()
   WoW.runScript(Browse.frame.nextMat, "OnClick")
   T.eq(Browse.frame.search:GetText(), "Bolt of Silk Cloth")
   T.eq(Browse.frame.nextMat.label:GetText(), "NEXT MATERIAL (2/2)")
   T.ok(Browse.frame.back:IsShown(), "way back kept")
+  finishSearch()
   WoW.runScript(Browse.frame.nextMat, "OnClick")
   T.eq(Browse.frame.search:GetText(), "Silk Cloth", "wraps")
   T.eq(Browse.frame.nextMat.label:GetText(), "NEXT MATERIAL (1/2)")
@@ -646,4 +658,45 @@ T.test("the shopping plan follows the selected recipe; Next skips unknown names;
     { key = "4306:0", name = "Silk Cloth", qty = 1, unit = 300, source = "ah", total = 300 } }
   T.eq(table.getn(Browse.ShopBuys()), 1)
   T.eq(Browse.ShopBuys()[1], "Silk Cloth")
+end)
+
+T.test("the shopping plan belongs to the page last interacted with; background repaints do not take it", function()
+  local p = listPage()
+  WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")
+  WoW.runScript(p.listBtn, "OnClick")
+  T.eq(CraftUI.shopping.page, p)
+  local sp = open()
+  sp.listMode = true
+  sp.list.selected = sp.list.data[1]
+  CraftUI.Repaint(sp)
+  CraftUI.RefreshAll()
+  T.eq(CraftUI.shopping.page, p, "a background repaint of the other page leaves the plan alone")
+  T.eq(CraftUI.shopping.recipeName, "Silk Headband")
+  WoW.runScript(p.listBtn, "OnClick") WoW.runScript(p.listBtn, "OnClick")
+  T.eq(CraftUI.shopping.page, p, "interacting on the owner keeps it")
+  CraftUI.SetListMode(sp, true)
+  T.eq(CraftUI.shopping.page, sp, "toggling List on the other page takes it")
+  CraftUI.RefreshAll()
+  T.eq(CraftUI.shopping.page, sp)
+  p.list.selected = p.list.data[2]
+  p.craftBox:SetText("3")
+  WoW.runScript(p.craftBox, "OnTextChanged")
+  T.eq(CraftUI.shopping.page, p, "changing Craft N takes it back")
+end)
+
+T.test("Next material advances only when its search starts", function()
+  local p = listPage()
+  WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")
+  WoW.runScript(p.listBtn, "OnClick")
+  CraftUI.shopping.buys = { { key = "4306:0", name = "Silk Cloth", qty = 9, unit = 300, source = "ah", total = 2700 },
+    { key = "4305:0", name = "Bolt of Silk Cloth", qty = 1, unit = 2000, source = "ah", total = 2000 } }
+  WoW.runScript(p.detail.btns[1] and p.detail.btns[2], "OnClick")
+  T.eq(Browse.shopIdx, 1)
+  local real = A.Scan.Browse
+  A.Scan.Browse = function() return false, "busy" end
+  local ok = Browse.NextMaterial()
+  A.Scan.Browse = real
+  T.ok(not ok)
+  T.eq(Browse.shopIdx, 1, "a refused search does not skip a material")
+  T.eq(Browse.frame.nextMat.label:GetText(), "NEXT MATERIAL (1/2)")
 end)

@@ -73,10 +73,13 @@ local function namesToQueries(seen)
   return queries
 end
 
+-- A name worth searching the AH for: not blank and not an "Unknown item #N" placeholder.
+local function realName(n) return n and n ~= "" and not string.find(n, "^Unknown item") end
+
 -- Every reagent of every captured recipe on the realm, plus the shopping plan's AH buy lines.
 function Scan.MatsQueries()
   local seen = {}
-  local function add(n) if n and n ~= "" then seen[n] = true end end
+  local function add(n) if realName(n) then seen[n] = true end end
   for _, c in pairs(DB.Realm().chars or {}) do
     for _, prof in pairs(c.professions or {}) do
       for _, r in pairs(prof.recipes or {}) do
@@ -102,7 +105,7 @@ function Scan.SnipeQueries()
   for key, e in pairs(DB.Realm().snipe or {}) do
     local rec = I.Get(U.keyId(key))
     local n = (e and e.name) or (rec and rec.n)
-    if n and n ~= "" then seen[n] = true end
+    if realName(n) then seen[n] = true end
   end
   return namesToQueries(seen)
 end

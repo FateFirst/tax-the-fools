@@ -195,6 +195,11 @@ function CraftUI.ShoppingDetail(p, row)
   if not row then return { { "Select a recipe to plan its shopping.", "dim" } } end
   local plan = TaxTheFools.Shopping.Plan(row.recipe or row.entry, p.shopN or 1, TS.Context(),
     TaxTheFools.Inventory.Held(DB.Realm()))
+  if CraftUI.shopOwner and CraftUI.shopOwner ~= p then
+    -- Another page was used last: this repaint draws its lines but leaves the plan alone.
+    return CraftUI.ShoppingLines(row.name, p.shopN or 1, plan)
+  end
+  CraftUI.shopOwner = p
   CraftUI.shopping = { page = p, recipeName = row.name, n = p.shopN or 1, buys = plan.buys, crafts = plan.crafts,
     total = plan.total }
   return CraftUI.ShoppingLines(row.name, p.shopN or 1, plan)
@@ -214,6 +219,7 @@ end
 function CraftUI.SetN(p, text)
   local n = CraftUI.ReadN(text)
   if not n or n == p.shopN then return end
+  CraftUI.shopOwner = p
   p.shopN = n
   if p.listMode then CraftUI.Repaint(p) end
 end
@@ -225,6 +231,7 @@ end
 
 function CraftUI.SetListMode(p, on)
   p.listMode = on and true or false
+  CraftUI.shopOwner = p
   p.detail.offset = 0
   Th.Color(p.listBtn.label, p.listMode and "gold" or "white")
   if p.listMode then p.snipeBtn:Show() else p.snipeBtn:Hide() end
@@ -364,6 +371,7 @@ function CraftUI.Jump(p, name, shopIdx)
     U.msg(CraftUI.NO_AH)
     return false
   end
+  CraftUI.shopOwner = p
   return TaxTheFools.Browse.SearchFor(name, (UI.pages.craft == p) and "craft" or false,
     (p.listMode and shopIdx) or false)
 end

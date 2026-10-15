@@ -198,16 +198,19 @@ T.test("alerts build their context once per scan job and never re-alert across p
   local built = 0
   local real = Al.BuildContext
   Al.BuildContext = function() built = built + 1 return real() end
+  local alerted, realCheck = 0, Al.Check
+  Al.Check = function(...) local out = realCheck(unpack(arg)) alerted = alerted + table.getn(out) return out end
   local fn = function(rows) Al.OnRows(rows) end
   Scan.OnRows(fn)
   T.ok(Scan.Browse("Rune", 0, WoW.clock))
   runScan()
   T.ok(Scan.StartFull(WoW.clock))
   runScan()
+  Al.Check = realCheck
   Al.BuildContext = real
   Scan.rowListeners[table.getn(Scan.rowListeners)] = function() end
   T.eq(built, 2, "one browse job, one full job (3 pages)")
-  T.eq(T.count("Snipe: Runecloth x1"), 120, "each listing once even though the full scan saw them again")
+  T.eq(alerted, 120, "each listing once even though the full scan saw them again")
 end)
 
 T.test("alerts.minProfit below deals.minProfit still alerts", function()
@@ -249,5 +252,35 @@ T.test("Core wires Alerts to scanned pages", function()
   Al.ResetState()
   T.ok(Scan.Browse("Rune", 0, WoW.clock))
   runScan()
-  T.ok(T.count("Snipe: Runecloth x1") >= 50)
+  T.ok(T.count("Snipe: Runecloth x1") >= 8)
+end)
+
+T.test("a page prints at most 8 alert lines and one summary; every alert is still returned", function()
+  I.Remember(4306, "Silk Cloth")
+  DB.Realm().snipe = { ["4306:0"] = { max = 2000, name = "Silk Cloth", at = 1 } }
+  local rows = {}
+  for i = 1, 12 do table.insert(rows, { key = "4306:0", qty = 1, buyout = 100 + i, unit = 100 + i, owner = "Bob" }) end
+  local before = T.count("Snipe: Silk Cloth")
+  local out = Al.Check(rows, ctxWith(), S, 100)
+  T.eq(table.getn(out), 12)
+  T.eq(T.count("Snipe: Silk Cloth") - before, 8)
+  T.ok(T.calledWith("...and 4 more alerts on this page"))
+  T.eq(T.count("PlaySound TellMessage") >= 1, true)
+end)
+
+T.test("MatsQueries and SnipeQueries skip unresolved Unknown item names", function()
+  I.Remember(4306, "Silk Cloth")
+  DB.Realm().chars.Tailor = { professions = { Tailoring = { recipes = {
+    Bolt = { item = "1:0", reagents = { { item = "4306:0", name = "x", count = 2 },
+      { item = "77:0", name = "Unknown item #77", count = 1 } } } } } } }
+  TaxTheFools.CraftUI.shopping = { buys = { { name = "Unknown item #7", source = "ah" }, { name = "Wool", source = "ah" } } }
+  local q = Scan.MatsQueries()
+  TaxTheFools.CraftUI.shopping = nil
+  DB.Realm().chars.Tailor = nil
+  local names = {}
+  for _, e in ipairs(q) do table.insert(names, e.name) end
+  T.eq(table.concat(names, ","), "Silk Cloth,Wool")
+  DB.Realm().snipe = { ["9:0"] = { max = 1, name = "Unknown item #9" }, ["2:0"] = { max = 1, name = "Linen" } }
+  local sq = Scan.SnipeQueries()
+  T.eq(table.getn(sq), 1) T.eq(sq[1].name, "Linen")
 end)

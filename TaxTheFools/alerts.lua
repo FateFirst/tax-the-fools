@@ -6,6 +6,7 @@ TaxTheFools.Alerts = Alerts
 -- Deal and snipe alerts while scanning (phase 7 spec section 4). Prints and plays a sound only:
 -- nothing here buys, bids, posts or cancels.
 Alerts.SOUND_GAP = 5
+Alerts.MAX_LINES = 8   -- chat lines per scanned page; the rest are summed up in one line
 
 function Alerts.ResetState() Alerts.seen, Alerts.soundAt, Alerts.ctx, Alerts.ctxJob = {}, -1000, nil, nil end
 
@@ -43,7 +44,10 @@ function Alerts.Check(listings, ctx, s, now)
       end
     end
   end
+  local shown = 0
   for _, a in ipairs(out) do
+    shown = shown + 1
+    if shown > Alerts.MAX_LINES then break end
     local rec = TaxTheFools.Items.Get(U.keyId(a.key))
     local name = (rec and rec.n) or a.key
     if a.kind == "snipe" then
@@ -53,6 +57,9 @@ function Alerts.Check(listings, ctx, s, now)
       U.msg("Deal: " .. name .. " x" .. a.count .. " for " .. U.money(a.buyout, true)
         .. " (profit " .. U.money(a.profit, true) .. ")")
     end
+  end
+  if table.getn(out) > Alerts.MAX_LINES then
+    U.msg("...and " .. (table.getn(out) - Alerts.MAX_LINES) .. " more alerts on this page")
   end
   if table.getn(out) > 0 and s.sound and now - Alerts.soundAt >= Alerts.SOUND_GAP then
     Alerts.soundAt = now
