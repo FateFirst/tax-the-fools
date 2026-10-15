@@ -49,7 +49,7 @@ function Stock.Repost(char, bagCounts, items, market, days, now)
   return rows
 end
 
-local function entryFor(byKey, key, items, market, statsByKey, trendFn)
+local function entryFor(byKey, key, items, market)
   local e = byKey[key]
   if not e then
     local m = market and market[key]
@@ -61,11 +61,12 @@ local function entryFor(byKey, key, items, market, statsByKey, trendFn)
 end
 
 -- One row per key held anywhere (bags, bank, open postings), by value descending, unvalued last.
--- `items` (optional) supplies names; without it the name is the key.
-function Stock.Rows(chars, market, statsByKey, trendFn, items)
+-- `items` (optional) supplies names; without it the name is the key. Only postings still running at `now`
+-- (not done, and posted + minutes, 2880 when unknown, still ahead) count as on the auction house.
+function Stock.Rows(chars, market, statsByKey, trendFn, items, now)
   local byKey, per = {}, {}
   local function slot(key, cname)
-    local e = entryFor(byKey, key, items, market, statsByKey, trendFn)
+    local e = entryFor(byKey, key, items, market)
     local pk = key .. "|" .. cname
     local pc = per[pk]
     if not pc then
@@ -89,7 +90,7 @@ function Stock.Rows(chars, market, statsByKey, trendFn, items)
       end
     end
     for _, p in ipairs(c.postings or {}) do
-      if p.key and not p.done then
+      if p.key and not p.done and ((p.at or 0) + (p.minutes or 2880) * 60 > (now or 0)) then
         local e, pc = slot(p.key, cname)
         local n = p.stack or 1
         e.onAH, pc.onAH = e.onAH + n, pc.onAH + n

@@ -55,12 +55,13 @@ end)
 
 local chars = {
   Anna = { bags = { [K1] = 10, [K2] = 1 }, bank = { [K1] = 5 },
-    postings = { { key = K1, stack = 20 }, { key = K1, stack = 20, done = "sold" }, { key = K2, stack = 2 } } },
+    postings = { { key = K1, stack = 20, at = NOW - 60, minutes = 120 }, { key = K1, stack = 20, done = "sold", at = NOW - 60, minutes = 120 },
+      { key = K2, stack = 2, at = NOW - 3600 } } },
   Bob = { bags = { [K1] = 3 }, bank = { [K3] = 4 }, postings = { { key = K1, stack = 7, done = "expired" } } },
 }
 
 T.test("Rows sums bags, bank and open postings across characters", function()
-  local rows = St.Rows(chars, market, {}, nil, items)
+  local rows = St.Rows(chars, market, {}, nil, items, NOW)
   local by = {}
   for _, r in ipairs(rows) do by[r.key] = r end
   T.eq(by[K1].bags, 13) T.eq(by[K1].bank, 5) T.eq(by[K1].onAH, 20, "done postings excluded") T.eq(by[K1].total, 38)
@@ -70,7 +71,7 @@ T.test("Rows sums bags, bank and open postings across characters", function()
 end)
 
 T.test("Rows sorts by value with unvalued last, and keeps the per-character breakdown", function()
-  local rows = St.Rows(chars, market, {}, nil, items)
+  local rows = St.Rows(chars, market, {}, nil, items, NOW)
   T.eq(table.getn(rows), 3)
   T.eq(rows[1].key, K1) T.eq(rows[2].key, K2) T.eq(rows[3].key, K3)
   T.eq(rows[3].unit, nil) T.eq(rows[3].value, nil)
@@ -81,7 +82,7 @@ T.test("Rows sorts by value with unvalued last, and keeps the per-character brea
 end)
 
 T.test("Rows passes rate and trend through", function()
-  local rows = St.Rows(chars, market, { [K1] = { rate = 0.5 } }, function(k) if k == K1 then return 12 end end, items)
+  local rows = St.Rows(chars, market, { [K1] = { rate = 0.5 } }, function(k) if k == K1 then return 12 end end, items, NOW)
   T.eq(rows[1].rate, 0.5) T.eq(rows[1].trend, 12)
   T.eq(rows[2].rate, nil) T.eq(rows[2].trend, nil)
 end)
@@ -89,12 +90,23 @@ end)
 T.test("Rows with no characters is empty", function() T.eq(table.getn(St.Rows({}, market, {}, nil, items)), 0) end)
 
 T.test("Total counts keys and units, and only valued rows add value", function()
-  local t = St.Total(St.Rows(chars, market, {}, nil, items))
+  local t = St.Total(St.Rows(chars, market, {}, nil, items, NOW))
   T.eq(t.items, 3) T.eq(t.units, 45) T.eq(t.value, 38 * 50 + 3 * 400)
   local z = St.Total({}) T.eq(z.items, 0) T.eq(z.units, 0) T.eq(z.value, 0)
 end)
 
 T.test("a zero count in bags or bank makes no row", function()
-  local rows = TaxTheFools.Stock.Rows({ A = { bags = { ["1:0"] = 0 }, bank = { ["2:0"] = 0 } } }, {}, {}, nil, {})
+  local rows = TaxTheFools.Stock.Rows({ A = { bags = { ["1:0"] = 0 }, bank = { ["2:0"] = 0 } } }, {}, {}, nil, {}, NOW)
   T.eq(table.getn(rows), 0)
+end)
+
+T.test("On AH counts only postings still running: past their duration they drop out", function()
+  local c = { A = { postings = {
+    { key = K1, stack = 5, at = NOW - 7200, minutes = 120 },            -- ended exactly now
+    { key = K1, stack = 4, at = NOW - 7199, minutes = 120 },            -- one second left
+    { key = K2, stack = 3, at = NOW - 2 * DAY + 1 },                         -- no minutes: 48h, still running
+    { key = K3, stack = 2, at = NOW - 2 * DAY - 1 } } } }                -- no minutes, 48h gone
+  local by = {}
+  for _, r in ipairs(St.Rows(c, market, {}, nil, items, NOW)) do by[r.key] = r end
+  T.eq(by[K1].onAH, 4) T.eq(by[K2].onAH, 3) T.eq(by[K3], nil)
 end)

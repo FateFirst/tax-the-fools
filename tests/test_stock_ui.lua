@@ -32,7 +32,7 @@ local function seed()
   table.insert(c.sales, { key = "14047:0", outcome = "expired", at = now - 86400 })
   table.insert(c.postings, { key = "14047:0", stack = 5, bid = 4000, buyout = 5000, minutes = 480, at = now - 90000, done = true })
   DB.Realm().chars.Alt = { bags = { ["14047:0"] = 3 }, bank = { ["14047:0"] = 4 }, postings = {
-    { key = "14047:0", stack = 2, buyout = 2000 }, { key = "14047:0", stack = 9, buyout = 9000, done = true } } }
+    { key = "14047:0", stack = 2, buyout = 2000, at = now - 60, minutes = 480 }, { key = "14047:0", stack = 9, buyout = 9000, done = true, at = now - 60, minutes = 480 } } }
 end
 
 local function page()
@@ -134,7 +134,7 @@ T.test("Stock rows, totals and the tooltip breakdown", function()
   local r = nameRow(p.slist.data, "Runecloth")
   T.eq(r.bags, 23) T.eq(r.bank, 4) T.eq(r.onAH, 2) T.eq(r.total, 29)
   T.eq(r.value, 29000)
-  T.eq(p.totals:GetText(), "2 items  -  34 units  -  worth ~3g  (not counting mail)")
+  T.eq(p.totals:GetText(), "2 items  -  34 units  -  worth ~2g 90s  (not counting mail)")
   StockUI.StockTip(p.slist.rows[1], r)
   T.eq(GameTooltip.lines[1][1], "Runecloth")
   T.ok(string.find(GameTooltip.lines[2][1], "Alt: bags 3, bank 4, on AH 2", 1, true), GameTooltip.lines[2][1])
@@ -189,6 +189,8 @@ end)
 T.test("compact money", function()
   T.eq(StockUI.Short(nil), "-")
   T.eq(StockUI.Short(56), "56c") T.eq(StockUI.Short(3400), "34s") T.eq(StockUI.Short(123456), "12.34g")
+  T.eq(StockUI.Short(199), "1s 99c") T.eq(StockUI.Short(45), "45c") T.eq(StockUI.Short(100), "1s")
+  T.eq(StockUI.TotalsText({ items = 0, units = 0, value = 0 }), "0 items  -  0 units  -  worth ~0c  (not counting mail)")
   T.eq(StockUI.Short(1230000), "123g") T.eq(StockUI.Short(100500), "10.05g")
 end)
 
@@ -198,4 +200,45 @@ T.test("opening, switching and clicking never post or split", function()
   click(p.viewBtns.repost) click(p.rlist.rows[1]) click(p.viewBtns.stock) click(p.viewBtns.bags)
   T.eq(T.count("StartAuction"), 0)
   T.eq(T.count("SplitContainerItem"), 0)
+end)
+
+T.test("Stock rebuilds at most every 2 seconds while a scan runs, and once when it finishes", function()
+  seed()
+  local p = page()
+  click(p.viewBtns.stock)
+  local n = 0
+  local function fire() for _, fn in ipairs(Scan.listeners) do fn() end end
+  local real = StockUI.Paint
+  StockUI.Paint = function(q) if q == p then n = n + 1 end return real(q) end
+  local busy, isBusy = Scan.Busy, true
+  Scan.Busy = function() return isBusy end
+  WoW.clock = 5000
+  fire()
+  fire()
+  T.eq(n, 1, "second page inside 2 s skipped")
+  WoW.clock = 5001
+  fire()
+  T.eq(n, 1)
+  WoW.clock = 5002.5
+  fire()
+  T.eq(n, 2)
+  isBusy = false
+  fire()
+  T.eq(n, 3, "finish always repaints")
+  Scan.Busy = busy
+  StockUI.Paint = real
+end)
+
+T.test("right-click on a bag item while Sell shows Stock switches to Bags first", function()
+  seed()
+  local p = page()
+  click(p.viewBtns.stock)
+  local BC = A.BagClick
+  local old = DB.S().bagClick
+  DB.S().bagClick = true
+  T.ok(BC.Handle("RightButton", 0, 1))
+  DB.S().bagClick = old
+  T.eq(p.view, "bags")
+  T.eq(p.sel.key, "14047:0")
+  T.ok(p.postBtn:IsShown())
 end)

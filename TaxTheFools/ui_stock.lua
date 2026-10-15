@@ -8,19 +8,23 @@ TaxTheFools.StockUI = StockUI
 -- Phase 8 spec section 3: the Repost and Stock views of the Sell tab. Nothing here spends. Clicking a
 -- Repost row only selects the item, as the grid does; Post is still the one button on the Sell panel.
 
+StockUI.SCAN_EVERY = 2
 StockUI.VIEWS = { "bags", "repost", "stock" }
 
--- Compact money so the columns fit: 12.34g, 34s, 56c, and whole gold from 100g.
+-- Compact money so the columns fit: 45c, 1s 99c, 12.34g, and one decimal from 100g.
 local function short(c)
   if not c then return "-" end
   c = math.floor(c + 0.5)
-  if c >= 1000000 then return math.floor(c / 10000) .. "g" end
-  if c >= 10000 then
+  if c < 100 then return c .. "c" end
+  if c < 10000 then
+    local cp = math.mod(c, 100)
+    return math.floor(c / 100) .. "s" .. (cp > 0 and (" " .. cp .. "c") or "")
+  end
+  if c < 1000000 then
     local cents = math.floor(math.mod(c, 10000) / 100)
     return math.floor(c / 10000) .. "." .. (cents < 10 and "0" or "") .. cents .. "g"
   end
-  if c >= 100 then return math.floor(c / 100) .. "s" end
-  return c .. "c"
+  return math.floor(c / 1000) / 10 .. "g"
 end
 StockUI.Short = short
 
@@ -58,8 +62,8 @@ StockUI.STOCK_COLUMNS = {
 }
 
 function StockUI.TotalsText(t)
-  return t.items .. " items  -  " .. t.units .. " units  -  worth ~" .. math.floor(t.value / 10000 + 0.5)
-    .. "g  (not counting mail)"
+  return t.items .. " items  -  " .. t.units .. " units  -  worth ~" .. U.money(math.floor(t.value / 100) * 100, true)
+    .. "  (not counting mail)"
 end
 
 function StockUI.EmptyText(days)
@@ -90,7 +94,7 @@ function StockUI.StockRows()
     local t = P.Trend(realm.history[key], today)
     return t and t.pct or nil
   end
-  return Stock.Rows(realm.chars, realm.market, stats, trend, TaxTheFoolsDB.items)
+  return Stock.Rows(realm.chars, realm.market, stats, trend, TaxTheFoolsDB.items, time())
 end
 
 -- ---------- painting ----------
@@ -224,6 +228,13 @@ function StockUI.Build(p)
     self.rlist:Paint()
     self.slist:Paint()
   end
-  Scan.OnChange(function() if p:IsVisible() and p.view == "stock" then StockUI.Paint(p) end end)
+  p.stockAt = 0
+  Scan.OnChange(function()
+    if not p:IsVisible() or p.view ~= "stock" then return end
+    local now = GetTime()
+    if Scan.Busy() and now - p.stockAt < StockUI.SCAN_EVERY then return end   -- at most every 2 s mid-scan
+    p.stockAt = now
+    StockUI.Paint(p)
+  end)
   StockUI.SetView(p, saved)
 end

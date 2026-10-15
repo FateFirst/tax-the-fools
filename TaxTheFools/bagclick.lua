@@ -42,6 +42,8 @@ function BagClick.Handle(button, bag, slot)
     if not name then return false end
     Browse.Lookup(name)
   else
+    local p = SellUI.frame
+    if p and p.view ~= "bags" and TaxTheFools.StockUI then TaxTheFools.StockUI.SetView(p, "bags") end
     local it = SellUI.Find(key)
     if not it then
       SellUI.Refresh()        -- the grid may be a bag change behind
