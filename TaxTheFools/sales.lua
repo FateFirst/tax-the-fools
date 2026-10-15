@@ -4,12 +4,12 @@ local Sales = {}
 TaxTheFools.Sales = Sales
 
 -- Pure: the character record, mail details, owner rows and the items table arrive as arguments.
--- Storage: char.sales (a list, oldest first), char.seenMail (key -> at), char.postings (phase 3b).
+-- Storage: char.sales (a list, oldest first), char.seenMail (key -> { at, n }), char.postings (phase 3b).
 
 Sales.KEEP_DAYS = 120
 Sales.MAX_SALES = 2000
 Sales.POSTING_DAYS = 35
-Sales.CUT = 0.95            -- the house keeps 5% of a sale
+Sales.CUT = 0.95            -- the house keeps 5% of a sale; mirrors 1 - D.AH_CUT (data.lua, loaded after this file)
 
 -- Global holding each mail subject format, and the outcome it means.
 Sales.SUBJECTS = {
@@ -49,6 +49,8 @@ local function keyByName(items, name)
   return nil
 end
 
+function Sales.KeyByName(items, name) return keyByName(items, name) end
+
 -- The oldest open posting of a key (and of a stack/buyout when given).
 local function oldestOpen(list, key, stack, buyout)
   local best = nil
@@ -62,7 +64,10 @@ local function oldestOpen(list, key, stack, buyout)
 end
 
 -- The one posting a sale of `money` belongs to, or nil when none or several stack/buyout combinations fit.
-local function soldMatch(list, key, money)
+-- On 1.12 the sold mail pays buyout less the 5% cut, plus the deposit back. A posting's own deposit is
+-- exact; without one, depositFn(key, posting) -> deposit, estimated gives a figure, and an estimated one
+-- is trusted to +-50%.
+local function soldMatch(list, key, money, depositFn)
   local combos, fits = {}, 0
   local hit = nil
   for _, p in ipairs(list or {}) do
@@ -70,7 +75,17 @@ local function soldMatch(list, key, money)
       local id = p.stack .. "/" .. p.buyout
       if not combos[id] then
         combos[id] = true
-        if math.abs(money - math.floor(p.buyout * Sales.CUT)) <= 1 + (p.deposit or 0) then
+        local dep, estimated = p.deposit, false
+        if not dep then
+          dep, estimated = 0, false
+          if depositFn then
+            local d, e = depositFn(key, p)
+            if d then dep, estimated = d, e end
+          end
+        end
+        local slack = 1
+        if estimated then slack = slack + math.floor(dep * 0.5) end
+        if math.abs(money - math.floor(p.buyout * Sales.CUT) - dep) <= slack then
           fits = fits + 1
           hit = oldestOpen(list, key, p.stack, p.buyout)
         end
@@ -82,13 +97,15 @@ local function soldMatch(list, key, money)
 end
 
 -- Records one auction mail. Returns the sales entry.
-function Sales.Record(char, outcome, itemName, money, now, items)
+-- depositFn (optional) estimates the deposit of a posting that has none, see soldMatch.
+function Sales.Record(char, outcome, itemName, money, now, items, depositFn)
   char.sales = char.sales or {}
   money = money or 0
   local key = keyByName(items, itemName)
+  -- `at` of a posting added by Reconcile is the reconcile time, not the real posting time, so secs from it is approximate.
   local e = { key = key, outcome = outcome, money = money, at = now }
   if key and outcome == "sold" then
-    local p = soldMatch(char.postings, key, money)
+    local p = soldMatch(char.postings, key, money, depositFn)
     if p then
       p.done = outcome
       e.qty = p.stack
@@ -174,8 +191,9 @@ function Sales.Prune(char, now)
     char.sales = kept
   end
   if char.seenMail then
-    for k, at in pairs(char.seenMail) do
-      if at < cutoff then char.seenMail[k] = nil end
+    for k, v in pairs(char.seenMail) do
+      local at = type(v) == "table" and v.at or v
+      if type(at) ~= "number" or at < cutoff then char.seenMail[k] = nil end
     end
   end
   if char.postings then

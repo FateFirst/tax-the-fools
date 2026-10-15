@@ -59,6 +59,52 @@ T.test("sold mail with one fitting stack and buyout gives qty, unit and secs", f
   T.eq(f.postings[1].done, nil, "no match leaves the posting open")
 end)
 
+T.test("a known deposit matches exactly (to 1 copper), and one far off no longer fits (I1)", function()
+  -- floor(1000 * 0.95) = 950, deposit 30: money = 980. 981 is within 1; 960 and 1010 are not.
+  local function try(money)
+    local c = { postings = { post(K1, 20, 1000, 0, 30) } }
+    return S.Record(c, "sold", "Linen Cloth", money, 10, items).qty
+  end
+  T.eq(try(980), 20) T.eq(try(981), 20) T.eq(try(979), 20)
+  T.eq(try(982), nil) T.eq(try(960), nil) T.eq(try(1010), nil)
+end)
+
+T.test("a posting without a learned deposit matches with an estimated one, to +-50% of it (I1)", function()
+  -- buyout 2000 -> floor(1900.0) = 1900. Estimated deposit 40: money 1940 is exact; tolerance 1 + floor(40 * 0.5) = 21.
+  local function est(key, p) return 40, true end
+  local function try(money, fn)
+    local c = { postings = { { key = K1, stack = 20, buyout = 2000, at = 0, reconciled = true } } }
+    return S.Record(c, "sold", "Linen Cloth", money, 10, items, fn).qty
+  end
+  T.eq(try(1940, est), 20)
+  T.eq(try(1960, est), 20, "1940 + 20")
+  T.eq(try(1961, est), 20, "1940 + 21, the edge")
+  T.eq(try(1962, est), nil, "1940 + 22")
+  T.eq(try(1919, est), 20, "1940 - 21")
+  T.eq(try(1918, est), nil, "1940 - 22")
+  T.eq(try(1940, nil), nil, "no estimator: deposit 0, only 1900 +- 1 fits")
+  T.eq(try(1900, nil), 20)
+  -- an estimator that knows the deposit exactly (second value false) keeps the 1 copper tolerance.
+  T.eq(try(1960, function() return 40, false end), nil)
+  -- a posting that has its own deposit never asks.
+  local asked = false
+  local c = { postings = { post(K1, 20, 1000, 0, 30) } }
+  S.Record(c, "sold", "Linen Cloth", 980, 10, items, function() asked = true return 99, true end)
+  T.eq(asked, false)
+end)
+
+T.test("two combinations that both fit with estimated deposits are ambiguous (I1)", function()
+  -- 20 at 1000: 950 + est 40 = 990, tolerance 1 + 20 = 21 -> 969..1011.
+  -- 10 at 1030: floor(978.5) = 978 + est 20 = 998, tolerance 1 + 10 = 11 -> 987..1009. Money 995 fits both.
+  local function est(key, p) if p.stack == 20 then return 40, true end return 20, true end
+  local c = { postings = { { key = K1, stack = 20, buyout = 1000, at = 100 }, { key = K1, stack = 10, buyout = 1030, at = 200 } } }
+  local e = S.Record(c, "sold", "Linen Cloth", 995, 900, items, est)
+  T.eq(e.qty, nil) T.eq(c.postings[1].done, nil) T.eq(c.postings[2].done, nil)
+  -- 1010 fits only the first (969..1011), not the second (987..1009).
+  local d = { postings = { { key = K1, stack = 20, buyout = 1000, at = 100 }, { key = K1, stack = 10, buyout = 1030, at = 200 } } }
+  T.eq(S.Record(d, "sold", "Linen Cloth", 1010, 900, items, est).qty, 20)
+end)
+
 T.test("identical open postings: the oldest is consumed", function()
   -- two posts of 20 at 1000 (money 950 for each), made at 500 and 100.
   local c = { postings = { post(K1, 20, 1000, 500), post(K1, 20, 1000, 100) } }

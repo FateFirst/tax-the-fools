@@ -101,7 +101,112 @@ T.test("the dedup key is subject|money|arrival hour (time + daysLeft, constant w
   WoW.mail = { sold(950, 29.5) }
   WoW.fire("MAIL_SHOW") frame()
   local want = "Auction successful: Linen Cloth|950|" .. math.floor((time() + 29.5 * 86400) / 3600)
-  T.eq(DB.Char().seenMail[want], time())
+  -- seenMail[key] is { at = time first recorded, n = how many such mails are recorded } (C1)
+  T.eq(DB.Char().seenMail[want].at, time()) T.eq(DB.Char().seenMail[want].n, 1)
+end)
+
+local function expired() return { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 20 } end
+
+T.test("identical mails are each recorded: 5 expired and 3 sold, once, and a later identical one adds one (C1)", function()
+  known()
+  WoW.mail = {}
+  for _ = 1, 5 do table.insert(WoW.mail, expired()) end
+  for _ = 1, 3 do table.insert(WoW.mail, sold(950)) end
+  WoW.fire("MAIL_SHOW") frame()
+  local c = DB.Char()
+  local nE, nS = 0, 0
+  for _, e in ipairs(c.sales) do
+    if e.outcome == "expired" then nE = nE + 1 elseif e.outcome == "sold" then nS = nS + 1 end
+  end
+  T.eq(nE, 5, "five expired") T.eq(nS, 3, "three sold") T.eq(table.getn(c.sales), 8)
+  -- a second visit (an hour on, daysLeft an hour lower) records nothing
+  WoW.now = WoW.now + 3600
+  WoW.mail = {}
+  for _ = 1, 5 do table.insert(WoW.mail, { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 20 - 1 / 24 }) end
+  for _ = 1, 3 do table.insert(WoW.mail, sold(950, 29.5 - 1 / 24)) end
+  WoW.fire("MAIL_INBOX_UPDATE") frame()
+  T.eq(table.getn(c.sales), 8, "second visit")
+  -- one more identical sold mail arrives: one more is recorded
+  table.insert(WoW.mail, sold(950, 29.5 - 1 / 24))
+  WoW.fire("MAIL_INBOX_UPDATE") frame()
+  T.eq(table.getn(c.sales), 9, "the fourth sold mail")
+  WoW.fire("MAIL_INBOX_UPDATE") frame()
+  T.eq(table.getn(c.sales), 9)
+end)
+
+T.test("identical sold mails each consume a posting (C1)", function()
+  known()
+  local c = DB.Char()
+  c.postings = { { key = "100:0", stack = 20, bid = 900, buyout = 1000, at = WoW.now - 3600 },
+                 { key = "100:0", stack = 20, bid = 900, buyout = 1000, at = WoW.now - 1800 } }
+  WoW.mail = { sold(950), sold(950) }
+  WoW.fire("MAIL_SHOW") frame()
+  T.eq(table.getn(c.sales), 2) T.eq(c.postings[1].done, "sold") T.eq(c.postings[2].done, "sold")
+end)
+
+T.test("old-format seenMail entries (a number) read as one recorded mail (C1)", function()
+  known()
+  WoW.mail = { sold(950, 29.5), sold(950, 29.5) }
+  local key = "Auction successful: Linen Cloth|950|" .. math.floor((time() + 29.5 * 86400) / 3600)
+  DB.Char().seenMail = { [key] = time() - 100 }
+  WoW.fire("MAIL_SHOW") frame()
+  T.eq(table.getn(DB.Char().sales), 1, "two mails, one already recorded")
+  T.eq(DB.Char().seenMail[key].n, 2)
+end)
+
+T.test("an expiry within 5 s of an hour boundary does not count twice when the hour flips (C1)", function()
+  -- WoW.now + daysLeft*86400 lands 2 s before a boundary on the first read and 2 s after on the second.
+  local H = 3600
+  local boundary = (math.floor(WoW.now / H) + 1000) * H
+  WoW.now = boundary - 2 - 29 * 86400
+  WoW.mail = { { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 29 }, { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 29 } }
+  TaxTheFoolsDB.items[100] = { n = "Linen Cloth" }
+  WoW.fire("MAIL_SHOW") frame()
+  T.eq(table.getn(DB.Char().sales), 2, "recorded in hour h-1")
+  WoW.now = WoW.now + 4              -- the same mails, now keyed to hour h
+  WoW.fire("MAIL_INBOX_UPDATE") frame()
+  T.eq(table.getn(DB.Char().sales), 2, "no double count")
+  WoW.now = WoW.now - 4              -- and back again
+  WoW.fire("MAIL_INBOX_UPDATE") frame()
+  T.eq(table.getn(DB.Char().sales), 2, "still none")
+  table.insert(WoW.mail, { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 29 })
+  WoW.fire("MAIL_INBOX_UPDATE") frame()
+  T.eq(table.getn(DB.Char().sales), 3, "a genuinely new one still counts")
+end)
+
+T.test("a reconciled posting matches a sold mail through the learned, then the estimated deposit (I1)", function()
+  known()
+  local c = DB.Char()
+  -- Learned: minutes 480 deposit 50 for a stack of 20 (maxStack 20, no surcharge): money = floor(2000 * 0.95) + 50 = 1950.
+  A.Sell.LearnDeposit(TaxTheFoolsDB.items, 100, 480, 50, 20, 20)
+  TaxTheFoolsDB.items[100].st = 20
+  c.postings = { { key = "100:0", stack = 20, buyout = 2000, bid = 1800, at = WoW.now - 100, reconciled = true } }
+  WoW.mail = { sold(1950) }
+  WoW.fire("MAIL_SHOW") frame()
+  T.eq(c.sales[1].qty, 20, "learned deposit")
+  -- Estimated: vendor 40 per unit, stack 20 of 20, 480 minutes: floor(40 * 20 * 4 * 1 * 0.025) = 80, so 1900 + 80 = 1980.
+  -- Money 2010 is 30 off, within 1 + floor(80 * 0.5) = 41.
+  TaxTheFoolsDB.items[100].dep = nil
+  TaxTheFoolsDB.items[100].v = 40
+  c.postings = { { key = "100:0", stack = 20, buyout = 2000, bid = 1800, at = WoW.now - 100, reconciled = true } }
+  WoW.mail = { sold(1950), sold(2010) }          -- the 1950 mail is already recorded
+  WoW.fire("MAIL_INBOX_UPDATE") frame()
+  T.eq(table.getn(c.sales), 2) T.eq(c.sales[2].money, 2010) T.eq(c.sales[2].qty, 20, "estimated deposit")
+end)
+
+T.test("a sale whose item name is not cached is not marked seen and is retried once it is (M1)", function()
+  WoW.now = WoW.now + 1800
+  WoW.mail = { sold(950), { subject = "Auction won: Mystery", money = 0, daysLeft = 22 } }
+  WoW.fire("MAIL_SHOW") frame()
+  local c = DB.Char()
+  T.eq(table.getn(c.sales), 1, "only the won mail")
+  T.eq(c.sales[1].outcome, "won")
+  T.eq(c.seenMail["Auction successful: Linen Cloth|950|" .. math.floor((time() + 29.5 * 86400) / 3600)], nil, "not marked seen")
+  TaxTheFoolsDB.items[100] = { n = "Linen Cloth" }
+  WoW.fire("MAIL_INBOX_UPDATE") frame()
+  T.eq(table.getn(c.sales), 2) T.eq(c.sales[2].outcome, "sold") T.eq(c.sales[2].key, "100:0")
+  WoW.fire("MAIL_INBOX_UPDATE") frame()
+  T.eq(table.getn(c.sales), 2, "and then once")
 end)
 
 T.test("mail does nothing before the first frame and when the inbox is empty", function()
