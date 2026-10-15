@@ -32,6 +32,10 @@ function Core.Init()
   A.BagClick.Install()
   DB.StartPrune()
   Core.pruned = false
+  if not Core.alertsWired then
+    Core.alertsWired = true
+    A.Scan.OnRows(function(rows) Core.Safe("alerts", A.Alerts.OnRows, rows) end)
+  end
   Core.Safe("selling log", A.Sell.Prune, DB.Char(), time())
   Core.Safe("sales log", A.Sales.Prune, DB.Char(), time())
   Core.Safe("ledger prune", A.Ledger.Prune, DB.Char(), time())

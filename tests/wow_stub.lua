@@ -440,7 +440,7 @@ function GetBuildInfo() return "1.12.1", "5875", "Sep 19 2006" end
 function ReloadUI() WoW.log("ReloadUI") end
 function getglobal(n) return G[n] end
 function setglobal(n, v) G[n] = v end
-function PlaySound() end
+function PlaySound(name) WoW.log("PlaySound", name) end
 function GetItemInfo(id)
   if type(id) == "string" then
     -- 1.12 takes an id or "item:..." itemString; a full coloured hyperlink finds nothing.

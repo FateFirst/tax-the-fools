@@ -28,6 +28,7 @@ db.lua
 items.lua
 inventory.lua
 scan.lua
+alerts.lua
 auction.lua
 ahhook.lua
 mailhook.lua

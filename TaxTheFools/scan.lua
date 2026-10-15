@@ -11,6 +11,14 @@ end
 function Scan.OnChange(fn) table.insert(Scan.listeners, fn) end
 local function changed() for _, fn in ipairs(Scan.listeners) do fn() end end
 
+-- fn(rows) runs once per processed page with that page's new listing entries
+-- ({ key, unit, qty, owner, buyout, minBid }), for every kind of scan and Browse search.
+Scan.rowListeners = {}
+function Scan.OnRows(fn) table.insert(Scan.rowListeners, fn) end
+local function fireRows(rows)
+  for _, fn in ipairs(Scan.rowListeners) do fn(rows) end
+end
+
 function Scan.Busy() return Scan.job ~= nil end
 
 local function delay(job)
@@ -55,6 +63,52 @@ function Scan.WatchQueries()
 end
 
 function Scan.StartWatch(now) return Scan.Start("watch", Scan.WatchQueries(), now) end
+
+local function namesToQueries(seen)
+  local names = {}
+  for n in pairs(seen) do table.insert(names, n) end
+  table.sort(names)
+  local queries = {}
+  for _, n in ipairs(names) do table.insert(queries, { name = n }) end
+  return queries
+end
+
+-- Every reagent of every captured recipe on the realm, plus the shopping plan's AH buy lines.
+function Scan.MatsQueries()
+  local seen = {}
+  local function add(n) if n and n ~= "" then seen[n] = true end end
+  for _, c in pairs(DB.Realm().chars or {}) do
+    for _, prof in pairs(c.professions or {}) do
+      for _, r in pairs(prof.recipes or {}) do
+        for _, g in ipairs(r.reagents or {}) do
+          local rec = g.item and I.Get(U.keyId(g.item))
+          add((rec and rec.n) or g.name)
+        end
+      end
+    end
+  end
+  local cu = TaxTheFools.CraftUI
+  local plan = cu and cu.shopping
+  if plan and plan.buys then
+    for _, b in ipairs(plan.buys) do
+      if b.source == "ah" or not b.source then add(b.name) end
+    end
+  end
+  return namesToQueries(seen)
+end
+
+function Scan.SnipeQueries()
+  local seen = {}
+  for key, e in pairs(DB.Realm().snipe or {}) do
+    local rec = I.Get(U.keyId(key))
+    local n = (e and e.name) or (rec and rec.n)
+    if n and n ~= "" then seen[n] = true end
+  end
+  return namesToQueries(seen)
+end
+
+function Scan.StartMats(now) return Scan.Start("mats", Scan.MatsQueries(), now) end
+function Scan.StartSnipe(now) return Scan.Start("snipe", Scan.SnipeQueries(), now) end
 
 function Scan.Browse(name, page, now)
   return Scan.Start("browse", { { name = name or "", page = page or 0 } }, now)
@@ -158,10 +212,14 @@ function Scan.Accept(now, force)
     return
   end
   job.lastSig, job.lastLooseSig, job.retries, job.pageDupes = sig, loose, 0, 0
+  local fresh = {}
   for _, r in ipairs(rows) do
-    table.insert(job.listings, { key = r.key, unit = r.unit, qty = r.count, owner = r.owner,
-                                 buyout = r.buyout, minBid = r.minBid })
+    local l = { key = r.key, unit = r.unit, qty = r.count, owner = r.owner,
+                buyout = r.buyout, minBid = r.minBid }
+    table.insert(job.listings, l)
+    table.insert(fresh, l)
   end
+  fireRows(fresh)
   job.pagesDone, job.pagesRun = job.pagesDone + 1, job.pagesRun + 1
   job.totalPages = math.ceil(total / D.PAGE_SIZE)
   if job.kind == "browse" then

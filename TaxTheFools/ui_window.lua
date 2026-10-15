@@ -37,6 +37,9 @@ function UI.Duration(s)
   return math.floor(h / 24) .. "d " .. math.mod(h, 24) .. "h"
 end
 
+UI.KIND_LABEL = { full = "Full scan", watch = "Watchlist", mats = "Materials", snipe = "Snipe list" }
+UI.KIND_PAUSED = { full = "full scan", watch = "watchlist scan", mats = "materials scan", snipe = "snipe scan" }
+
 -- What the status strip says and offers, from the scan's state alone.
 function UI.Describe(p, resume, lastFull, now)
   local d = { text = "", fraction = 0, pause = false, discard = false, canStart = true }
@@ -46,7 +49,7 @@ function UI.Describe(p, resume, lastFull, now)
       d.text = "Searching..."
       return d
     end
-    local label = (p.kind == "full") and "Full scan" or "Watchlist"
+    local label = UI.KIND_LABEL[p.kind] or "Watchlist"
     if p.state == "stalled" then
       d.text = label .. " stopped: server not responding. Press Resume to try again."
       d.pause = "Resume"
@@ -72,7 +75,7 @@ function UI.Describe(p, resume, lastFull, now)
     return d
   end
   if resume then
-    d.text = "Paused " .. ((resume.kind == "full") and "full scan" or "watchlist scan") .. " at page " .. (resume.page + 1)
+    d.text = "Paused " .. (UI.KIND_PAUSED[resume.kind] or "watchlist scan") .. " at page " .. (resume.page + 1)
       .. " with " .. table.getn(resume.rows) .. " listings. Resume or discard it."
     d.pause, d.discard, d.canStart = "Resume", true, false
     return d
@@ -86,6 +89,37 @@ function UI.Describe(p, resume, lastFull, now)
   return d
 end
 
+-- The Quick scan menu: a small list on the top layer of UIParent, like W.Dropdown's.
+function UI.QuickChoices()
+  return { { kind = "watch", label = "Watchlist (" .. table.getn(Scan.WatchQueries()) .. ")" },
+           { kind = "mats", label = "Materials (" .. table.getn(Scan.MatsQueries()) .. ")" },
+           { kind = "snipe", label = "Snipe list (" .. table.getn(Scan.SnipeQueries()) .. ")" } }
+end
+
+function UI.ToggleQuickMenu()
+  local menu = UI.quickMenu
+  if not menu then
+    menu = CreateFrame("Frame", nil, UIParent)
+    menu:SetFrameStrata("FULLSCREEN_DIALOG")
+    menu:SetWidth(120)
+    Th.Panel(menu, "header")
+    menu:SetHeight(8 + 3 * 20)
+    menu:Hide()
+    menu.items = {}
+    UI.quickMenu = menu
+    local kinds = { "watch", "mats", "snipe" }
+    local function choose(kind) menu:Hide() UI.StartScan(kind) end
+    for i = 1, 3 do
+      menu.items[i] = W.MenuItem(menu, i, { label = "", value = kinds[i] }, choose)
+    end
+  end
+  if menu:IsShown() then menu:Hide() return end
+  for i, c in ipairs(UI.QuickChoices()) do menu.items[i].text:SetText(c.label) end
+  menu:ClearAllPoints()
+  menu:SetPoint("TOPLEFT", UI.ah.status.watch, "BOTTOMLEFT", 0, -2)
+  menu:Show()
+end
+
 function UI.CreateStatusStrip(f)
   local s = CreateFrame("Frame", nil, f)
   s:SetHeight(38)
@@ -94,9 +128,9 @@ function UI.CreateStatusStrip(f)
   s.full = W.Button(s, "Full scan", 92, 22, function() UI.StartScan("full") end, "accent")
   s.full:SetPoint("LEFT", s, "LEFT", 10, 0)
   W.Tip(s.full, "Full scan", "Pages through the whole auction house. Expect many minutes; it pauses if you leave and resumes later the same day.")
-  s.watch = W.Button(s, "Watchlist", 92, 22, function() UI.StartScan("watch") end)
+  s.watch = W.Button(s, "Quick scan", 92, 22, function() UI.ToggleQuickMenu() end)
   s.watch:SetPoint("LEFT", s.full, "RIGHT", 6, 0)
-  W.Tip(s.watch, "Watchlist scan", "Looks up only the items you watch. Quick.")
+  W.Tip(s.watch, "Quick scan", "Looks up only some items: your watchlist, every crafting material, or your snipe list.")
   s.pause = W.Button(s, "Pause", 76, 22, function() UI.PauseOrResume() end)
   s.pause:SetPoint("LEFT", s.watch, "RIGHT", 6, 0)
   s.discard = W.Button(s, "Discard", 76, 22, function() Scan.Discard() end)
@@ -196,9 +230,18 @@ end
 
 function UI.StartScan(kind)
   local ok, why
-  if kind == "full" then ok, why = Scan.StartFull(GetTime()) else ok, why = Scan.StartWatch(GetTime()) end
+  if kind == "full" then ok, why = Scan.StartFull(GetTime())
+  elseif kind == "mats" then ok, why = Scan.StartMats(GetTime())
+  elseif kind == "snipe" then ok, why = Scan.StartSnipe(GetTime())
+  else ok, why = Scan.StartWatch(GetTime()) end
   if not ok and why == "empty" then
-    U.msg("Your watchlist is empty. Select an item in Browse and press Watch, or type /ttf watch <item name>.")
+    if kind == "mats" then
+      U.msg("Nothing to scan: no recipes captured yet - open your tradeskill window once.")
+    elseif kind == "snipe" then
+      U.msg("Your snipe list is empty - add items with the Snipe button on Browse or /ttf snipe <item> <price>.")
+    else
+      U.msg("Your watchlist is empty. Select an item in Browse and press Watch, or type /ttf watch <item name>.")
+    end
   elseif not ok and why == "busy" then
     U.msg("A scan is already running.")
   end
