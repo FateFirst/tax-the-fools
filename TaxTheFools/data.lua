@@ -39,7 +39,7 @@ D.DEFAULTS = {
     browseFeedsHistory = true,
     tooltip = { market = true, low = true, vendor = true },
     craft = { autoWatch = true, staleDays = 7 },
-    deals = { market = true, vendor = true, mats = true, belowMarketPct = 70, minProfit = 5000, matPct = 85,
+    deals = { snipe = true, market = true, vendor = true, mats = true, belowMarketPct = 70, minProfit = 5000, matPct = 85,
               minConfidence = 0.4, under = true, underPct = 33, premiumPct = 110,
               recipe = true, paybackCrafts = 10 },
     buy = { confirmAbove = 50000 },        -- copper; 0 never asks
@@ -48,6 +48,7 @@ D.DEFAULTS = {
     sales = { days = 30, warnPct = 120, tooltip = true },
     ledger = { vendor = true },
     trend = { tooltip = true },
+    alerts = { on = true, minProfit = 10000, sound = true, snipe = true },
     recipes = { tooltip = true, skillAhead = 25 },
     mail = { bankAlt = nil, rules = { crafted = true, tradeGoods = true, patterns = true, auctionable = false }, keep = {} },
   },

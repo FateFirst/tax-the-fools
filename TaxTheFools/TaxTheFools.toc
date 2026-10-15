@@ -12,9 +12,11 @@ util.lua
 stats.lua
 price.lua
 craft.lua
+shopping.lua
 recipes.lua
 recipes_learn.lua
 deals.lua
+snipe.lua
 sell.lua
 sales.lua
 ledger.lua
