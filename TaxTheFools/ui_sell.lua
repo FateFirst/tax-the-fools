@@ -388,6 +388,7 @@ function SellUI.Update()
   local p = SellUI.frame
   if not p then return end
   local it = p.sel
+  SellUI.UpdateChart()
   if not it then
     p.title:SetText("Pick an item from your bags")
     for _, t in ipairs({ p.sourceText, p.depositText, p.netText, p.floorText, p.salesText, p.warnText }) do t:SetText("") end
@@ -434,6 +435,25 @@ function SellUI.Update()
   W.Tip(p.postBtn, (plan and plan.kind == "split") and "Split" or "Post",
     why or ((plan and plan.kind == "split") and "Split a stack of " .. p.stackSize .. " off into an empty bag slot."
       or "Post one stack at the prices above."))
+end
+
+-- The price chart goes under the sales line, above the Post row, and hides when that gap is too small.
+SellUI.CHART_TOP, SellUI.CHART_BOTTOM, SellUI.CHART_MIN_H, SellUI.CHART_MIN_W = 366, 34, 40, 160
+
+function SellUI.UpdateChart()
+  local p = SellUI.frame
+  if not p or not p.chart then return end
+  local it = p.sel
+  local h = p:GetHeight() - SellUI.CHART_TOP - SellUI.CHART_BOTTOM
+  if not it or h < SellUI.CHART_MIN_H or SellUI.PW < SellUI.CHART_MIN_W then
+    p.chart:Hide()
+    return
+  end
+  local realm = DB.Realm()
+  local m = realm.market[it.key]
+  p.chart:SetSize(SellUI.PW, h)
+  p.chart:SetSeries(TaxTheFools.Price.Series(realm.history[it.key], U.day(), 30), m and m.v or nil)
+  p.chart:Show()
 end
 
 function SellUI.Say(text, token)
@@ -583,6 +603,9 @@ function SellUI.Build(parent)
   p.warnText:SetJustifyH("LEFT")
   p.salesText = Th.Text(p, "body", 11, "dim")
   p.salesText:SetPoint("TOPLEFT", p, "TOPLEFT", RX, -346)
+  p.chart = W.Chart(p, SellUI.PW, SellUI.CHART_MIN_H)
+  p.chart:SetPoint("TOPLEFT", p, "TOPLEFT", RX, -SellUI.CHART_TOP)
+  p.chart:Hide()
   p.allowSw = W.Switch(p, "Allow below floor", function() return p.allowBelow end,
     function(v) p.allowBelow = v and true or false SellUI.Update() end,
     "Lets you post under your price floor. It resets when you pick another item.")
@@ -595,7 +618,7 @@ function SellUI.Build(parent)
   p.status:SetPoint("RIGHT", p.postBtn, "LEFT", -8, 0)
   p.status:SetJustifyH("LEFT")
   p.Refresh = function(self) SellUI.Refresh() end
-  p.Layout = function(self) self.list:Paint() end
+  p.Layout = function(self) SellUI.UpdateChart() self.list:Paint() end
   Scan.OnChange(function() SellUI.OnScan() end)
   Auction.OnChange(function() if p:IsVisible() then SellUI.Update() end end)
   SellUI.Refresh()

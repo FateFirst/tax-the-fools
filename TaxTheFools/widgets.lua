@@ -1,5 +1,5 @@
 TaxTheFools = TaxTheFools or {}
-local Th, DB = TaxTheFools.Theme, TaxTheFools.DB
+local Th, DB, U = TaxTheFools.Theme, TaxTheFools.DB, TaxTheFools.Util
 local W = { windows = {} }
 TaxTheFools.Widgets = W
 
@@ -292,6 +292,99 @@ function W.MoneyInput(parent, onChange)
     self.updating = false
   end
   return f
+end
+
+-- A 30-day bar chart: one bar per day that has a price, today at the right, scaled from 0 to the
+-- highest bar or marker. `marker` is drawn as a horizontal line (the market value).
+W.CHART_DAYS = 30
+
+function W.Chart(parent, w, h)
+  local c = CreateFrame("Frame", nil, parent)
+  c:SetWidth(w)
+  c:SetHeight(h)
+  c.bg = Th.Solid(c, "BACKGROUND", "panel3")
+  c.bg:SetAllPoints(c)
+  c.bars, c.hits, c.series, c.markerValue = {}, {}, false, false
+  for i = 1, W.CHART_DAYS do
+    c.bars[i] = Th.Solid(c, "ARTWORK", "accent")
+    c.bars[i]:Hide()
+    local b = CreateFrame("Button", nil, c)
+    b.day, b.price = false, false
+    b:Hide()
+    b:SetScript("OnEnter", function()
+      if not this.day then return end
+      GameTooltip:SetOwner(this, "ANCHOR_CURSOR")
+      GameTooltip:SetText(date("%d %b", this.day * 86400), 1, 1, 1)
+      GameTooltip:AddLine(U.money(this.price), 0.78, 0.78, 0.74)
+      GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    c.hits[i] = b
+  end
+  c.marker = Th.Solid(c, "OVERLAY", "gold")
+  c.marker:Hide()
+  c.empty = Th.Text(c, "body", 11, "dim")
+  c.empty:SetPoint("CENTER", c, "CENTER", 0, 0)
+  c.empty:SetText("No price history yet")
+  c.empty:Hide()
+  c.SetSize = function(self, nw, nh)
+    self:SetWidth(nw)
+    self:SetHeight(nh)
+    if self.series then self:SetSeries(self.series, self.markerValue) end
+  end
+  c.SetSeries = function(self, series, marker)
+    self.series, self.markerValue = series, marker
+    local cw, ch = self:GetWidth(), self:GetHeight()
+    local slot = (cw - 2) / W.CHART_DAYS
+    local today = U.day()
+    local top = marker or 0
+    local shown = 0
+    for _, pt in ipairs(series or {}) do
+      if pt.p25 > top then top = pt.p25 end
+    end
+    for i = 1, W.CHART_DAYS do
+      self.bars[i]:Hide()
+      self.hits[i].day = false
+      self.hits[i]:Hide()
+    end
+    for _, pt in ipairs(series or {}) do
+      local i = W.CHART_DAYS - (today - pt.day)
+      if i >= 1 and i <= W.CHART_DAYS and top > 0 then
+        local bh = math.max(1, (ch - 2) * pt.p25 / top)
+        local x = 1 + (i - 1) * slot
+        local bar = self.bars[i]
+        bar:ClearAllPoints()
+        bar:SetPoint("BOTTOMLEFT", self, "BOTTOMLEFT", x, 1)
+        bar:SetWidth(math.max(1, slot - 1))
+        bar:SetHeight(bh)
+        bar:Show()
+        local hit = self.hits[i]
+        hit:ClearAllPoints()
+        hit:SetPoint("BOTTOMLEFT", self, "BOTTOMLEFT", x, 1)
+        hit:SetWidth(slot)
+        hit:SetHeight(ch - 2)
+        hit.day, hit.price = pt.day, pt.p25
+        hit:Show()
+        shown = shown + 1
+      end
+    end
+    if shown == 0 then
+      self.marker:Hide()
+      self.empty:Show()
+      return
+    end
+    self.empty:Hide()
+    if marker and marker > 0 and top > 0 then
+      self.marker:ClearAllPoints()
+      self.marker:SetPoint("BOTTOMLEFT", self, "BOTTOMLEFT", 1, 1 + (ch - 2) * marker / top)
+      self.marker:SetWidth(cw - 2)
+      self.marker:SetHeight(1)
+      self.marker:Show()
+    else
+      self.marker:Hide()
+    end
+  end
+  return c
 end
 
 function W.Progress(parent, height)

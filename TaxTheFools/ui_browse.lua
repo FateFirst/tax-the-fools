@@ -96,6 +96,10 @@ function Browse.Decorate(rows, market, history, today)
   return rows
 end
 
+-- The price chart sits bottom-left, beside the Buy / Bid buttons, and the list gives up its height.
+Browse.CHART_H, Browse.CHART_MIN_W, Browse.CHART_MIN_PAGE_H = 44, 160, 220
+Browse.CHART_RIGHT = 278   -- Buy (140) + Bid (120) + gaps
+
 function Browse.Build(parent)
   local p = CreateFrame("Frame", nil, parent)
   p.search = W.EditBox(p, 220, function(text) Browse.Manual(text) end)
@@ -124,9 +128,12 @@ function Browse.Build(parent)
   p.buyBtn:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
   p.bidBtn = W.Button(p, "Bid", 120, 24, function() Browse.Bid() end)
   p.bidBtn:SetPoint("RIGHT", p.buyBtn, "LEFT", -6, 0)
+  p.chart = W.Chart(p, 200, Browse.CHART_H)
+  p.chart:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 0, 0)
+  p.chart:Hide()
   p.list.onEnter = function(row, item) Browse.RowTip(row, item) end
   p.Refresh = function(self) Browse.Paint() end
-  p.Layout = function(self) self.list:Paint() end
+  p.Layout = function(self) Browse.UpdateChart() self.list:Paint() end
   Browse.frame = p
   Scan.OnChange(function() if p:IsVisible() then Browse.Paint() end end)
   Auction.OnChange(function() Browse.UpdateBar() end)
@@ -179,9 +186,29 @@ function Browse.WhyNot(kind, r)
   return nil
 end
 
+-- Shows the selected item's chart when the page has room for it, else hides it and gives the list its height back.
+function Browse.UpdateChart()
+  local p = Browse.frame
+  if not p then return end
+  local r = p.list.selected or nil
+  local w = p:GetWidth() - Browse.CHART_RIGHT
+  local fits = r and w >= Browse.CHART_MIN_W and p:GetHeight() >= Browse.CHART_MIN_PAGE_H
+  p.list:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, fits and (Browse.CHART_H + 8) or 32)
+  if not fits then
+    p.chart:Hide()
+    return
+  end
+  local realm = DB.Realm()
+  local m = realm.market[r.key]
+  p.chart:SetSize(w, Browse.CHART_H)
+  p.chart:SetSeries(P.Series(realm.history[r.key], U.day(), 30), m and m.v or nil)
+  p.chart:Show()
+end
+
 function Browse.UpdateBar()
   local p = Browse.frame
   if not p then return end
+  Browse.UpdateChart()
   local r = p.list.selected or nil
   local buyWhy, bidWhy = Browse.WhyNot("buy", r), Browse.WhyNot("bid", r)
   p.buyBtn:SetEnabled(not buyWhy)
