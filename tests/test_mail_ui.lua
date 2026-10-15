@@ -389,6 +389,20 @@ T.test("right-click passes through on the Inbox tab, with a modifier, and with T
   T.eq(table.getn(MU.send.rows), 0)
 end)
 
+T.test("right-click attaches on our Send tab even with replacing off (the window was opened by its button)", function()
+  local p = sendSetup("Banker")
+  DB.S().replaceBlizzardMail = false
+  rclick(1)
+  T.eq(table.getn(MU.send.rows), 1, "attached")
+  T.eq(T.count("ContainerFrameItemButton_OnClick"), 0)
+  WoW.addons.TurtleMail = true
+  rclick(3)
+  T.eq(table.getn(MU.send.rows), 1, "never with TurtleMail loaded")
+  WoW.addons.TurtleMail = nil
+  DB.S().replaceBlizzardMail = true
+  T.ok(p)
+end)
+
 T.test("the footer shows the mail count and postage", function()
   local p = sendSetup("Banker")
   T.eq(p.footer:GetText(), "0 mails  -  postage " .. A.Util.money(0))

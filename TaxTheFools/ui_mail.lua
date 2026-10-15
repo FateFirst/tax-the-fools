@@ -423,10 +423,12 @@ function MailUI.Attach(bag, slot)
   return true
 end
 
--- True when a bag right-click should attach: replacing is on and the Send page is the one showing.
+-- True when a bag right-click should attach: our window shows its Send page and TurtleMail isn't loaded.
+-- Replacing Blizzard's mailbox doesn't matter: with it off our window is still one button away.
 function MailUI.SendShown()
   local f = MailUI.win
-  if not f or not f:IsShown() or not MailHook.Enabled() then return false end
+  if not f or not f:IsShown() then return false end
+  if IsAddOnLoaded and IsAddOnLoaded("TurtleMail") then return false end
   local page = MailUI.pages.send
   return (f.tabs.selected == "send" and page and page:IsShown()) and true or false
 end

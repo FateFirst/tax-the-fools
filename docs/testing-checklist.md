@@ -234,3 +234,15 @@ The trainer and vendor windows are only read. Nothing is bought from them; buy a
     after a delay. Write the answer here.
 97. `/ttf probe`. The mail lines are all present, including the ATTACHMENTS_MAX_SEND value.
     Copy them into `tools/probe-<date>.txt`.
+98. **One History entry per AH sale.** Note History's sold count and income for an item, then
+    **Collect all** with one or two of its sold mails waiting (unread). History gains exactly one
+    sale per mail, with the right gold: no extra 0-gold sales, and none appear on reopening.
+99. **Two identical expired-auction mails.** Post two identical stacks at the same price and let
+    both expire. **Collect all**: both items come back, both mails go, and the chain doesn't stop
+    with "No reply from the mailbox".
+100. **Emptied AH mails.** While collecting, watch an AH mail after its gold or item is taken:
+    note whether it vanishes on its own (before TTF deletes it) or stays until deleted. Also note
+    whether an unread AH mail deletes normally. Write the answer here.
+101. **Chat after a send.** Send a mail from the **Send** tab, then press Enter and type in chat,
+    and move with the keyboard. Both work. If keys go nowhere (Blizzard's hidden send form held
+    the keyboard focus), report it.
