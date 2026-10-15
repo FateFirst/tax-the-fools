@@ -12,14 +12,14 @@ local function isAuctionMail(h)
   return A.Sales.Classify(h.subject) ~= nil
 end
 
--- An unknown body (nil) is never empty: a player's letter is only deleted once its body is known to be "".
--- h = { sender, subject, money, cod, hasItem, isGM, wasReturned, textCreated, body }; body only when known.
+-- Only auction house mail is ever deleted; a player's mail stays in the inbox once emptied, whatever its body.
+-- h = { sender, subject, money, cod, hasItem, isGM, wasReturned, textCreated }.
 -- Returns "skip", "take" or "take+delete".
 function MailRules.Plan(h)
   if (h.cod or 0) > 0 or h.isGM then return "skip" end
   local ah = isAuctionMail(h)
   if (h.money or 0) <= 0 and not h.hasItem and not ah then return "skip" end
-  if ah or h.body == "" then return "take+delete" end
+  if ah then return "take+delete" end
   return "take"
 end
 

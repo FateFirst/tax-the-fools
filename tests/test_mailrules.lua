@@ -15,10 +15,10 @@ T.test("Plan skips a mail with nothing to take unless it is AH mail", function()
   T.eq(R.Plan(h{ sender = "Bob", subject = "Auction expired: Linen", money = 0 }), "take+delete")
 end)
 
-T.test("Plan takes and deletes AH mail and mail with an empty body", function()
+T.test("Plan takes and deletes AH mail only, whatever a player's body says", function()
   T.eq(R.Plan(h{ sender = "Auction House", subject = "Auction successful: Linen", money = 900, body = "Sold." }), "take+delete")
-  T.eq(R.Plan(h{ sender = "Bob", subject = "gift", hasItem = true, body = "" }), "take+delete")
-  T.eq(R.Plan(h{ sender = "Bob", subject = "gift", money = 10 }), "take")   -- body not read yet: never delete
+  T.eq(R.Plan(h{ sender = "Bob", subject = "gift", hasItem = true, body = "" }), "take")
+  T.eq(R.Plan(h{ sender = "Bob", subject = "gift", money = 10 }), "take")
 end)
 
 T.test("Plan only takes a player's letter, which keeps its text", function()

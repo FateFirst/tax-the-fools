@@ -34,44 +34,82 @@ T.test("collect all takes money and items, deletes AH mail, keeps letters, skips
   pump()
   T.eq(Mailbox.busy, false, "the lock is released")
   T.eq(WoW.money, 1000 + 900 + 50 + 70)
-  T.eq(table.getn(WoW.mail), 3, "AH mail and the empty-bodied gift are gone")
-  T.eq(WoW.mail[1].sender, "Ann") T.eq(WoW.mail[1].money, 0)
-  T.eq(WoW.mail[2].cod, 500) T.ok(WoW.mail[2].item, "COD item stays")
-  T.eq(WoW.mail[3].money, 10, "GM mail untouched")
+  T.eq(table.getn(WoW.mail), 4, "only the AH mail is gone")
+  T.eq(WoW.mail[1].sender, "Bob") T.eq(WoW.mail[1].money, 0, "emptied gift stays")
+  T.eq(WoW.mail[2].sender, "Ann") T.eq(WoW.mail[2].money, 0)
+  T.eq(WoW.mail[3].cod, 500) T.ok(WoW.mail[3].item, "COD item stays")
+  T.eq(WoW.mail[4].money, 10, "GM mail untouched")
   T.eq(WoW.bags[0][1].id, 100)
   T.eq(Mailbox.collected, 1020)
   T.eq(T.count("CheckInbox"), 1, "CheckInbox once when finished")
   T.ok(T.calledWith("Collected 10s 20c from 3 mails"), Mailbox.status.text)
+  T.eq(T.count("Collecting"), 0, "progress stays out of chat")
   T.eq(Mailbox.status.token, "good")
 end)
 
-T.test("a mail still holding money or an item is never deleted by the chain", function()
+T.test("an emptied player mail is never deleted, an emptied AH mail is, and no body is read", function()
   setup()
-  WoW.mail = { { sender = "Bob", subject = "two things", money = 5, item = linen(), body = "" } }
-  Mailbox.CollectAll()
-  local deletedWith = false
-  local real = DeleteInboxItem
-  DeleteInboxItem = function(i)
-    local m = WoW.mail[i]
-    if m and ((m.money or 0) > 0 or m.item) then deletedWith = true end
-    return real(i)
-  end
-  pump()
-  DeleteInboxItem = real
-  T.eq(deletedWith, false)
-  T.eq(table.getn(WoW.mail), 0, "emptied, then deleted")
-  T.eq(T.count("TakeInboxMoney"), 1) T.eq(T.count("TakeInboxItem"), 1)
+  WoW.mail = { { sender = "Bob", subject = "two things", money = 5, item = linen(), body = "" },
+               ah(0, linen()) }
+  Mailbox.CollectAll() pump()
+  T.eq(T.count("TakeInboxMoney"), 1) T.eq(T.count("TakeInboxItem"), 2)
+  T.eq(table.getn(WoW.mail), 1)
+  T.eq(WoW.mail[1].sender, "Bob")
+  T.eq(T.count("GetInboxText"), 0)
 end)
 
-T.test("non-AH mail is read for its body before the take, AH mail is not", function()
+T.test("a duplicate MAIL_INBOX_UPDATE never causes a second take, and gold counts once", function()
   setup()
-  WoW.mail = { { sender = "Ann", subject = "hello", money = 70, body = "Hi" } }
+  WoW.mail = { { sender = "Ann", subject = "m", money = 70, body = "x" }, { sender = "Ann", subject = "n", money = 30, body = "x" } }
+  Mailbox.CollectAll()
+  frame()
+  for _ = 1, 5 do WoW.fire("MAIL_INBOX_UPDATE") end
+  frame() frame()
+  for _ = 1, 3 do WoW.fire("MAIL_INBOX_UPDATE") end
+  pump()
+  T.eq(T.count("TakeInboxMoney"), 2)
+  T.eq(Mailbox.collected, 100)
+  T.ok(T.calledWith("Collected 1s from 2 mails"))
+end)
+
+T.test("a take with no event at all still progresses on the tick re-check", function()
+  setup()
+  WoW.mail = { { sender = "Ann", subject = "m", money = 70, body = "x" }, { sender = "Ann", subject = "n", money = 30, body = "x" } }
+  local real = TakeInboxMoney
+  TakeInboxMoney = function(i) WoW.log("TakeInboxMoney", i) WoW.mail[i].money = 0 WoW.money = WoW.money + 1 end
+  Mailbox.CollectAll()
+  pump()
+  TakeInboxMoney = real
+  T.eq(Mailbox.busy, false)
+  T.eq(T.count("TakeInboxMoney"), 2)
+  T.ok(string.find(Mailbox.status.text, "Collected", 1, true), Mailbox.status.text)
+  T.eq(Mailbox.collected, 100)
+end)
+
+T.test("a mail that vanishes mid-chain never gets the next mail deleted", function()
+  setup()
+  WoW.mail = { { sender = "Ann", subject = "m", money = 70, body = "x", daysLeft = 20 },
+               { sender = "Bob", subject = "letter", item = linen(), body = "Dear", daysLeft = 25 } }
+  local real = TakeInboxMoney
+  TakeInboxMoney = function(i) WoW.log("TakeInboxMoney", i) end
+  Mailbox.CollectAll()
+  frame()
+  table.remove(WoW.mail, 1)                        -- it expired under us
+  WoW.fire("MAIL_INBOX_UPDATE")
+  TakeInboxMoney = real
+  pump()
+  T.eq(T.count("DeleteInboxItem"), 0)
+  T.eq(table.getn(WoW.mail), 1)
+  T.eq(WoW.mail[1].subject, "letter") T.eq(WoW.mail[1].item, nil, "its item was taken")
+  T.eq(Mailbox.collected, 0, "the vanished mail's gold is not counted")
+end)
+
+T.test("an item skipped as unique does not count as collected", function()
+  setup()
+  WoW.bags = { [0] = { { id = 100, name = "Linen Cloth", count = 1 }, {} } }
+  WoW.mail = { { sender = "Bob", subject = "u", item = { id = 100, name = "Linen Cloth", count = 1, unique = true } } }
   Mailbox.CollectAll() pump()
-  T.eq(T.count("GetInboxText 1"), 1)
-  WoW.calls = {}
-  WoW.mail = { ah(30) }
-  Mailbox.CollectAll() pump()
-  T.eq(T.count("GetInboxText"), 0)
+  T.ok(T.calledWith("Nothing to collect"), Mailbox.status.text)
 end)
 
 T.test("an empty non-AH mail is left alone", function()
@@ -83,19 +121,18 @@ T.test("an empty non-AH mail is left alone", function()
   T.ok(T.calledWith("Nothing to collect"))
 end)
 
-T.test("one server call per tick, each waiting for its event", function()
+T.test("one server call per tick, each waiting for its confirmation", function()
   setup()
   WoW.mail = { ah(10), ah(20) }
   local real = TakeInboxMoney
-  local silent = true
-  TakeInboxMoney = function(i) WoW.log("TakeInboxMoney", i) if not silent then real(i) end end
+  TakeInboxMoney = function(i) WoW.log("TakeInboxMoney", i) end
   Mailbox.CollectAll()
   frame() T.eq(T.count("TakeInboxMoney"), 1)
-  frame() frame() T.eq(T.count("TakeInboxMoney"), 1, "waits for MAIL_INBOX_UPDATE")
+  frame() frame() T.eq(T.count("TakeInboxMoney"), 1, "waits until the header shows it")
   T.eq(Mailbox.busy.waiting, true)
   TakeInboxMoney = real
-  WoW.fire("MAIL_INBOX_UPDATE")
-  frame() T.eq(T.count("TakeInboxMoney"), 2, "the event releases the next call")
+  WoW.mail[1].money = 0
+  frame() T.eq(T.count("DeleteInboxItem"), 1, "one call after the confirmation")
   Mailbox.Stop() pump()
 end)
 
@@ -199,6 +236,9 @@ T.test("Delete and Return refuse what they must, and are one call each", functio
   T.eq(Mailbox.Delete(2), true) T.eq(T.count("DeleteInboxItem"), 1)
   T.eq(table.getn(WoW.mail), 2)
   T.eq(Mailbox.Delete(9), false)
+  WoW.mail = { { sender = "GM", subject = "x", body = "hi", isGM = true } }
+  T.eq(Mailbox.Delete(1), false) T.eq(Mailbox.Return(1), false)
+  T.eq(T.count("DeleteInboxItem"), 1) T.eq(T.count("ReturnInboxItem"), 1)
 end)
 
 T.test("Read returns the body", function()
@@ -272,6 +312,15 @@ T.test("a slot that changed is skipped with a note, money goes on the first mail
   WoW.calls = {}
   Mailbox.Send("Bob", "", "", 0, { att(1, "200:0", 20) }) pump()
   T.eq(T.count("SendMail "), 0, "wrong item in the slot")
+end)
+
+T.test("a send with nothing in it is refused without a call", function()
+  stacks()
+  WoW.calls = {}
+  T.eq(Mailbox.Send("Bob", "s", "body", 0, {}), false)
+  T.eq(Mailbox.busy, false)
+  T.ok(string.find(Mailbox.status.text, "Nothing to send", 1, true))
+  T.eq(T.count("SendMail"), 0)
 end)
 
 T.test("no attachments sends one mail with the money", function()
