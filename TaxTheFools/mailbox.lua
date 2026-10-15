@@ -288,7 +288,9 @@ local function collectStep(b, now)
           end
           b.cur = false
           if how == "vanished" then
-            -- no delete step for a mail that is already gone; the later mails shifted down
+            -- no delete step for a mail that is already gone; the later mails shifted down. The client
+            -- removed it, so its seenMail count goes as a delete's would.
+            if b.key then A.Mail.Forget(b.key) end
             countDone(b)
             nextMail(b)
             if b.single then return finish(b) end

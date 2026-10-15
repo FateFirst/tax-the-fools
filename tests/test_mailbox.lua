@@ -366,6 +366,21 @@ T.test("a client that drops emptied mail on its own: two identical AH mails both
   T.ok(T.calledWith("from 2 mails"), Mailbox.status.text)
 end)
 
+T.test("a mail the client drops on its own is forgotten too, so a later identical sale is recorded", function()
+  setup() known()
+  WoW.mailAutoRemoveEmpty = true
+  local m = ah(900) m.daysLeft = 29.5
+  WoW.mail = { m }
+  local key = Mail.Key(m.subject, 900, 29.5, time())
+  Mailbox.CollectAll() pump()
+  T.eq(table.getn(WoW.mail), 0)
+  T.eq(A.DB.Char().seenMail[key], nil)
+  local again = ah(900) again.daysLeft = 29.5
+  WoW.mail = { again }
+  WoW.fire("MAIL_INBOX_UPDATE") frame()
+  T.eq(salesOf("sold"), 2)
+end)
+
 T.test("CollectOne ends after its mail vanishes on its own", function()
   setup()
   WoW.mailAutoRemoveEmpty = true
