@@ -181,3 +181,14 @@ T.test("Buy and Bid are disabled while a full or watch scan runs, with the reaso
   T.ok(string.find(p.bidBtn.tip.body, "A scan is using the auction house.", 1, true), p.bidBtn.tip.body)
   Scan.job = nil
 end)
+
+T.test("the % column is wide enough for three digits and caps silly values", function()
+  local B = TaxTheFools.Browse
+  T.eq(B.PctText(nil), "-") T.eq(B.PctText(87), "87%") T.eq(B.PctText(999), "999%") T.eq(B.PctText(4200), ">999%")
+  for _, c in ipairs(B.COLUMNS) do
+    if c.label == "%" then T.ok(c.width >= 52, "Browse % is " .. c.width) end
+  end
+  for _, c in ipairs(TaxTheFools.DealsUI.COLUMNS) do
+    if c.label == "%" then T.ok(c.width >= 52, "Deals % is " .. c.width) end
+  end
+end)

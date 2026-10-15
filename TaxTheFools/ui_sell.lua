@@ -23,7 +23,7 @@ SellUI.COLUMNS = {
   { label = "Stack", width = 60, align = "RIGHT", sort = "count", fmt = function(r) return tostring(r.count) end },
   { label = "Each", width = 110, align = "RIGHT", sort = "unit", fmt = function(r) return money(r.unit) end },
   { label = "%", width = 60, align = "RIGHT", sort = "pct",
-    fmt = function(r) return r.pct and (r.pct .. "%") or "-", TaxTheFools.Browse.PctToken(r.pct) end },
+    fmt = function(r) return TaxTheFools.Browse.PctText(r.pct), TaxTheFools.Browse.PctToken(r.pct) end },
   { label = "Seller", width = 120, flex = 1, sort = "owner",
     fmt = function(r) if r.mine then return "you", "good" end return r.owner or "?" end },
 }

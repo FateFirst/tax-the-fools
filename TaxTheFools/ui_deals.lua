@@ -17,14 +17,14 @@ local function money(v)
 end
 
 DealsUI.COLUMNS = {
-  { label = "Item", width = 190, sort = "name", fmt = function(r) return U.quality(r.quality) .. r.name .. "|r" end },
+  { label = "Item", width = 182, sort = "name", fmt = function(r) return U.quality(r.quality) .. r.name .. "|r" end },
   { label = "Qty", width = 40, align = "RIGHT", sort = "count", fmt = function(r) return tostring(r.count) end },
   { label = "Buyout", width = 84, align = "RIGHT", sort = "buyout", fmt = function(r) return money(r.buyout) end },
   { label = "Each", width = 76, align = "RIGHT", sort = "unit", fmt = function(r) return money(r.unit) end },
   { label = "Market", width = 76, align = "RIGHT", sort = "market", fmt = function(r) return money(r.market) end },
   -- A deal with no market value has no percentage.
-  { label = "%", width = 44, align = "RIGHT", sort = "pctRound",
-    fmt = function(r) return r.pctRound and (r.pctRound .. "%") or "-", TaxTheFools.Browse.PctToken(r.pctRound) end },
+  { label = "%", width = 52, align = "RIGHT", sort = "pctRound",
+    fmt = function(r) return TaxTheFools.Browse.PctText(r.pctRound), TaxTheFools.Browse.PctToken(r.pctRound) end },
   { label = "Profit", width = 84, align = "RIGHT", sort = "profit", desc = true,
     fmt = function(r) return U.money(r.profit, true), (r.profit >= 0) and "good" or "bad" end },
   { label = "Type", width = 56, sort = "typeLabel", fmt = function(r) return r.typeLabel end },

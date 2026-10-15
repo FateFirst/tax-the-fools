@@ -105,6 +105,13 @@ function Browse.SearchFor(name, back, shopIdx)
 end
 
 -- Cheap against market reads green, dear reads red.
+-- A percent of market for a narrow column: "125%", or ">999%" for silly listings so it never truncates.
+function Browse.PctText(p)
+  if not p then return "-" end
+  if p > 999 then return ">999%" end
+  return p .. "%"
+end
+
 function Browse.PctToken(p)
   if not p then return "dim" end
   if p <= 70 then return "good" end
@@ -118,7 +125,7 @@ local function money(v)
 end
 
 Browse.COLUMNS = {
-  { label = "Item", width = 120, flex = 3, sort = "name", fmt = function(r) return U.quality(r.quality) .. r.name .. "|r" end },
+  { label = "Item", width = 108, flex = 3, sort = "name", fmt = function(r) return U.quality(r.quality) .. r.name .. "|r" end },
   { label = "Qty", width = 36, align = "RIGHT", sort = "count", desc = true, fmt = function(r) return tostring(r.count) end },
   { label = "Bid", width = 80, flex = 1, align = "RIGHT", sort = "bidNow", fmt = function(r) return money(r.bidNow) end },
   { label = "Buyout", width = 80, flex = 1, align = "RIGHT", sort = "buy", fmt = function(r) return money(r.buy) end },
@@ -127,8 +134,8 @@ Browse.COLUMNS = {
   { label = "Each", width = 76, flex = 1, align = "RIGHT", sort = "unit",
     fmt = function(r) return money(r.unit), r.sniped and "accent" or nil end },
   { label = "Market", width = 76, flex = 1, align = "RIGHT", sort = "market", fmt = function(r) return money(r.market) end },
-  { label = "%", width = 40, align = "RIGHT", sort = "pct",
-    fmt = function(r) return r.pct and (r.pct .. "%") or "-", Browse.PctToken(r.pct) end },
+  { label = "%", width = 52, align = "RIGHT", sort = "pct",
+    fmt = function(r) return Browse.PctText(r.pct), Browse.PctToken(r.pct) end },
   { label = "Trend", width = 56, align = "RIGHT", sort = "trend",
     fmt = function(r)
       if not r.trend then return "-", "dim" end
