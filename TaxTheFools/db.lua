@@ -27,7 +27,7 @@ end
 -- What a saved table must look like to be trusted.
 function DB.Valid(db)
   if type(db) ~= "table" then return false end
-  for _, k in ipairs({ "settings", "items", "realms" }) do
+  for _, k in ipairs({ "settings", "items", "realms", "recipes" }) do
     if db[k] ~= nil and type(db[k]) ~= "table" then return false end
   end
   return true

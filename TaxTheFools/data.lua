@@ -39,14 +39,17 @@ D.DEFAULTS = {
     tooltip = { market = true, low = true, vendor = true },
     craft = { autoWatch = true, staleDays = 7 },
     deals = { market = true, vendor = true, mats = true, belowMarketPct = 70, minProfit = 5000, matPct = 85,
-              minConfidence = 0.4, under = true, underPct = 33, premiumPct = 110 },
+              minConfidence = 0.4, under = true, underPct = 33, premiumPct = 110,
+              recipe = true, paybackCrafts = 10 },
     buy = { confirmAbove = 50000 },        -- copper; 0 never asks
     sell = { bidPct = 90, floorPct = 80, undercut = 1, duration = 480 },
     bagClick = true,                       -- right-click a bag item at the AH: search (Browse) or select (Sell)
     sales = { days = 30, warnPct = 120, tooltip = true },
+    recipes = { tooltip = true, skillAhead = 25 },
   },
   items = {},
   realms = {},
+  recipes = {},
 }
 
 D.CHAR_DEFAULTS = { windows = {} }
