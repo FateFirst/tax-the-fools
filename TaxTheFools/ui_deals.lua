@@ -106,21 +106,14 @@ function DealsUI.BuildRail(p)
   p.matsSw:SetPoint("TOPLEFT", p.vendorSw, "BOTTOMLEFT", 0, -2)
   p.underSw = sw(p, "Undersupplied", "under", "Items you hold that sell well and are scarce now. Sell opens the Sell tab.")
   p.underSw:SetPoint("TOPLEFT", p.matsSw, "BOTTOMLEFT", 0, -2)
-  p.recipeSw = sw(p, "Recipes", "recipe", "Patterns on the auction house that pay back quickly for a character who can learn them.")
+  p.recipeSw = sw(p, "Recipe", "recipe", "Patterns on the auction house that pay back quickly for a character who can learn them.")
   p.recipeSw:SetPoint("TOPLEFT", p.underSw, "BOTTOMLEFT", 0, -2)
   p.belowSl = slider(p, "Below market", "belowMarketPct", 50, 95, 5, pct)
   p.belowSl:SetPoint("TOPLEFT", p.recipeSw, "BOTTOMLEFT", 0, -14)
   p.profitSl = slider(p, "Minimum profit", "minProfit", 0, 100000, 1000, function(v) return U.money(v) end)
   p.profitSl:SetPoint("TOPLEFT", p.belowSl, "BOTTOMLEFT", 0, -8)
-  p.matSl = slider(p, "Materials", "matPct", 50, 100, 5, pct)
-  p.matSl:SetPoint("TOPLEFT", p.profitSl, "BOTTOMLEFT", 0, -8)
-  p.confLabel = Th.Text(rail, "body", 13, "text")
-  p.confLabel:SetPoint("TOPLEFT", p.matSl, "BOTTOMLEFT", 0, -8)
-  p.confLabel:SetText("Minimum confidence")
-  p.confDD = W.Dropdown(rail, DealsUI.RAIL, DealsUI.CONFIDENCE, function() return DB.S().deals.minConfidence end,
-    function(v) DB.S().deals.minConfidence = v DealsUI.Paint() end)
-  p.confDD:SetPoint("TOPLEFT", p.confLabel, "BOTTOMLEFT", 0, -4)
-  -- underPct and premiumPct are Options-page settings only: more rail rows overflow the minimum window height.
+  -- matPct, minConfidence, underPct, premiumPct and paybackCrafts are Options-page settings only: more rail
+  -- rows overflow the minimum window height (the rail must stay under 253px).
 end
 
 function DealsUI.Build(parent)
@@ -167,7 +160,7 @@ function DealsUI.Paint()
   local text, token = DealsUI.BannerText(Scan.SnapshotAge(U.day(time())))
   p.banner:SetText(text)
   Th.Color(p.banner, token)
-  for _, c in ipairs({ p.marketSw, p.vendorSw, p.matsSw, p.underSw, p.recipeSw, p.belowSl, p.profitSl, p.matSl, p.confDD }) do c:Refresh() end
+  for _, c in ipairs({ p.marketSw, p.vendorSw, p.matsSw, p.underSw, p.recipeSw, p.belowSl, p.profitSl }) do c:Refresh() end
   local keep = p.list.selected and Auction.Sig(p.list.selected)
   local ctx = TS.Context()
   local deals = Deals.Find(snap, ctx, DB.S().deals, DB.charName)
@@ -190,19 +183,46 @@ function DealsUI.Paint()
 end
 
 -- The pattern index of every profession that has recipe data, the realm's characters and the look-ahead.
+-- The catalogues are rebuilt only when the snapshot, the recipe data or what the characters have
+-- captured changes; skillAhead is read fresh each time.
+local function recipeStamp(realm)
+  local parts = {}
+  for cn, c in pairs(realm.chars or {}) do
+    for prof, pr in pairs(c.professions or {}) do
+      local n = 0
+      for _ in pairs(pr.recipes or {}) do n = n + 1 end
+      table.insert(parts, cn .. "/" .. prof .. "/" .. (pr.at or 0) .. "/" .. (pr.rank or 0) .. "/" .. n)
+    end
+  end
+  for prof, b in pairs(TaxTheFoolsDB.recipes or {}) do
+    local n = 0
+    for _ in pairs(b.seen or {}) do n = n + 1 end
+    for _ in pairs(b.trainer or {}) do n = n + 1 end
+    table.insert(parts, prof .. "#" .. n)
+  end
+  table.sort(parts)
+  return table.concat(parts, ";")
+end
+
 function DealsUI.RecipeSource()
   local realm, R = DB.Realm(), TaxTheFools.Recipes
-  local profs, indexes = {}, {}
-  for prof in pairs(TaxTheFools.RecipeData or {}) do profs[prof] = true end
-  for prof in pairs(TaxTheFoolsDB.recipes or {}) do profs[prof] = true end
-  for _, c in pairs(realm.chars or {}) do
-    for prof in pairs(c.professions or {}) do profs[prof] = true end
+  local c = DealsUI.recipeCache
+  local stamp = recipeStamp(realm)
+  if not c or c.snap ~= realm.snapshot or c.data ~= TaxTheFools.RecipeData or c.stamp ~= stamp then
+    local profs, indexes = {}, {}
+    for prof in pairs(TaxTheFools.RecipeData or {}) do profs[prof] = true end
+    for prof in pairs(TaxTheFoolsDB.recipes or {}) do profs[prof] = true end
+    for _, ch in pairs(realm.chars or {}) do
+      for prof in pairs(ch.professions or {}) do profs[prof] = true end
+    end
+    for prof in pairs(profs) do
+      local cat = R.Catalogue(prof, TaxTheFools.RecipeData, TaxTheFoolsDB.recipes, realm.chars, TaxTheFoolsDB.items)
+      table.insert(indexes, { prof = prof, index = R.PatternIndex(cat) })
+    end
+    c = { snap = realm.snapshot, data = TaxTheFools.RecipeData, stamp = stamp, indexes = indexes }
+    DealsUI.recipeCache = c
   end
-  for prof in pairs(profs) do
-    local cat = R.Catalogue(prof, TaxTheFools.RecipeData, TaxTheFoolsDB.recipes, realm.chars, TaxTheFoolsDB.items)
-    table.insert(indexes, { prof = prof, index = R.PatternIndex(cat) })
-  end
-  return { indexes = indexes, chars = realm.chars, skillAhead = DB.S().recipes.skillAhead }
+  return { indexes = c.indexes, chars = realm.chars, skillAhead = DB.S().recipes.skillAhead }
 end
 
 -- Holdings, sell-rate stats over the Sales window and the median listing count per key.

@@ -93,14 +93,14 @@ T.test("raising the minimum profit removes the small ones", function()
   T.eq(types(p), "market:11000,market:6000,market:350,vendor:100")
 end)
 
-T.test("the confidence dropdown sets the minimum confidence", function()
+T.test("the minimum confidence setting (Options page) filters the list", function()
   seed()
   local p = page()
   DB.Realm().market["14047:0"].conf = 0.5
   p:Refresh()
   T.eq(table.getn(p.list.data), 3)
-  WoW.runScript(p.confDD.menu.items[3], "OnClick")       -- high = 0.7
-  T.eq(DB.S().deals.minConfidence, 0.7)
+  DB.S().deals.minConfidence = 0.7
+  A.DealsUI.Paint()
   T.eq(types(p), "vendor:100")
 end)
 
@@ -473,4 +473,16 @@ T.test("a Recipe deal goes through Find then Buy, with one PlaceAuctionBid on th
   WoW.runScript(p.findBtn, "OnClick")
   T.eq(T.count("PlaceAuctionBid"), 1)
   A.RecipeData = savedData
+end)
+
+T.test("the Deals rail fits the body at the minimum window height", function()
+  local p = page()
+  -- body at minH 380: 380 - header 30 - tabs 29 - status strip 38 - top gap 8 - bottom 22 = 253
+  local available = 380 - 30 - 29 - 38 - 8 - 22
+  local used = 0
+  used = used + p.marketSw:GetHeight() + 2 + p.vendorSw:GetHeight() + 2 + p.matsSw:GetHeight() + 2
+  used = used + p.underSw:GetHeight() + 2 + p.recipeSw:GetHeight() + 14
+  used = used + p.belowSl:GetHeight() + 8 + p.profitSl:GetHeight()
+  T.ok(used <= available, used .. " > " .. available)
+  T.eq(rawget(p, "matSl"), nil) T.eq(rawget(p, "confDD"), nil)
 end)
