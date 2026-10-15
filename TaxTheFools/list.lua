@@ -74,6 +74,9 @@ function M:Row(i)
     local fs = Th.Text(r, "body", 11, "text")
     fs:SetPoint("LEFT", r, "LEFT", x + 6, 0)
     fs:SetWidth(col.width - 12)
+    -- One line high: a 1.12 FontString with a set width wraps long text onto more lines, which spills over
+    -- the next rows. With a one-line height the client cuts it short with "..." instead.
+    fs:SetHeight(14)
     fs:SetJustifyH(col.align or "LEFT")
     r.cells[c] = fs
     x = x + col.width
