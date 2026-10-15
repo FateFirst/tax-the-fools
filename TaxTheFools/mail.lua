@@ -129,10 +129,13 @@ function Mail.Read()
   end
   char.seenMail = char.seenMail or {}
   local seen = char.seenMail
+  Sales.ResolveNames(char, TaxTheFoolsDB.items)
   for _, key in ipairs(order) do
     local g = groups[key]
-    -- A sale, expiry or cancel of an item the cache cannot name yet is left for the next visit.
-    if g.outcome == "won" or g.outcome == "outbid" or Sales.KeyByName(TaxTheFoolsDB.items, g.name) then
+    -- Every result is recorded now, even for an item the cache can't name yet: it is kept by name and
+    -- given its key later (Sales.ResolveNames). Holding it back would leave the mail uncollectable for good
+    -- when the item is never seen.
+    do
       local done = seenCount(seen, key)
       if g.adj then
         local other = seenCount(seen, g.adj)

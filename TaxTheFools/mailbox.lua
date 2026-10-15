@@ -253,9 +253,9 @@ local function firstLook(b, h, plan)
     b.key = key
     return false
   end
-  if outcome == "won" or outcome == "outbid" then return false end
-  b.left = b.left + 1
-  return true
+  -- Mail.Read records every result before the chain starts, so an unrecorded one is only possible when a
+  -- read failed: collect it anyway rather than leave it in the inbox for good.
+  return false
 end
 
 -- One tick of a collect chain: first settle the call we are waiting on, then make at most one new call.

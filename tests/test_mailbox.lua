@@ -319,27 +319,23 @@ T.test("Mail.Forget decrements a count and removes the entry at 0", function()
   Mail.Forget("none") Mail.Forget(nil)
 end)
 
-T.test("an AH sale whose item name isn't known yet is left untouched for later (I2)", function()
+T.test("an AH sale of an item the cache can't name is still recorded and collected; its key comes later", function()
   setup()
   WoW.now = WoW.now + 1800
   WoW.mail = { { sender = "Auction House", subject = "Auction successful: Mystery Thing", money = 900 },
-               { sender = "Auction House", subject = "Auction expired: Mystery Thing", item = linen() },
-               ah(0),
-               { sender = "Auction House", subject = "Auction won: Mystery Thing", item = linen() } }
+               { sender = "Auction House", subject = "Auction expired: Mystery Thing", item = linen() } }
   Mailbox.CollectAll() pump()
   T.eq(Mailbox.busy, false)
-  T.eq(table.getn(WoW.mail), 2, "the unrecorded sale and expiry stay")
-  T.eq(WoW.mail[1].money, 900, "no take") T.ok(WoW.mail[2].item, "no take")
-  T.eq(WoW.money, 1000)
-  T.eq(T.count("TakeInboxMoney"), 0)
-  T.eq(T.count("DeleteInboxItem"), 2, "the emptied sale and the won mail go")
-  T.ok(string.find(Mailbox.status.text, "left 2 for later", 1, true), Mailbox.status.text)
-  -- once the name is known, the next collect records and takes them
-  TaxTheFoolsDB.items[100] = { n = "Mystery Thing" }
-  Mailbox.CollectAll() pump()
-  T.eq(table.getn(WoW.mail), 0)
+  T.eq(table.getn(WoW.mail), 0, "nothing is left in the inbox")
   T.eq(WoW.money, 1900)
   T.eq(salesOf("sold"), 1) T.eq(salesOf("expired"), 1)
+  T.ok(not string.find(Mailbox.status.text, "for later", 1, true), Mailbox.status.text)
+  local c = A.DB.Char()
+  T.eq(c.sales[1].key, nil) T.eq(c.sales[1].name, "Mystery Thing")
+  -- once the item is known, the next mailbox read gives the results their key
+  TaxTheFoolsDB.items[100] = { n = "Mystery Thing" }
+  A.Mail.Read()
+  T.eq(c.sales[1].key, "100:0") T.eq(c.sales[2].key, "100:0")
 end)
 
 T.test("a client that drops emptied mail on its own: two identical AH mails both collect, gold once each (I3)", function()

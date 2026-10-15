@@ -103,7 +103,9 @@ function Sales.Record(char, outcome, itemName, money, now, items, depositFn)
   money = money or 0
   local key = keyByName(items, itemName)
   -- `at` of a posting added by Reconcile is the reconcile time, not the real posting time, so secs from it is approximate.
-  local e = { key = key, outcome = outcome, money = money, at = now }
+  -- The name is kept: a sale of an item the cache can't name yet is recorded without a key, and
+  -- Sales.ResolveNames gives it one once the item is known.
+  local e = { key = key, name = itemName, outcome = outcome, money = money, at = now }
   if key and outcome == "sold" then
     local p = soldMatch(char.postings, key, money, depositFn)
     if p then
@@ -118,6 +120,13 @@ function Sales.Record(char, outcome, itemName, money, now, items, depositFn)
   end
   table.insert(char.sales, e)
   return e
+end
+
+-- Gives a key to every recorded result whose item couldn't be named when its mail was read.
+function Sales.ResolveNames(char, items)
+  for _, e in ipairs(char.sales or {}) do
+    if not e.key and e.name then e.key = keyByName(items, e.name) end
+  end
 end
 
 -- The running totals of one key: { r = result table, unitSum, secsSum, secsN }.

@@ -225,19 +225,20 @@ T.test("a reconciled posting matches a sold mail through the learned, then the e
   T.eq(table.getn(c.sales), 2) T.eq(c.sales[2].money, 2010) T.eq(c.sales[2].qty, 20, "estimated deposit")
 end)
 
-T.test("a sale whose item name is not cached is not marked seen and is retried once it is (M1)", function()
+T.test("a sale whose item name is not cached is recorded once, by name, and gets its key when the item is known (M1)", function()
   WoW.now = WoW.now + 1800
   WoW.mail = { sold(950), { subject = "Auction won: Mystery", money = 0, daysLeft = 22, hasItem = 1 } }
   WoW.fire("MAIL_SHOW") frame()
   local c = DB.Char()
-  T.eq(table.getn(c.sales), 1, "only the won mail")
-  T.eq(c.sales[1].outcome, "won")
-  T.eq(c.seenMail["Auction successful: Linen Cloth|950|" .. math.floor((time() + 29.5 * 86400) / 3600)], nil, "not marked seen")
+  T.eq(table.getn(c.sales), 2, "the sale and the won mail")
+  local sale
+  for _, e in ipairs(c.sales) do if e.outcome == "sold" then sale = e end end
+  T.eq(sale.key, nil) T.eq(sale.name, "Linen Cloth")
+  T.ok(c.seenMail["Auction successful: Linen Cloth|950|" .. math.floor((time() + 29.5 * 86400) / 3600)], "marked seen")
   TaxTheFoolsDB.items[100] = { n = "Linen Cloth" }
   WoW.fire("MAIL_INBOX_UPDATE") frame()
-  T.eq(table.getn(c.sales), 2) T.eq(c.sales[2].outcome, "sold") T.eq(c.sales[2].key, "100:0")
-  WoW.fire("MAIL_INBOX_UPDATE") frame()
-  T.eq(table.getn(c.sales), 2, "and then once")
+  T.eq(table.getn(c.sales), 2, "not recorded again")
+  T.eq(sale.key, "100:0", "resolved once the name is known")
 end)
 
 T.test("mail does nothing before the first frame and when the inbox is empty", function()
