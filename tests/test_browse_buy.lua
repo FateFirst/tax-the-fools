@@ -92,10 +92,13 @@ end)
 T.test("both buttons are disabled while an action is pending", function()
   WoW.money = 1000000
   local p = select1({ { id = 14047, name = "Runecloth", count = 20, buyout = 12000, minBid = 4500, owner = "Sel" } })
+  WoW.ah.bidReply = "notfound"               -- a failed reply keeps the selection (no re-search)
   WoW.runScript(p.buyBtn, "OnClick")
   T.eq(p.buyBtn.enabled, false) T.eq(p.bidBtn.enabled, false)
   WoW.bidRespond()
-  T.ok(p.buyBtn.enabled == false or p.buyBtn.enabled == true)
+  WoW.ah.bidReply = "auto"
+  T.ok(p.buyBtn.enabled, "Buy is back after the reply")
+  T.ok(p.bidBtn.enabled, "Bid is back after the reply")
 end)
 
 T.test("a Buy click places one buyout; a second click while pending places none; a confirmed reply re-searches", function()
@@ -154,4 +157,13 @@ T.test("the bar follows the selection and Auction changes", function()
   Auction.Changed()
   T.eq(p.buyBtn.enabled, false)
   T.eq(type(p.list.onClick), "function")
+  p.list.selected = p.list.data[1]
+  p.list.onClick(p.list.data[1])            -- the list's own selection callback
+  T.ok(p.buyBtn.enabled)
+  T.eq(label(p.buyBtn), string.upper("Buy " .. A.Util.money(12000)))
+  T.eq(label(p.bidBtn), string.upper("Bid " .. A.Util.money(A.Auction.BidAmount(p.list.data[1]))))
+  p.list.selected = false
+  Auction.Changed()
+  T.eq(p.buyBtn.enabled, false)
+  T.eq(label(p.buyBtn), string.upper("Buy"))
 end)

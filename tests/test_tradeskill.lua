@@ -271,3 +271,33 @@ T.test("capture works with ClassicAPI installed, taking vendor prices by item id
   T.ok(tailoringRecipes()["Bolt of Silk Cloth"], "recipes captured")
   T.eq(A.Items.Get(4305).v, 150, "sell price from GetItemSellPriceByID")
 end)
+
+-- ---------- strip width: max(330, text + 16), capped at 600 ----------
+
+T.test("the strip width follows its text: 330 minimum, 600 cap, recomputed on every change", function()
+  priced()
+  tailoring()
+  WoW.tradeskill.selected = 2
+  WoW.openTradeSkill()
+  local s = TS.strip
+  T.eq(TS.StripWidth(0), 330)
+  T.eq(TS.StripWidth(314), 330)
+  T.eq(TS.StripWidth(320), 336, "6 px a character: text 320 plus 16")
+  T.eq(TS.StripWidth(1000), 600)
+  T.eq(s:GetWidth(), 330, "a short line: Cost 12s   Value 19s   Profit 7s")
+  WoW.tradeskill.selected = 4                    -- the robe: a long "incomplete: ..." line
+  WoW.clock = WoW.clock + 0.25
+  tick()
+  local text = s.text:GetText()
+  T.eq(text, "incomplete: Bolt of Linen Cloth, Coarse Thread")
+  T.eq(s:GetWidth(), 330, "46 characters is 276 + 16: still the minimum")
+  TS.SetStripText("a long line of text that needs more room than the minimum width of the strip gives it!!")
+  T.eq(s:GetWidth(), string.len(s.text:GetText()) * 6 + 16)
+  T.ok(s:GetWidth() > 330 and s:GetWidth() < 600)
+  TS.SetStripText(string.rep("x", 200))
+  T.eq(s:GetWidth(), 600, "capped")
+  WoW.tradeskill.selected = 1
+  WoW.clock = WoW.clock + 0.25
+  tick()
+  T.eq(s:GetWidth(), 330, "shrinks back when the text does")
+end)

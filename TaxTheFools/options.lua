@@ -15,7 +15,11 @@ local function themes()
   return t
 end
 
--- Phase 3 adds Deals and Selling pages.
+-- The Deals rows read and write the same settings.deals table as the Deals
+-- page's rail, so a change in one shows in the other the next time it paints.
+local function money(v) return U.money(v) end
+
+-- Phase 3b adds the Selling page.
 Opt.CATEGORIES = {
   { key = "general", label = "General", rows = {
     { kind = "switch", key = "replaceBlizzardAH", label = "Replace the Blizzard auction window",
@@ -37,6 +41,21 @@ Opt.CATEGORIES = {
       hint = "Each time a tradeskill window opens, its products and materials join the Watchlist scan." },
     { kind = "slider", path = { "craft", "staleDays" }, label = "Dim prices older than", min = 1, max = 30, step = 1,
       fmt = days, after = function() TaxTheFools.CraftUI.RefreshAll() end },
+  } },
+  { key = "deals", label = "Deals & buying", rows = {
+    { kind = "switch", path = { "deals", "market" }, label = "Below market" },
+    { kind = "switch", path = { "deals", "vendor" }, label = "Below vendor" },
+    { kind = "switch", path = { "deals", "mats" }, label = "Cheap materials" },
+    { kind = "slider", path = { "deals", "belowMarketPct" }, label = "Below market", min = 50, max = 95, step = 5,
+      fmt = function(v) return v .. "%" end },
+    { kind = "slider", path = { "deals", "minProfit" }, label = "Minimum profit", min = 0, max = 100000, step = 1000,
+      fmt = money },
+    { kind = "slider", path = { "deals", "matPct" }, label = "Materials", min = 50, max = 100, step = 5,
+      fmt = function(v) return v .. "%" end },
+    { kind = "dropdown", path = { "deals", "minConfidence" }, label = "Minimum confidence",
+      options = TaxTheFools.DealsUI.CONFIDENCE },
+    { kind = "slider", path = { "buy", "confirmAbove" }, label = "Confirm buys at or above", min = 0, max = 500000,
+      step = 10000, fmt = money },
   } },
   { key = "tooltip", label = "Tooltip", rows = {
     { kind = "switch", path = { "tooltip", "market" }, label = "Market value" },

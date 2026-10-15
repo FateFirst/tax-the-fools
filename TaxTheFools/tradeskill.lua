@@ -132,13 +132,31 @@ function TS.Context()
   return Craft.Context(realm, TaxTheFoolsDB.items, Inv.Held(realm), U.day(time()))
 end
 
+-- Wide enough for its line (8 px padding each side), never narrower than
+-- STRIP_W nor wider than STRIP_MAX.
+TS.STRIP_MAX = 600
+function TS.StripWidth(textWidth)
+  local w = textWidth + 16
+  if w < TS.STRIP_W then w = TS.STRIP_W end
+  if w > TS.STRIP_MAX then w = TS.STRIP_MAX end
+  return w
+end
+
+-- Sets the line and resizes the strip to fit it.
+function TS.SetStripText(text, token)
+  local s = TS.strip
+  s.text:SetText(text)
+  Th.Color(s.text, token or "text")
+  s:SetWidth(TS.StripWidth(s.text:GetStringWidth()))
+end
+
 -- Made the first time a tradeskill window opens: TradeSkillFrame is
 -- load-on-demand and does not exist before that.
 function TS.CreateStrip()
   if TS.strip then return TS.strip end
   if not TradeSkillFrame then return nil end
   local s = CreateFrame("Frame", "TaxTheFoolsStrip", TradeSkillFrame)
-  s:SetWidth(TS.STRIP_W)
+  s:SetWidth(TS.StripWidth(0))
   s:SetHeight(22)
   s:SetPoint("TOPLEFT", TradeSkillFrame, "BOTTOMLEFT", TS.STRIP_X, TS.STRIP_Y)
   Th.Panel(s, "header")
@@ -184,8 +202,7 @@ function TS.RefreshStrip(force)
   local recipe = TS.Selected()
   local ev = recipe and Craft.Evaluate(recipe, TS.Context())
   local text, token = TS.StripText(ev)
-  s.text:SetText(text)
-  Th.Color(s.text, token)
+  TS.SetStripText(text, token)
 end
 
 function TS.Poll(now)

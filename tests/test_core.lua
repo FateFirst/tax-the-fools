@@ -148,6 +148,54 @@ T.test("nothing is bought, bid on, posted or cancelled without a click", functio
   A.CraftUI.Toggle()
 end)
 
+T.test("a full scan of obvious bargains buys nothing; Find buys nothing; one Buy click buys exactly once", function()
+  WoW.money = 1000000
+  for i = 1, 120 do table.insert(WoW.ah.listings, { id = 14047, name = "Runecloth", count = 1, buyout = 100 + i, owner = "S" .. i }) end
+  DB.Realm().market["14047:0"] = { v = 100000, conf = 1 }     -- everything looks like a bargain
+  AuctionFrame:Show()
+  WoW.fire("AUCTION_HOUSE_SHOW")
+  WoW.runScript(TaxTheFoolsCore, "OnUpdate")
+  A.UI.StartScan("full")
+  for _ = 1, 60 do
+    WoW.clock = WoW.clock + 0.5
+    WoW.runScript(TaxTheFoolsCore, "OnUpdate")
+    if WoW.ah.pending then WoW.ahRespond() end
+  end
+  T.ok(Scan.job == nil, "full scan finished")
+  T.ok(DB.Realm().snapshot, "and left a snapshot")
+  DB.Realm().market["14047:0"] = { v = 100000, conf = 1 }     -- the scan re-derived it; the snapshot is all bargains
+  UI.ah:Show()
+  UI.ah.tabs:Select("deals")
+  local p = UI.pages.deals
+  p.found, p.searching = false, false
+  p.list:SetHeight(300)
+  p:Refresh()
+  T.ok(table.getn(p.list.data) > 0, "the page lists bargains")
+  T.eq(T.count("PlaceAuctionBid"), 0, "a scan and opening Deals never bid")
+  p.list.selected = p.list.data[1]
+  A.DealsUI.UpdateBar()
+  WoW.runScript(p.findBtn, "OnClick")
+  for _ = 1, 40 do
+    WoW.clock = WoW.clock + 0.5
+    WoW.runScript(TaxTheFoolsCore, "OnUpdate")
+    if WoW.ah.pending then WoW.ahRespond() end
+  end
+  T.ok(p.found, "Find located the listing")
+  T.eq(T.count("PlaceAuctionBid"), 0, "Find never bids")
+  WoW.runScript(p.findBtn, "OnClick")
+  T.eq(T.count("PlaceAuctionBid"), 1, "Buy bids exactly once")
+  WoW.runScript(p.findBtn, "OnClick")
+  T.eq(T.count("PlaceAuctionBid"), 1, "a second click while pending bids no more")
+  WoW.bidRespond()
+  for _ = 1, 20 do
+    WoW.clock = WoW.clock + 0.5
+    WoW.runScript(TaxTheFoolsCore, "OnUpdate")
+    if WoW.ah.pending then WoW.ahRespond() end
+  end
+  T.eq(T.count("PlaceAuctionBid"), 1, "nothing else bought afterwards")
+  UI.ah.tabs:Select("browse")
+end)
+
 T.test("switching to Blizzard's window mid-scan stops all queries and buys nothing", function()
   for i = 1, 120 do table.insert(WoW.ah.listings, { id = 14047, name = "Runecloth", count = 1, buyout = 100 + i }) end
   AuctionFrame:Show()
