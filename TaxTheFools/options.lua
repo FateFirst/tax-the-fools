@@ -54,6 +54,8 @@ Opt.CATEGORIES = {
       hint = "A pattern counts as learnable soon when a character is within this many skill points of its required skill. Higher lists patterns that are further off. Default 25." },
   } },
   { key = "deals", label = "Deals & buying", rows = {
+    { kind = "switch", path = { "deals", "snipe" }, label = "Snipe",
+      hint = "Shows listings on your snipe list that cost no more than your max each, as Snipe deals on the Deals tab. Your own listings are never shown." },
     { kind = "switch", path = { "deals", "market" }, label = "Below market",
       hint = "Lists auctions priced well under the item's market value (see the Below market percentage), if the profit after the 5% auction cut and deposit reaches the minimum." },
     { kind = "switch", path = { "deals", "vendor" }, label = "Below vendor",
@@ -89,6 +91,17 @@ Opt.CATEGORIES = {
       step = 10000,
       fmt = function(v) return v == 0 and "never" or money(v) end,
       hint = "A buy or bid at or above this amount asks you to confirm first. Set to never to skip the question. Default 5g." },
+  } },
+  { key = "alerts", label = "Alerts", rows = {
+    { kind = "switch", path = { "alerts", "on" }, label = "Alerts",
+      hint = "While any scan or Browse search reads the auction house, prints a chat line for each deal or snipe match it sees. Each listing alerts once per session. Alerts never buy, bid, post or cancel anything." },
+    { kind = "slider", path = { "alerts", "minProfit" }, label = "Alert when profit is at least", min = 0,
+      max = 200000, step = 5000, fmt = money,
+      hint = "A below market, below vendor or cheap materials listing only alerts when its profit reaches this much. It is separate from the Deals minimum profit. Snipe matches ignore it. Default 1g." },
+    { kind = "switch", path = { "alerts", "sound" }, label = "Play a sound",
+      hint = "Plays a short sound when an alert is printed, at most once every 5 seconds however many alerts a scan finds." },
+    { kind = "switch", path = { "alerts", "snipe" }, label = "Alert on snipe matches",
+      hint = "Alerts when a listing on your snipe list costs no more than your max each. Your own listings never alert. Off leaves only deal alerts." },
   } },
   { key = "sales", label = "Sales", rows = {
     { kind = "slider", path = { "sales", "days" }, label = "Sell-rate window", min = 7, max = 90, step = 1, fmt = days,

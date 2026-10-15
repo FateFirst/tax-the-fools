@@ -2,7 +2,7 @@
 ## Title: Tax the Fools
 ## Notes: Auction house price history, deals and crafting profit for Ravencraft.
 ## Author: Liam North
-## Version: 0.8.1
+## Version: 0.9.0
 ## SavedVariables: TaxTheFoolsDB, TaxTheFoolsDB_broken
 ## SavedVariablesPerCharacter: TaxTheFoolsCharDB
 

@@ -3,7 +3,7 @@
 Auction house price history, deal finding and crafting profit for the Ravencraft
 server (Turtle WoW 1.18.1 client, WoW 1.12, Lua 5.0).
 
-This release (0.8.1): the auction window, scanning, price history, tooltips, crafting
+This release (0.9.0): the auction window, scanning, price history, tooltips, crafting
 profit for every recipe your characters know, buying, selling, and sales tracking from
 auction house mail. The **Deals** tab finds below-market, below-vendor, cheap-materials,
 undersupplied and recipe listings; **Browse** buys and bids on the selected row; **Sell** and
@@ -131,6 +131,15 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
 - **Price trends.** Item tooltips show a "Trend 7d" line (rising, falling or steady) once there are about
   two weeks of scans. Browse has a sortable Trend column, and selecting an item on Browse or Sell shows a
   30-day price chart; hover a bar for its date and price.
+- **Shopping list.** On Craft, set the **Craft** box to a number and press **List**: the materials
+  for that many crafts, by the cheapest path (cloth or bolts), less what your characters and the bank
+  alt hold. Click a Buy line to search for it on Browse; **Next material** steps through them and
+  **Snipe these** adds them to the snipe list.
+- **Snipe list.** A max price each per item. The **Snipe** button on Browse adds the selected item at its
+  price; `/ttf snipe Silk Cloth 20s` sets one and `/ttf snipe` lists them. Deals > **Snipe** lists
+  matching listings (not yours) with Find and Buy, and the Quick scan menu has a Snipe list scan.
+- **Alerts.** During any scan or search, a chat line and a sound (at most every 5 seconds) tell you of a
+  deal or snipe match, once per listing. Nothing is bought for you. Options > Alerts sets them.
 - **Blizzard UI** switches to the stock window at any time; its **Tax the Fools** button
   switches back.
 

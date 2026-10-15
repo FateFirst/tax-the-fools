@@ -4,7 +4,7 @@ Run this after every install, on the real client. The tests prove the logic
 against a fake client; this proves the fake client was right.
 
 ## Load
-1. Log in on the bank character. Chat shows `TTF: v0.8.1 loaded`.
+1. Log in on the bank character. Chat shows `TTF: v0.9.0 loaded`.
 2. `/ttf probe`. The window opens with text selected. Press Ctrl+C and paste it
    into `tools/probe-<date>.txt` in this repo. Check:
    - every `fn` line says `yes`, except possibly `GetInboxInvoiceInfo`, `CalculateAuctionDeposit` (spec §13 Q2)
@@ -299,3 +299,32 @@ The trainer and vendor windows are only read. Nothing is bought from them; buy a
     its date and price.
 122. **Smallest window.** Resize the auction window to its smallest size. On Browse the chart never covers
     the Buy or Bid buttons; on Sell it never covers the price fields. If there is no room, it hides.
+
+## Shopping list, snipe list and alerts (phase 7)
+
+123. **Craft box and List.** On Craft, select a recipe and type a number in the Craft box, then press List.
+     The detail pane shows the materials for that many crafts. Change the number and the list follows.
+124. **Cheapest path and held items.** For a recipe that can use cloth or bolts, the lines use whichever is
+     cheaper. Items held in your bags, bank and the bank alt are subtracted from what to buy.
+125. **Click a Buy line.** Click a Buy line: Browse opens and searches that material.
+126. **Next material.** Press Next material: it searches the next material to buy, step by step, and
+     wraps to the first after the last. It skips names that cannot be searched.
+127. **Snipe these.** Press Snipe these: the materials join the snipe list, and the status line says how
+     many were added.
+128. **Browse Snipe button.** On Browse, Snipe is off with nothing selected and on for a priced row.
+     Press it: the item is on the snipe list at that price. Matching rows show their Each price in colour.
+129. **Deals, Snipe list.** On Deals, open the Snipe list view. Edit an item's max and it saves. Remove an
+     item and it goes.
+130. **`/ttf snipe`.** `/ttf snipe Silk Cloth 20s` sets a max of 20s each. `/ttf snipe` alone lists the
+     snipe list.
+131. **Snipe deal.** After a scan, a Snipe deal shows on Deals. Press Find, then Buy: one click each, with
+     the usual confirmation above the limit. Options > Deals & buying, Snipe off hides them.
+132. **Quick scan menu.** The Quick scan menu lists Watchlist, Materials and Snipe list, each with its
+     count. Run the Snipe list scan: it finishes much faster than a full scan.
+133. **Alerts.** During a scan, a chat line starts "Snipe:" or "Deal:" and a sound plays. A listing alerts
+     once; a rescan does not repeat it. The sound plays at most every 5 seconds.
+134. **Alert options.** Options > Alerts: switch Alerts off and nothing prints; raise "Alert when profit is
+     at least" and small deals stop alerting; switch Play a sound and Alert on snipe matches off and
+     each goes quiet. Turn them back on.
+135. **Your own listings.** Post an item that matches your snipe list. It never alerts and never shows as
+     a Snipe deal.

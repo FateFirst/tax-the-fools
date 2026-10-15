@@ -110,14 +110,14 @@ T.test("Deals & buying options are bound to the same settings.deals the Deals ra
   local f = Opt.Create()
   Opt.Select("deals")
   local c = f.pages.deals.controls
-  WoW.runScript(c[1], "OnClick")
+  WoW.runScript(c[2], "OnClick")
   T.eq(DB.S().deals.market, false)
-  c[4].slider:SetValue(60)
-  WoW.runScript(c[4].slider, "OnMouseUp")
-  T.eq(DB.S().deals.belowMarketPct, 60)
-  c[5].slider:SetValue(20000)
-  T.eq(c[5].value:GetText(), TaxTheFools.Util.money(20000))
+  c[5].slider:SetValue(60)
   WoW.runScript(c[5].slider, "OnMouseUp")
+  T.eq(DB.S().deals.belowMarketPct, 60)
+  c[6].slider:SetValue(20000)
+  T.eq(c[6].value:GetText(), TaxTheFools.Util.money(20000))
+  WoW.runScript(c[6].slider, "OnMouseUp")
   T.eq(DB.S().deals.minProfit, 20000)
   -- the rail paints from the same table
   local UI = TaxTheFools.UI
@@ -362,14 +362,14 @@ T.test("every control shows its hint when the label or control is hovered", func
       end
     end
   end
-  local c = f.pages.deals.controls[4]
+  local c = f.pages.deals.controls[5]
   GameTooltip:Hide()
   WoW.runScript(c, "OnEnter")
   T.eq(GameTooltip.lines[1][1], "Below market")
   T.ok(string.find(GameTooltip.lines[2][1], "market value", 1, true))
   WoW.runScript(c.slider, "OnEnter")
   T.eq(GameTooltip.lines[1][1], "Below market")
-  local dd = f.pages.deals.controls[7]
+  local dd = f.pages.deals.controls[8]
   WoW.runScript(dd.dd, "OnEnter")
   T.eq(GameTooltip.lines[1][1], "Minimum confidence")
 end)
@@ -384,14 +384,14 @@ T.test("a fresh database shows the Deals switches on, in options and in the rail
     end
   end
   local D = TaxTheFools.DealsUI
-  local keys = { "market", "vendor", "mats", "recipe", "under" }
+  local keys = { "snipe", "market", "vendor", "mats", "recipe", "under" }
   for _, k in ipairs(keys) do DB.S().deals[k] = false end
   Opt.Select("general")
   Opt.Select("deals")
   for i, row in ipairs(Opt.CATEGORIES[4].rows) do
     if row.kind == "switch" then T.eq(f.pages.deals.controls[i].on, false, row.label .. " follows the setting") end
   end
-  WoW.runScript(f.pages.deals.controls[3], "OnClick")
+  WoW.runScript(f.pages.deals.controls[4], "OnClick")
   T.eq(DB.S().deals.mats, true)
   for _, k in ipairs(keys) do DB.S().deals[k] = true end
 end)
@@ -445,13 +445,13 @@ T.test("scrolling closes an open dropdown menu, and the wheel works over control
   local f = Opt.Create()
   Opt.Select("deals")
   local p = f.pages.deals
-  local dd = p.controls[7].dd
+  local dd = p.controls[8].dd
   dd.menu:Show()
   WoW.runScript(p.controls[1], "OnMouseWheel", -1)
   T.eq(p.sf:GetVerticalScroll(), 30, "wheel over a switch scrolls")
   T.eq(dd.menu:IsShown(), false, "the menu closed")
   dd.menu:Show()
-  WoW.runScript(p.controls[4].slider, "OnMouseWheel", 1)
+  WoW.runScript(p.controls[5].slider, "OnMouseWheel", 1)
   T.eq(p.sf:GetVerticalScroll(), 0, "wheel over a slider scrolls")
   T.eq(dd.menu:IsShown(), false)
   WoW.runScript(dd, "OnMouseWheel", -1)
@@ -469,6 +469,20 @@ T.test("the keep list shows its hint on the item lines too", function()
   local f = Opt.Create()
   Opt.Select("mail")
   local keep = f.pages.mail.controls[7]
-  T.eq(keep.lines[1].tip.body, Opt.CATEGORIES[10].rows[7].hint)
+  T.eq(keep.lines[1].tip.body, Opt.CATEGORIES[11].rows[7].hint)
   T.ok(keep.lines[1].scripts.OnEnter ~= nil)
+end)
+
+T.test("the Alerts page binds its rows to settings.alerts", function()
+  local f = Opt.Create()
+  Opt.Select("alerts")
+  local c = f.pages.alerts.controls
+  T.eq(table.getn(c), 4)
+  WoW.runScript(c[1], "OnClick")
+  T.eq(DB.S().alerts.on, false)
+  WoW.runScript(c[1], "OnClick")
+  c[2].slider:SetValue(50000)
+  WoW.runScript(c[2].slider, "OnMouseUp")
+  T.eq(DB.S().alerts.minProfit, 50000)
+  DB.S().alerts.minProfit = 10000
 end)
