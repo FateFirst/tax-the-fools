@@ -194,6 +194,10 @@ function Browse.UpdateChart()
   local w = p:GetWidth() - Browse.CHART_RIGHT
   local fits = r and w >= Browse.CHART_MIN_W and p:GetHeight() >= Browse.CHART_MIN_PAGE_H
   p.list:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, fits and (Browse.CHART_H + 8) or 32)
+  if (fits and true or false) ~= p.chartOn then
+    p.chartOn = fits and true or false
+    p.list:Paint()                              -- the list's height changed: rows must follow it
+  end
   if not fits then
     p.chart:Hide()
     return

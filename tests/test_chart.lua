@@ -117,6 +117,34 @@ T.test("Browse hides the chart at the smallest window, never overlapping the Buy
   T.eq(pt[5], 32, "the list takes its full height back")
 end)
 
+T.test("Browse repaints the list when the chart takes or gives back its height", function()
+  local p = browsePage()
+  seedHistory("14047:0", { [0] = 1000, [3] = 900 })
+  DB.Realm().market["14047:0"] = { v = 950, conf = 0.8 }
+  -- the client derives the list's height from its anchors; the stub needs telling
+  local setPoint = p.list.SetPoint
+  p.list.SetPoint = function(self, pt, rel, rp, x, y)
+    setPoint(self, pt, rel, rp, x, y)
+    if pt == "BOTTOMRIGHT" then self:SetHeight(p:GetHeight() - 60 - y) end
+  end
+  local data = {}
+  for i = 1, 40 do data[i] = p.list.data[1] end
+  p.list:SetData(data)
+  local function shown()
+    local n = 0
+    for _, r in ipairs(p.list.rows) do if r:IsShown() then n = n + 1 end end
+    return n
+  end
+  p.list.rows[1]:Show()
+  WoW.runScript(p.list.rows[1], "OnClick")
+  T.ok(p.chart:IsShown())
+  T.eq(shown(), p.list:Slots(), "rows fit the shortened list")
+  p.list.selected = false
+  Browse.UpdateBar()
+  T.eq(p.chart:IsShown(), false)
+  T.eq(shown(), p.list:Slots(), "rows fill the restored list")
+end)
+
 -- ---- Sell ----
 local function sellPage(height)
   openAH()
@@ -157,4 +185,27 @@ T.test("Sell hides the chart and restores the list when it would leave under thr
   SellUI.LIST_H = saved
   SellUI.UpdateChart()
   T.ok(p.chart:IsShown())
+end)
+
+T.test("Sell repaints the list when the chart shortens it", function()
+  local p = sellPage(380)
+  SellUI.Select(p.items[1])
+  local item = p.sel
+  p.sel = false
+  SellUI.UpdateChart()                              -- the chart is off and the list is tall
+  T.eq(p.list:GetHeight(), SellUI.LIST_H)
+  local data = {}
+  for i = 1, 8 do data[i] = { key = "14047:0", count = 20, buyout = 1000 + i, bid = 1, owner = "x", unit = 50 + i } end
+  p.list:SetData(data)
+  p.list:Paint()
+  local function shown()
+    local n = 0
+    for _, r in ipairs(p.list.rows) do if r:IsShown() then n = n + 1 end end
+    return n
+  end
+  T.eq(shown(), p.list:Slots())
+  p.sel = item
+  SellUI.UpdateChart()
+  T.ok(p.chart:IsShown())
+  T.eq(shown(), p.list:Slots(), "no row below the shortened list")
 end)

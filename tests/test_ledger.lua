@@ -81,6 +81,15 @@ T.test("Days gives one row per day, newest first, with transfers left out", func
   T.eq(table.getn(L.Days(cs, 30, NOW, "B")), 1)
 end)
 
+T.test("Days hides a day that holds only transfers", function()
+  local cs = chars()
+  L.Add(cs.A, { kind = "sale", amount = 1000, at = 98 * DAY + 1 }, NOW)
+  L.Add(cs.A, { kind = "transferIn", amount = 700, at = 99 * DAY + 1 }, NOW)
+  L.Add(cs.A, { kind = "transferOut", amount = 300, at = 99 * DAY + 2 }, NOW)
+  local rows = L.Days(cs, 30, NOW)
+  T.eq(table.getn(rows), 1) T.eq(rows[1].day, 98)
+end)
+
 T.test("ByItem groups by key and sorts by net descending", function()
   local cs = chars()
   L.Add(cs.A, { kind = "sale", amount = 900, key = "1:0", qty = 3 }, NOW)

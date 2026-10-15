@@ -333,7 +333,7 @@ function W.Chart(parent, w, h)
     if self.series then self:SetSeries(self.series, self.markerValue) end
   end
   c.SetSeries = function(self, series, marker)
-    self.series, self.markerValue = series, marker
+    self.series, self.markerValue = series, marker or false
     local cw, ch = self:GetWidth(), self:GetHeight()
     local slot = (cw - 2) / W.CHART_DAYS
     local today = U.day()

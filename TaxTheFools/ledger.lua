@@ -68,6 +68,7 @@ end
 function Ledger.Days(chars, days, now, who)
   local byDay = {}
   each(chars, days, now, who, function(e)
+    if Ledger.Sign(e.kind) == 0 then return end           -- a transfer-only day is not a profit day
     local d = U.day(e.at)
     local r = byDay[d]
     if not r then r = { day = d, sale = 0, buy = 0, deposit = 0, vendor = 0, mail = 0, net = 0 } byDay[d] = r end

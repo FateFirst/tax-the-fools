@@ -181,6 +181,27 @@ T.test("a post replaced before its money change records the preview, not nothing
   T.eq(kinds(), "deposit:1200,deposit:720")
 end)
 
+T.test("a buy right after a post settles the pending deposit first, so it is not swallowed", function()
+  fresh() stock() WoW.money = 100000
+  WoW.ah.moneyLate = true
+  Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  WoW.postRespond()
+  WoW.ah.listings = {}
+  page({ { id = 14047, name = "Runecloth", count = 20, buyout = 4000, owner = "Sel" } })
+  WoW.clock = WoW.clock + 1
+  local say, said = Auction.Say, nil
+  Auction.Say = function(t) said = t end
+  local ok = Auction.Buy(1, sig(1))
+  Auction.Say = say
+  T.eq(ok, true, said)
+  T.eq(kinds(), "deposit:1200", "the preview settles the post")
+  WoW.bidRespond()
+  WoW.moneyArrive()
+  frame()
+  T.eq(kinds(), "deposit:1200,buy:4000", "one deposit, one buy")
+  WoW.ah.moneyLate = false
+end)
+
 T.test("a deposit the learner can't believe falls back to the preview", function()
   fresh() stock() WoW.money = 100000
   TaxTheFoolsDB.items[14047] = { v = 100, n = "Runecloth" }
@@ -228,6 +249,24 @@ T.test("merchant money in and out is recorded while the window is open", functio
   WoW.fire("MERCHANT_CLOSED")
   WoW.money = 5000 WoW.fire("PLAYER_MONEY")
   T.eq(kinds(), "vendorIn:300,vendorOut:200", "closed: nothing")
+end)
+
+T.test("a merchant visit keeps one vendorIn and one vendorOut entry; a new visit starts new ones", function()
+  fresh()
+  WoW.money = 1000 WoW.fire("PLAYER_MONEY")
+  WoW.fire("MERCHANT_SHOW")
+  for _ = 1, 5 do
+    WoW.money = WoW.money + 100 WoW.fire("PLAYER_MONEY")
+  end
+  WoW.money = WoW.money - 50 WoW.fire("PLAYER_MONEY")
+  WoW.money = WoW.money - 70 WoW.fire("PLAYER_MONEY")
+  WoW.money = WoW.money + 20 WoW.fire("PLAYER_MONEY")
+  T.eq(kinds(), "vendorIn:520,vendorOut:120")
+  WoW.fire("MERCHANT_CLOSED")
+  WoW.fire("MERCHANT_SHOW")
+  WoW.money = WoW.money + 30 WoW.fire("PLAYER_MONEY")
+  T.eq(kinds(), "vendorIn:520,vendorOut:120,vendorIn:30")
+  WoW.fire("MERCHANT_CLOSED")
 end)
 
 T.test("with settings.ledger.vendor off nothing is recorded", function()
@@ -290,6 +329,22 @@ T.test("a send with money to a stranger is mailOut", function()
   T.eq(kinds(), "mailOut:200,mailOut:30")
 end)
 
+T.test("a send chain of several mails records one combined postage entry", function()
+  setup()
+  WoW.bags[0][1] = { id = 100, name = "Linen Cloth", count = 5 }
+  WoW.bags[0][2] = { id = 100, name = "Linen Cloth", count = 6 }
+  WoW.bags[0][3] = { id = 100, name = "Linen Cloth", count = 7 }
+  Mailbox.Send("Stranger", "", "", 0, { { bag = 0, slot = 1, key = "100:0", count = 5 },
+    { bag = 0, slot = 2, key = "100:0", count = 6 }, { bag = 0, slot = 3, key = "100:0", count = 7 } })
+  pump()
+  T.eq(table.getn(WoW.sent), 3)
+  T.eq(kinds(), "mailOut:90")
+  WoW.bags[0][1] = { id = 100, name = "Linen Cloth", count = 5 }
+  Mailbox.Send("Stranger", "", "", 0, { { bag = 0, slot = 1, key = "100:0", count = 5 } })
+  pump()
+  T.eq(kinds(), "mailOut:90,mailOut:30", "a new chain starts a new entry")
+end)
+
 T.test("a send with an item records postage only, and a failed send records nothing", function()
   setup()
   WoW.bags[0][1] = { id = 100, name = "Linen Cloth", count = 5 }
@@ -329,4 +384,32 @@ T.test("the hooks make no game action call", function()
   LH.Sent({ to = "x", mailMoney = 5, postage = 1 })
   LH.MerchantShow() LH.OnMoney() LH.MerchantClosed()
   T.eq(table.getn(WoW.calls), 0)
+end)
+
+T.test("an entry added while the Ledger page is shown refreshes it once per frame", function()
+  fresh()
+  local LU = A.LedgerUI
+  local UI = A.UI
+  UI.CreateAH()
+  local p = LU.frame or LU.AHBuild(UI.ah.body)
+  p:Show()
+  p.days, p.who, p.view = 30, "all", "days"
+  p:Refresh()
+  local before = p.totals:GetText()
+  local paints = 0
+  local paint = LU.Paint
+  LU.Paint = function(q) paints = paints + 1 return paint(q) end
+  WoW.money = 100000
+  WoW.fire("PLAYER_MONEY")
+  WoW.fire("MERCHANT_SHOW")
+  WoW.money = WoW.money + 500 WoW.fire("PLAYER_MONEY")
+  WoW.money = WoW.money + 500 WoW.fire("PLAYER_MONEY")
+  T.eq(paints, 0, "nothing until the frame")
+  frame()
+  LU.Paint = paint
+  T.ok(paints >= 1)
+  T.ok(p.totals:GetText() ~= before, "totals changed")
+  local plain = string.gsub(string.gsub(p.totals:GetText(), "|c%x%x%x%x%x%x%x%x", ""), "|r", "")
+  T.ok(string.find(plain, "In 10s", 1, true), plain)
+  WoW.fire("MERCHANT_CLOSED")
 end)

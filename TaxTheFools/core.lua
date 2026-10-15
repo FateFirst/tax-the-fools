@@ -118,6 +118,7 @@ function Core.Update(now)
   Core.Safe("mail", A.Mail.Tick)
   Core.Safe("mail window", A.MailHook.Tick)
   Core.Safe("mailbox", A.Mailbox.Tick, now)
+  Core.Safe("ledger", A.LedgerHooks.Tick)
   Core.Safe("mail window", A.MailUI.Tick)
   Core.Safe("trainer", A.RecipesLearn.Tick)
   if not Core.pruned then Core.Safe("prune", Core.PruneTick) end

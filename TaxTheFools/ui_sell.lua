@@ -455,7 +455,10 @@ function SellUI.UpdateChart()
   end
   local realm = DB.Realm()
   local m = realm.market[it.key]
-  p.list:SetHeight(short)
+  if not p.chartOn or p.list:GetHeight() ~= short then
+    p.list:SetHeight(short)
+    p.list:Paint()                              -- rows must follow the shorter list
+  end
   p.chartOn = true
   p.chart:ClearAllPoints()
   p.chart:SetPoint("TOPLEFT", p, "TOPLEFT", SellUI.RX, -(SellUI.LIST_Y + short + SellUI.CHART_GAP))

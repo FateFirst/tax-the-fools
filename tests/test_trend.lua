@@ -28,6 +28,12 @@ T.test("Trend: rising, falling and steady", function()
   T.eq(P.Trend(flat(100, 100), TODAY).pct, 0)
   T.eq(P.Trend(flat(105, 100), TODAY).dir, "rising")
   T.eq(P.Trend(flat(95, 100), TODAY).dir, "falling")
+  -- the direction follows the displayed (rounded) percent
+  T.eq(P.Trend(flat(1046, 1000), TODAY).pct, 5)
+  T.eq(P.Trend(flat(1046, 1000), TODAY).dir, "rising", "+5% is never steady")
+  T.eq(P.Trend(flat(954, 1000), TODAY).pct, -5)
+  T.eq(P.Trend(flat(954, 1000), TODAY).dir, "falling")
+  T.eq(P.Trend(flat(1044, 1000), TODAY).dir, "steady", "+4% is never rising")
 end)
 
 T.test("Trend: needs 3 days each side, tolerates gaps", function()

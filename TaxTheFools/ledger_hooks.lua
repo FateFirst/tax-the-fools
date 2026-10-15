@@ -1,14 +1,22 @@
 TaxTheFools = TaxTheFools or {}
 local A = TaxTheFools
-local Hooks = { merchant = false, last = false }
+local Hooks = { merchant = false, last = false, visit = {}, dirty = false }
 A.LedgerHooks = Hooks
 
 -- Recording only (phase 6 spec section 3): these functions add ledger entries and make no game action call.
 -- Callers run them through Core.Safe, which passes at most three arguments, so each takes one or two tables.
 -- A.Ledger and A.DB are read at call time.
 
+-- Any change marks the Ledger page stale; Hooks.Tick repaints it once per frame while it is shown.
 local function add(kind, amount, key, qty, who, at)
-  A.Ledger.Add(A.DB.Char(), { kind = kind, amount = amount, key = key, qty = qty, who = who, at = at }, at or time())
+  Hooks.dirty = true
+  return A.Ledger.Add(A.DB.Char(), { kind = kind, amount = amount, key = key, qty = qty, who = who, at = at }, at or time())
+end
+
+function Hooks.Tick()
+  if not Hooks.dirty then return end
+  Hooks.dirty = false
+  if A.LedgerUI then A.LedgerUI.RepaintShown() end
 end
 
 -- True when name is one of this realm's characters (case-insensitive).
@@ -34,6 +42,7 @@ function Hooks.Deposit(p, amount) add("deposit", amount, p.key, p.count) end
 -- A new auction mail Sales.Record just recorded as e (outcome, money, key, qty, at), for item `name`.
 function Hooks.Mail(char, e, name)
   local L = A.Ledger
+  Hooks.dirty = true
   if e.outcome == "sold" then
     L.Add(char, { kind = "sale", amount = e.money, key = e.key, qty = e.qty, at = e.at }, e.at)
   elseif e.outcome == "won" then L.BidWon(char, name, e.at)
@@ -51,7 +60,14 @@ end
 -- b: a send chain whose mail was just confirmed (to, mailMoney, postage).
 function Hooks.Sent(b)
   add(Hooks.IsAlt(b.to) and "transferOut" or "mailOut", b.mailMoney or 0, nil, nil, b.to)
-  add("mailOut", b.postage or 0, nil, nil, b.to)
+  -- one postage entry per send chain: later mails of the chain add into it
+  local post = b.postage or 0
+  if b.postEntry then
+    b.postEntry.amount = b.postEntry.amount + post
+    Hooks.dirty = true
+  elseif post > 0 then
+    b.postEntry = add("mailOut", post, nil, nil, b.to)
+  end
 end
 
 -- ---------- vendor ----------
@@ -63,11 +79,13 @@ end
 function Hooks.Sync() Hooks.last = GetMoney() end
 
 function Hooks.MerchantShow()
+  Hooks.visit = {}
   Hooks.Sync()
   Hooks.merchant = true
 end
 
 function Hooks.MerchantClosed()
+  Hooks.visit = {}
   Hooks.merchant = false
   Hooks.Sync()
 end
@@ -76,5 +94,14 @@ function Hooks.OnMoney()
   local now, last = GetMoney(), Hooks.last
   Hooks.last = now
   if not Hooks.merchant or not last or now == last or not A.DB.S().ledger.vendor then return end
-  if now > last then add("vendorIn", now - last) else add("vendorOut", last - now) end
+  local kind, delta = "vendorIn", now - last
+  if now < last then kind, delta = "vendorOut", last - now end
+  -- one entry per direction per merchant visit
+  local e = Hooks.visit[kind]
+  if e then
+    e.amount = e.amount + delta
+    Hooks.dirty = true
+  else
+    Hooks.visit[kind] = add(kind, delta)
+  end
 end

@@ -117,9 +117,10 @@ function P.Trend(entry, today)
   local prior = sideMedian(entry, today, 7, 13)
   if not recent or not prior or prior <= 0 then return nil end
   local ratio = (recent - prior) / prior
+  local pct = round(ratio * 100)
   local dir = "steady"
-  if ratio >= 0.05 then dir = "rising" elseif ratio <= -0.05 then dir = "falling" end
-  return { pct = round(ratio * 100), dir = dir, recent = recent, prior = prior }
+  if pct >= 5 then dir = "rising" elseif pct <= -5 then dir = "falling" end   -- the displayed percent decides
+  return { pct = pct, dir = dir, recent = recent, prior = prior }
 end
 
 -- Theme token for a trend direction, shared by the tooltip and Browse.

@@ -6,6 +6,7 @@ TaxTheFools.LedgerUI = LedgerUI
 
 -- Where the gold went and came from (phase 6 spec section 4): a totals strip over a Days or Items list.
 LedgerUI.PERIODS = { { label = "7 days", value = 7 }, { label = "30 days", value = 30 }, { label = "90 days", value = 90 } }
+LedgerUI.ITEMS_EMPTY = "No items sold, bought or posted in this period. Vendor and mail money show under Days."
 LedgerUI.EMPTY = "Nothing recorded in this period. The ledger records from now on, apart from past sales. "
   .. "Gold taken or sent through Blizzard's own mail window is not recorded; use the addon's mailbox."
 
@@ -80,7 +81,17 @@ function LedgerUI.Paint(p)
   Th.Color(p.daysBtn.label, p.view == "days" and "gold" or "white")
   Th.Color(p.itemsBtn.label, p.view == "items" and "gold" or "white")
   if p.view == "items" then p.dlist:Hide() p.ilist:Show() else p.ilist:Hide() p.dlist:Show() end
-  if table.getn(days) == 0 then p.empty:Show() else p.empty:Hide() end
+  local text
+  if table.getn(days) == 0 then text = LedgerUI.EMPTY
+  elseif p.view == "items" and table.getn(items) == 0 then text = LedgerUI.ITEMS_EMPTY end
+  if text then p.empty:SetText(text) p.empty:Show() else p.empty:Hide() end
+end
+
+-- Repaints every shown page (called once per frame after a ledger entry changed).
+function LedgerUI.RepaintShown()
+  for _, p in ipairs(LedgerUI.pages) do
+    if p:IsVisible() then LedgerUI.Paint(p) end
+  end
 end
 
 function LedgerUI.SetDays(p, days) p.days = days LedgerUI.Paint(p) end

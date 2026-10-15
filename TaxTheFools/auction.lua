@@ -75,14 +75,6 @@ end
 
 function Auction.Own(r) return r.owner ~= nil and r.owner == DB.charName end
 
-local function place(kind, index, r, amount, after, onFail)
-  Auction.busy = { kind = kind, key = r.key, count = r.count, amount = amount, at = GetTime(),
-                   sig = Auction.Sig(r), name = r.name, after = after or false, onFail = onFail or false }
-  PlaceAuctionBid("list", index, amount)
-  Auction.Changed()
-  return true
-end
-
 -- The ledger gets each post's deposit once: the amount paid when the money change is read, else the preview
 -- (the learned figure or the client's) when it never comes or can't be believed.
 local function record(p, amount)
@@ -93,6 +85,19 @@ end
 local function expire(p)
   Auction.pending = false
   if p then record(p, p.preview) end
+end
+
+-- A buy, bid or cancel changes money too: settle an unanswered post first (its preview deposit), so the
+-- next money change is not read as that post's deposit.
+local function settle() if Auction.pending then expire(Auction.pending) end end
+
+local function place(kind, index, r, amount, after, onFail)
+  settle()
+  Auction.busy = { kind = kind, key = r.key, count = r.count, amount = amount, at = GetTime(),
+                   sig = Auction.Sig(r), name = r.name, after = after or false, onFail = onFail or false }
+  PlaceAuctionBid("list", index, amount)
+  Auction.Changed()
+  return true
 end
 
 local function clearSellSlot()
@@ -207,6 +212,7 @@ function Auction.Cancel(index, sig, after, onFail, confirmed)
     TaxTheFools.Confirm.OpenCancel(index, sig, r, after, onFail)
     return "confirm"
   end
+  settle()
   Auction.busy = { kind = "cancel", key = r.key, count = r.count, at = GetTime(), sig = Auction.Sig(r),
                    name = r.name, after = after or false, onFail = onFail or false }
   CancelAuction(index)
