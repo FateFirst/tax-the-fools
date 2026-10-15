@@ -324,6 +324,13 @@ T.test("Fill is hidden for the bank alt itself and with no bank alt", function()
   T.eq(p.fillBtn:IsShown(), true)
 end)
 
+T.test("MailUI.Fill refuses on the bank alt itself", function()
+  local p = sendSetup(WoW.player)
+  T.eq(MU.Fill(), false)
+  T.eq(p.note:GetText(), "This is the bank alt")
+  T.eq(table.getn(MU.send.rows), 0)
+end)
+
 T.test("Remove drops the selected row; Keep drops it and remembers the item", function()
   local p = sendSetup("Banker")
   click(p.fillBtn)

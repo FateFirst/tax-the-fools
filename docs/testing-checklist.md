@@ -4,7 +4,7 @@ Run this after every install, on the real client. The tests prove the logic
 against a fake client; this proves the fake client was right.
 
 ## Load
-1. Log in on the bank character. Chat shows `TTF: v0.6.0 loaded`.
+1. Log in on the bank character. Chat shows `TTF: v0.7.0 loaded`.
 2. `/ttf probe`. The window opens with text selected. Press Ctrl+C and paste it
    into `tools/probe-<date>.txt` in this repo. Check:
    - every `fn` line says `yes`, except possibly `GetInboxInvoiceInfo`, `CalculateAuctionDeposit` (spec §13 Q2)
@@ -207,3 +207,30 @@ The trainer and vendor windows are only read. Nothing is bought from them; buy a
     GetTrainerServiceCost and GetTrainerServiceSkillReq. Below them are the tooltip lines for
     Pattern: Green Woolen Bag (item 4292), including "Requires Tailoring (n)" and "Teaches you
     how to make ...". Copy them into `tools/probe-<date>.txt`.
+
+## Mailbox (phase 5b)
+
+87. Disable TurtleMail first (AddOns list at character select), then log in. If TurtleMail is
+    still on, TTF prints a chat notice that it cannot replace the mailbox, and you get the
+    Blizzard mailbox. Note which you see.
+88. Open a mailbox. The TTF mail window appears. Press the Blizzard UI button to switch to the
+    Blizzard mailbox, then switch back to TTF.
+89. With one AH mail (sale or expiry), one player letter with gold or an item, and one COD mail
+    in the inbox, press **Collect all**. The player letter stays, its gold and item taken. The AH
+    mail is deleted. The COD mail is untouched. **History** still records the sales.
+90. Fill your bags, then **Collect all** with items waiting. The chain stops with "Bags full".
+91. Select a letter and press **Read**. Its text shows.
+92. On **Send**, attach three stacks and send them to the bank alt with one click. Three mails
+    arrive, with money only on the first.
+93. On a non-bank character, press **Fill for bank alt**. Matching stacks attach and the
+    recipient is set. Select a row and press **Keep**: it drops off and is never filled again.
+    Options > Mail lists it by name; click it there and it is removed. On the bank alt itself,
+    Fill is hidden (and refuses with "This is the bank alt").
+94. Right-click a bag item while on **Send**: it attaches. On **Inbox**, right-click behaves
+    normally (uses or selects the item as usual).
+95. Start **Collect all** with several mails and press **Stop** mid-chain. It halts after the
+    current mail.
+96. Send a mail between two of your own characters and note whether it arrives instantly or
+    after a delay. Write the answer here.
+97. `/ttf probe`. The mail lines are all present, including the ATTACHMENTS_MAX_SEND value.
+    Copy them into `tools/probe-<date>.txt`.

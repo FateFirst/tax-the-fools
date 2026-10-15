@@ -474,6 +474,10 @@ function MailUI.Fill()
   local alt = MailUI.BankAlt()
   local p = MailUI.send.page
   if not alt or not p then return false end
+  if alt == DB.charName then
+    MailUI.Note("This is the bank alt", "dim")
+    return false
+  end
   p.to:SetText(alt)
   local n = MailUI.FillRows()
   MailUI.Note(n == 0 and "Nothing matches" or ("Attached " .. n), "dim")

@@ -3,13 +3,16 @@
 Auction house price history, deal finding and crafting profit for the Ravencraft
 server (Turtle WoW 1.18.1 client, WoW 1.12, Lua 5.0).
 
-This release (0.6.0): the auction window, scanning, price history, tooltips, crafting
+This release (0.7.0): the auction window, scanning, price history, tooltips, crafting
 profit for every recipe your characters know, buying, selling, and sales tracking from
 auction house mail. The **Deals** tab finds below-market, below-vendor, cheap-materials,
 undersupplied and recipe listings; **Browse** buys and bids on the selected row; **Sell** and
 **Auctions** post and cancel your own auctions; **History** shows what has sold; **Crafting**
 shows the recipes each character could still learn, with what they cost and how fast they pay
-back. Next is phase 5b: a mailbox tab that sends items to your alts. See
+back. **Mail** replaces the Blizzard mailbox: an Inbox with Collect all (sales mail is
+deleted, letters keep their text and have gold and items taken, COD is never touched) and a
+Send tab that fills a mail to your bank alt by rules and sends several stacks in one click.
+Next is in-game testing and polish. See
 `docs/superpowers/specs/2026-10-14-tax-the-fools-design.md` for the overall design.
 
 ## Install
@@ -94,8 +97,7 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
 - **Sales tracking.** Open a mailbox and the addon reads the headers of your auction mail
   (sold, expired, cancelled, won, outbid) and counts each mail once, across visits and relogs. Identical mails (several stacks expiring
   together, or bought for the same price) are counted individually.
-  It never opens a mail, so nothing is marked read or has its expiry shortened; collecting the
-  items and gold is still TurtleMail's job.
+  Reading headers never opens a mail, so nothing is marked read or has its expiry shortened.
 - **History tab.** One row per item with sales: Sold, Expired, Rate, Avg price, Avg time and
   Income, for 7, 30 or 90 days, for all characters or one, with a totals line.
 - **Sell panel and warning.** The Sell tab shows the selected item's sell rate, average sale
@@ -107,13 +109,23 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
 - **Sales options.** Options > Sales: the sell-rate window (7 to 90 days), the price warning
   (100% to 200%), and the Sells tooltip line. Options > General: "Right-click bag items to search
   or sell". Options > Deals & buying: Undersupplied, and its thresholds.
+- **Mailbox.** TTF replaces TurtleMail: disable TurtleMail to use TTF's mailbox. Opening a
+  mailbox shows the TTF window (Options > Mail turns that off). **Inbox** lists your mail;
+  **Collect all** takes the gold and items from letters (they stay, so you can read them) and
+  deletes sold, expired and cancelled auction mail once its sale is recorded. COD mail is never
+  touched; a full bag stops the chain with "Bags full", and **Stop** halts it. **Read** shows a
+  letter's text. **Send** attaches several stacks and sends them to one recipient in one
+  click (money rides on the first mail). **Fill for bank alt** attaches every bag item that
+  matches your rules (crafted goods, cloth and trade goods, patterns, anything auctionable)
+  and is not on the keep list; **Keep** adds the selected item to that list. Right-click a bag
+  item on Send to attach it. Options > Mail sets the bank alt, the rules and the keep list.
 - **Blizzard UI** switches to the stock window at any time; its **Tax the Fools** button
   switches back.
 
 Nothing is ever bought, bid on, posted, cancelled, crafted or sold without your
 click. The only things that run by themselves are a scan turning pages and reading the
-headers of auction mail. Phase 5a (the recipe database and payback) is done. Phase 5b (a
-mailbox tab that sends items to your alts) is next.
+headers of auction mail. Phase 5 (recipe payback and the mailbox) is done. Next is in-game
+testing and polish.
 
 ## Commands
 

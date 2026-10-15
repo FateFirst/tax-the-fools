@@ -98,6 +98,18 @@ Opt.CATEGORIES = {
     { kind = "dropdown", key = "theme", label = "Theme", options = themes(), after = function(v) Th.Apply(v) end },
     { kind = "switch", key = "fonts", label = "Bundled fonts (needs /reload)" },
   } },
+  { key = "mail", label = "Mail", rows = {
+    { kind = "switch", key = "replaceBlizzardMail", label = "Replace Blizzard's mailbox",
+      hint = "Takes effect next time you open a mailbox. Disable TurtleMail first; TTF replaces it." },
+    { kind = "dropdown", label = "Bank alt", options = function() return Opt.BankAltOptions() end,
+      get = function() return DB.S().mail.bankAlt or "" end,
+      set = function(v) if v == "" then DB.S().mail.bankAlt = nil else DB.S().mail.bankAlt = v end end },
+    { kind = "switch", path = { "mail", "rules", "crafted" }, label = "Crafted goods" },
+    { kind = "switch", path = { "mail", "rules", "tradeGoods" }, label = "Cloth and trade goods" },
+    { kind = "switch", path = { "mail", "rules", "patterns" }, label = "Patterns" },
+    { kind = "switch", path = { "mail", "rules", "auctionable" }, label = "Anything auctionable" },
+    { kind = "keeplist", label = "Never fill (click to remove)" },
+  } },
   { key = "data", label = "Data", rows = {
     { kind = "info", text = function() return DB.SizeText() end },
     { kind = "button", label = "Prune old data now", onClick = function()
@@ -122,15 +134,46 @@ StaticPopupDialogs["TAXTHEFOOLS_RESET"] = {
   hideOnEscape = 1,
 }
 
+-- "None" plus every character the addon knows on this realm.
+function Opt.BankAltOptions()
+  local o = { { value = "", label = "None" } }
+  local names = {}
+  for name in pairs(DB.Realm().chars) do table.insert(names, name) end
+  table.sort(names)
+  for _, name in ipairs(names) do table.insert(o, { value = name, label = name }) end
+  return o
+end
+
+Opt.KEEP_SHOWN = 8
+
+-- Keep-list keys, sorted, as { key, name } rows.
+function Opt.KeepRows()
+  local keys = {}
+  for k in pairs(DB.S().mail.keep) do table.insert(keys, k) end
+  table.sort(keys)
+  local rows = {}
+  for _, k in ipairs(keys) do
+    local _, _, id = string.find(k, "^(%d+)")
+    table.insert(rows, { key = k, name = id and TaxTheFools.Items.Name(tonumber(id)) or k })
+  end
+  return rows
+end
+
 local function path(row) return row.path or { row.key } end
 
 function Opt.Get(row)
+  if row.get then return row.get() end
   local t, p = DB.S(), path(row)
   for i = 1, table.getn(p) - 1 do t = t[p[i]] end
   return t[p[table.getn(p)]]
 end
 
 function Opt.Set(row, v)
+  if row.set then
+    row.set(v)
+    if row.after then row.after(v) end
+    return
+  end
   local t, p = DB.S(), path(row)
   for i = 1, table.getn(p) - 1 do t = t[p[i]] end
   t[p[table.getn(p)]] = v
@@ -151,9 +194,60 @@ function Opt.Control(parent, row)
     f.text = Th.Text(f, "body", 13, "text")
     f.text:SetPoint("LEFT", f, "LEFT", 0, 0)
     f.text:SetText(row.label)
-    f.dd = W.Dropdown(f, 140, row.options, get, set)
+    local opts = row.options
+    if type(opts) == "function" then opts = opts() end
+    f.dd = W.Dropdown(f, 140, opts, get, set)
     f.dd:SetPoint("RIGHT", f, "RIGHT", 0, 0)
-    f.Refresh = function(self) self.dd:Refresh() end
+    f.Refresh = function(self)
+      if type(row.options) == "function" then self.dd:SetOptions(row.options()) end
+      self.dd:Refresh()
+    end
+    return f
+  end
+  if row.kind == "keeplist" then
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetWidth(320)
+    f:SetHeight(15 + 13 * (Opt.KEEP_SHOWN + 1))  -- fits under five switches and a dropdown in the 400 high window
+    f.title = Th.Text(f, "body", 13, "text")
+    f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+    f.title:SetText(row.label)
+    f.lines = {}
+    for i = 1, Opt.KEEP_SHOWN + 1 do
+      local b = CreateFrame("Button", nil, f)
+      b:SetHeight(13)
+      b:SetWidth(320)
+      b:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -2 - 13 * i)
+      b.text = Th.Text(b, "body", 11, "dim")
+      b.text:SetPoint("LEFT", b, "LEFT", 8, 0)
+      b:SetScript("OnClick", function()
+        if this.itemKey then
+          DB.S().mail.keep[this.itemKey] = nil
+          f:Refresh()
+        end
+      end)
+      f.lines[i] = b
+    end
+    f.Refresh = function(self)
+      local rows = Opt.KeepRows()
+      local n = table.getn(rows)
+      for i = 1, Opt.KEEP_SHOWN do
+        local line, r = self.lines[i], rows[i]
+        line.itemKey = r and r.key or nil
+        line.text:SetText(r and r.name or "")
+        if r then line:Show() else line:Hide() end
+      end
+      local more = self.lines[Opt.KEEP_SHOWN + 1]
+      more.itemKey = nil
+      if n > Opt.KEEP_SHOWN then
+        more.text:SetText("+" .. (n - Opt.KEEP_SHOWN) .. " more")
+        more:Show()
+      elseif n == 0 then
+        more.text:SetText("Nothing kept yet")
+        more:Show()
+      else
+        more:Hide()
+      end
+    end
     return f
   end
   if row.kind == "button" then

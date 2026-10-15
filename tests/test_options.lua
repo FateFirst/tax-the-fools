@@ -277,3 +277,41 @@ T.test("the recipe options are bound to settings.deals and settings.recipes, wit
   T.eq(DB.S().recipes.skillAhead, 50)
   DB.S().recipes.skillAhead = 25
 end)
+
+T.test("the Mail page sets the replace switch, rules, bank alt and keep list", function()
+  Opt.Create()
+  Opt.Select("mail")
+  local page = Opt.frame.pages.mail
+  T.eq(table.getn(page.controls), table.getn(Opt.CATEGORIES[table.getn(Opt.CATEGORIES) - 1].rows))
+  local m = DB.S().mail
+  WoW.runScript(page.controls[1], "OnClick")
+  T.eq(DB.S().replaceBlizzardMail, false)
+  WoW.runScript(page.controls[6], "OnClick")
+  T.eq(m.rules.auctionable, true)
+  local row = Opt.CATEGORIES[table.getn(Opt.CATEGORIES) - 1].rows[2]
+  Opt.Set(row, "Banker")
+  T.eq(m.bankAlt, "Banker")
+  T.eq(Opt.Get(row), "Banker")
+  Opt.Set(row, "")
+  T.eq(m.bankAlt, nil)
+  local opts = Opt.BankAltOptions()
+  T.eq(opts[1].label, "None")
+end)
+
+T.test("the keep list shows names, removes on click, and caps at eight", function()
+  Opt.Create()
+  local m = DB.S().mail
+  m.keep = { ["100:0"] = true }
+  Opt.Select("mail")
+  local kl = Opt.frame.pages.mail.controls[7]
+  kl:Refresh()
+  T.ok(kl.lines[1]:IsShown())
+  T.eq(kl.lines[1].text:GetText(), TaxTheFools.Items.Name(100))
+  WoW.runScript(kl.lines[1], "OnClick")
+  T.eq(m.keep["100:0"], nil)
+  T.eq(kl.lines[1]:IsShown(), false)
+  for i = 1, 11 do m.keep[(100 + i) .. ":0"] = true end
+  kl:Refresh()
+  T.eq(kl.lines[9].text:GetText(), "+3 more")
+  m.keep = {}
+end)
