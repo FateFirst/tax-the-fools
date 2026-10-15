@@ -28,7 +28,58 @@ function L.Sort(rows, key, desc)
   end)
 end
 
+-- Column widths for a list `available` pixels wide. Each column's width is its minimum; space left over
+-- goes to the columns marked flex (a weight), or to the first column when none is marked, so names and
+-- subjects grow as the window widens. A narrower list keeps the minimums.
+function L.Widths(columns, available)
+  local sum, weights = 0, 0
+  for _, col in ipairs(columns) do
+    sum = sum + col.width
+    weights = weights + (col.flex or 0)
+  end
+  local out = {}
+  local extra = math.floor((available or 0) - sum)
+  if extra < 0 then extra = 0 end
+  local given, last = 0, nil
+  for c, col in ipairs(columns) do
+    local w = col.flex or 0
+    if weights == 0 and c == 1 then w = 1 end
+    local add = 0
+    if w > 0 then
+      add = math.floor(extra * w / (weights > 0 and weights or 1))
+      given, last = given + add, c
+    end
+    out[c] = col.width + add
+  end
+  if last then out[last] = out[last] + (extra - given) end
+  return out
+end
+
 local M = {}
+
+-- Places the headers and every built row's cells for the list's current width.
+function M:Layout()
+  self.widths = L.Widths(self.columns, self:GetWidth() - BAR)
+  local x = 0
+  for c, h in ipairs(self.headers) do
+    h:SetWidth(self.widths[c])
+    h:ClearAllPoints()
+    h:SetPoint("LEFT", self.head, "LEFT", x, 0)
+    x = x + self.widths[c]
+  end
+  for _, r in ipairs(self.rows) do self:PlaceCells(r) end
+end
+
+function M:PlaceCells(r)
+  local x = 0
+  for c, fs in ipairs(r.cells) do
+    local w = self.widths[c]
+    fs:ClearAllPoints()
+    fs:SetPoint("LEFT", r, "LEFT", x + 6, 0)
+    fs:SetWidth(w - 12)
+    x = x + w
+  end
+end
 
 function M:SetData(data)
   self.data = data or {}
@@ -69,18 +120,16 @@ function M:Row(i)
   r.sel:SetAllPoints(r)
   r.sel:Hide()
   r.cells = {}
-  local x = 0
   for c, col in ipairs(self.columns) do
     local fs = Th.Text(r, "body", 11, "text")
-    fs:SetPoint("LEFT", r, "LEFT", x + 6, 0)
-    fs:SetWidth(col.width - 12)
     -- One line high: a 1.12 FontString with a set width wraps long text onto more lines, which spills over
     -- the next rows. With a one-line height the client cuts it short with "..." instead.
     fs:SetHeight(14)
     fs:SetJustifyH(col.align or "LEFT")
     r.cells[c] = fs
-    x = x + col.width
   end
+  if not self.widths then self.widths = L.Widths(self.columns, self:GetWidth() - BAR) end
+  self:PlaceCells(r)
   r.item = false
   r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
   r:SetScript("OnClick", function()
@@ -98,6 +147,13 @@ function M:Row(i)
 end
 
 function M:Paint()
+  -- OnSizeChanged lays the columns out as the window is dragged; this catches a width that changed while
+  -- the list was hidden, and the first paint after the anchors resolve.
+  local w = self:GetWidth()
+  if w ~= self.laidWidth then
+    self.laidWidth = w
+    self:Layout()
+  end
   local shown = self:Slots()
   local offset, max = L.Clamp(table.getn(self.data), shown, self.offset)
   self.offset = offset
@@ -179,6 +235,9 @@ function L.New(parent, columns, rowHeight, onClick)
     f:Paint()
   end)
   f.bar = bar
+  f.widths, f.laidWidth = false, false
+  -- Guarded: should this client not know the handler, Paint's width check still lays the columns out.
+  pcall(f.SetScript, f, "OnSizeChanged", function() f:Layout() end)
   f:EnableMouseWheel(true)
   f:SetScript("OnMouseWheel", function() f:Scroll(-arg1 * 3) end)
   return f

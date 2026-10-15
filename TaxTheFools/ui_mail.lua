@@ -32,8 +32,8 @@ end
 
 MailUI.COLUMNS = {
   { label = "Item", width = 36, fmt = function(r) if r.hasItem then return "Item", "gold" end return "" end },
-  { label = "From", width = 90, sort = "sender", fmt = function(r) return r.sender or "?" end },
-  { label = "Subject", width = 130, sort = "subject", fmt = function(r) return MailUI.ShortSubject(r.subject) end },
+  { label = "From", width = 90, flex = 1, sort = "sender", fmt = function(r) return r.sender or "?" end },
+  { label = "Subject", width = 130, flex = 2, sort = "subject", fmt = function(r) return MailUI.ShortSubject(r.subject) end },
   { label = "Money", width = 76, align = "RIGHT", sort = "money", fmt = function(r) return money(r.money) end },
   { label = "COD", width = 62, align = "RIGHT", sort = "cod",
     fmt = function(r) if r.cod and r.cod > 0 then return U.money(r.cod), "warn" end return "-", "dim" end },
