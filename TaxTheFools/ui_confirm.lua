@@ -45,13 +45,13 @@ function Confirm.Create()
 end
 
 -- Called by Auction.Buy for a buyout at or above the confirmation amount.
-function Confirm.Open(index, sig, r, after)
+function Confirm.Open(index, sig, r, after, onFail)
   local f = Confirm.Create()
   local m = DB.Realm().market[r.key]
   local lines = Confirm.Lines(r, m and m.v)
   for i, fs in ipairs(f.lines) do fs:SetText(lines[i]) end
   f:Show()
-  Confirm.pending = { index = index, sig = sig, after = after or false }
+  Confirm.pending = { index = index, sig = sig, after = after or false, onFail = onFail or false }
 end
 
 -- The window's Buy click: one more listing check inside Auction.Buy, then at most one PlaceAuctionBid.
@@ -60,7 +60,7 @@ function Confirm.Buy()
   Confirm.pending = false
   if Confirm.frame then Confirm.frame:Hide() end
   if not p then return false end
-  return Auction.Buy(p.index, p.sig, p.after, true)
+  return Auction.Buy(p.index, p.sig, p.after, true, p.onFail)
 end
 
 function Confirm.Cancel()

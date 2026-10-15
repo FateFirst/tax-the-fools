@@ -244,3 +244,67 @@ T.test("a stuck searching flag clears itself when no scan is running", function(
   T.eq(p.searching, false)
   T.eq(p.findBtn.enabled, true)
 end)
+
+local function found()
+  seedPages()
+  local p = page()
+  p.list.selected = p.list.data[1]
+  A.DealsUI.UpdateBar()
+  WoW.runScript(p.findBtn, "OnClick")
+  answer()
+  return p
+end
+
+T.test("a Buy refused after the list was replaced goes back to Find, and Find works again", function()
+  local p = found()
+  T.eq(p.findBtn.label:GetText(), string.upper("Buy " .. A.Util.money(8000)))
+  -- another query replaced the client's list since the Find (no repaint: the page is not the one showing)
+  WoW.ah.current = { { id = 2589, name = "Linen Cloth", count = 1, buyout = 5, owner = "X" } }
+  WoW.runScript(p.findBtn, "OnClick")
+  T.eq(T.count("PlaceAuctionBid"), 0)
+  T.ok(string.find(p.status:GetText(), "Press Find again", 1, true), p.status:GetText())
+  T.eq(p.findBtn.label:GetText(), "FIND")
+  T.ok(p.findBtn.enabled)
+  WoW.runScript(p.findBtn, "OnClick")
+  answer()
+  -- (the second scan re-estimates the market, which may reshuffle the list; Find itself worked)
+  T.ok(string.find(p.status:GetText(), "Found on page 2", 1, true), p.status:GetText())
+  T.ok(p.found)
+end)
+
+T.test("a sniped deal: ERR_ITEM_NOT_FOUND removes it from the list and snapshot", function()
+  local p = found()
+  WoW.ah.bidReply = "notfound"
+  WoW.runScript(p.findBtn, "OnClick")
+  T.eq(T.count("PlaceAuctionBid"), 1)
+  WoW.bidRespond()
+  T.ok(string.find(p.status:GetText(), "Gone: someone else bought it.", 1, true), p.status:GetText())
+  T.eq(types(p), "market:6000,vendor:100")
+  T.eq(DB.Realm().snapshot.rows["14047:0"][1], "20|13000|0|Other")
+  T.eq(p.findBtn.label:GetText(), "FIND")
+  WoW.ah.bidReply = "auto"
+end)
+
+T.test("another failed buy goes back to Find and keeps the deal", function()
+  local p = found()
+  WoW.ah.bidReply = "money"
+  WoW.runScript(p.findBtn, "OnClick")
+  WoW.bidRespond()
+  T.eq(p.findBtn.label:GetText(), "FIND")
+  T.eq(types(p), "market:11000,market:6000,vendor:100")
+  T.eq(DB.Realm().snapshot.rows["14047:0"][1], "20|8000|0|Deal")
+  WoW.ah.bidReply = "auto"
+end)
+
+T.test("a failed buy confirmed in the window also reports back to Find", function()
+  local p = found()
+  DB.S().buy.confirmAbove = 5000
+  WoW.runScript(p.findBtn, "OnClick")
+  T.eq(T.count("PlaceAuctionBid"), 0, "the window comes first")
+  WoW.ah.bidReply = "money"
+  A.Confirm.Buy()
+  WoW.bidRespond()
+  T.eq(p.findBtn.label:GetText(), "FIND")
+  WoW.ah.bidReply = "auto"
+  DB.S().buy.confirmAbove = 50000
+end)

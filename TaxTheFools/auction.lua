@@ -63,9 +63,9 @@ end
 
 function Auction.Own(r) return r.owner ~= nil and r.owner == DB.charName end
 
-local function place(kind, index, r, amount, after)
+local function place(kind, index, r, amount, after, onFail)
   Auction.busy = { kind = kind, key = r.key, count = r.count, amount = amount, at = GetTime(),
-                   sig = Auction.Sig(r), name = r.name, after = after or false }
+                   sig = Auction.Sig(r), name = r.name, after = after or false, onFail = onFail or false }
   PlaceAuctionBid("list", index, amount)
   Auction.Changed()
   return true
@@ -73,8 +73,9 @@ end
 
 -- Buy listing `index` if it is still `sig`. A buyout at or above the
 -- confirmation amount opens the confirmation window instead; confirmed is
--- set only by that window's Buy button. after(busy) runs on success.
-function Auction.Buy(index, sig, after, confirmed)
+-- set only by that window's Buy button. after(busy) runs on success;
+-- onFail(text) runs when the reply (or its absence) says the buy failed.
+function Auction.Buy(index, sig, after, confirmed, onFail)
   if Auction.busy then return refuse("Wait for the auction house to answer the last bid.") end
   local r = Auction.Match(index, sig)
   if not r then return refuse("Listing changed. Search again.") end
@@ -82,10 +83,10 @@ function Auction.Buy(index, sig, after, confirmed)
   if Auction.Own(r) then return refuse("That is your own auction.") end
   if r.buyout > GetMoney() then return refuse("You can't afford " .. U.money(r.buyout, true) .. ".") end
   if not confirmed and Auction.NeedsConfirm(r.buyout) then
-    TaxTheFools.Confirm.Open(index, sig, r, after)
+    TaxTheFools.Confirm.Open(index, sig, r, after, onFail)
     return "confirm"
   end
-  return place("buy", index, r, r.buyout, after)
+  return place("buy", index, r, r.buyout, after, onFail)
 end
 
 -- Bids are never confirmed: a bid is not a purchase until the auction ends.
@@ -105,7 +106,11 @@ end
 local function finish(ok, text)
   local b = Auction.busy
   Auction.busy = false
-  if not ok then return Auction.Say(text, "bad") end
+  if not ok then
+    Auction.Say(text, "bad")
+    if b.onFail then b.onFail(text) end
+    return
+  end
   if b.kind == "buy" then
     Scan.SnapshotRemove(b.sig)
     Auction.Say("Bought " .. b.name .. " x" .. b.count .. " for " .. U.money(b.amount, true) .. ".", "good")

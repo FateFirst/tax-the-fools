@@ -251,11 +251,32 @@ end
 function DealsUI.Buy(d)
   local p = DealsUI.frame
   local f = p.found
-  return Auction.Buy(f.index, f.sig, function()
+  local r = Auction.Buy(f.index, f.sig, function()
     p.found = false
     DealsUI.Say("")
     DealsUI.Paint()
-  end)
+  end, false, function(text) DealsUI.BuyFailed(f.sig, text) end)
+  -- A refusal (not a spend, not the confirmation window) means the listing moved.
+  if not r then
+    p.found = false
+    DealsUI.Say("Listing changed. Press Find again.", "warn")
+    DealsUI.UpdateBar()
+  end
+  return r
+end
+
+-- The reply to a Deals buy said it failed: the located listing is no longer usable.
+function DealsUI.BuyFailed(sig, text)
+  local p = DealsUI.frame
+  p.found = false
+  if ERR_ITEM_NOT_FOUND and text == ERR_ITEM_NOT_FOUND then
+    Scan.SnapshotRemove(sig)
+    DealsUI.Say("Gone: someone else bought it.", "warn")
+    DealsUI.Paint()
+  else
+    DealsUI.Say(text or "", "bad")
+  end
+  DealsUI.UpdateBar()
 end
 
 UI.builders.deals = DealsUI.Build
