@@ -149,6 +149,7 @@ T.test("Confirm buys at or above: 0 to 500000 in steps of 10000, shown as money,
   WoW.runScript(c.slider, "OnMouseUp")
   T.eq(DB.S().buy.confirmAbove, 100000)
   c.slider:SetValue(0)
+  T.eq(c.value:GetText(), "never")
   WoW.runScript(c.slider, "OnMouseUp")
   T.eq(DB.S().buy.confirmAbove, 0)
 end)

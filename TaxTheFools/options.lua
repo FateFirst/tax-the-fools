@@ -55,7 +55,8 @@ Opt.CATEGORIES = {
     { kind = "dropdown", path = { "deals", "minConfidence" }, label = "Minimum confidence",
       options = TaxTheFools.DealsUI.CONFIDENCE },
     { kind = "slider", path = { "buy", "confirmAbove" }, label = "Confirm buys at or above", min = 0, max = 500000,
-      step = 10000, fmt = money },
+      step = 10000,
+      fmt = function(v) return v == 0 and "never" or money(v) end },
   } },
   { key = "tooltip", label = "Tooltip", rows = {
     { kind = "switch", path = { "tooltip", "market" }, label = "Market value" },
