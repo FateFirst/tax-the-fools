@@ -361,13 +361,35 @@ function SellUI.WhyNot()
   return nil
 end
 
+-- Your own sales history for the selected item, and a warning when the buyout is well above what it
+-- has sold for. The warning never changes the price or blocks Post.
+function SellUI.PaintSales(it)
+  local p = SellUI.frame
+  local ss = DB.S().sales
+  local s = TaxTheFools.Sales.Stats(DB.Realm().chars, it.key, ss.days, time())
+  if s.n == 0 then
+    p.salesText:SetText("No sales history yet.")
+  else
+    local t = "Sold " .. s.sold .. " of " .. s.n .. " (" .. math.floor(s.rate * 100 + 0.5) .. "%)"
+    if s.avgUnit then t = t .. ", avg " .. U.money(s.avgUnit, true) .. " each" end
+    if s.avgSecs then t = t .. ", sells in " .. UI.Approx(s.avgSecs) end
+    p.salesText:SetText(t)
+  end
+  if s.avgUnit and st.buyout and st.buyout > s.avgUnit * ss.warnPct / 100 then
+    p.warnText:SetText("You've sold this at about " .. U.money(s.avgUnit, true) .. ". " .. U.money(st.buyout, true)
+      .. " rarely sells.")
+  else
+    p.warnText:SetText("")
+  end
+end
+
 function SellUI.Update()
   local p = SellUI.frame
   if not p then return end
   local it = p.sel
   if not it then
     p.title:SetText("Pick an item from your bags")
-    for _, t in ipairs({ p.sourceText, p.depositText, p.netText, p.floorText }) do t:SetText("") end
+    for _, t in ipairs({ p.sourceText, p.depositText, p.netText, p.floorText, p.salesText, p.warnText }) do t:SetText("") end
     p.postBtn:SetLabel("Post")
     p.postBtn:SetEnabled(false)
     W.Tip(p.postBtn, "Post", "Pick an item from your bags.")
@@ -398,6 +420,7 @@ function SellUI.Update()
   else
     p.floorText:SetText("")
   end
+  SellUI.PaintSales(it)
   p.allowSw:Refresh()
   local plan = SellUI.Plan()
   local why = SellUI.WhyNot()
@@ -553,6 +576,10 @@ function SellUI.Build(parent)
   p.netText:SetPoint("TOPLEFT", p, "TOPLEFT", RX + 200, -270)
   p.floorText = Th.Text(p, "body", 12, "warn")
   p.floorText:SetPoint("TOPLEFT", p, "TOPLEFT", RX, -292)
+  p.warnText = Th.Text(p, "body", 12, "warn")
+  p.warnText:SetPoint("TOPLEFT", p, "TOPLEFT", RX, -330)
+  p.salesText = Th.Text(p, "body", 11, "dim")
+  p.salesText:SetPoint("TOPLEFT", p, "TOPLEFT", RX, -346)
   p.allowSw = W.Switch(p, "Allow below floor", function() return p.allowBelow end,
     function(v) p.allowBelow = v and true or false SellUI.Update() end,
     "Lets you post under your price floor. It resets when you pick another item.")

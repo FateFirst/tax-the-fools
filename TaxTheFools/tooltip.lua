@@ -27,6 +27,13 @@ function Tip.Lines(key, count, now)
     local v = I.Vendor(U.keyId(key))
     if v then table.insert(lines, { "Vendor" .. suffix, U.money(v * mult) }) end
   end
+  local ss = DB.S().sales
+  if ss and ss.tooltip then
+    local st = TaxTheFools.Sales.Stats(DB.Realm().chars, key, ss.days or 30, now)
+    if st.n > 0 then
+      table.insert(lines, { "Sells", math.floor(st.rate * 100 + 0.5) .. "% (" .. st.n .. ")" })
+    end
+  end
   return lines
 end
 

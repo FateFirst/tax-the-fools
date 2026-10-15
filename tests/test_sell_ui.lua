@@ -70,7 +70,7 @@ local function compete(id, name, count, buyout, owner)
 end
 
 T.test("Sell sits third in the tabs and Browse is still selected on open", function()
-  T.eq(UI.TABS[3].key, "sell") T.eq(UI.TABS[5].key, "craft")
+  T.eq(UI.TABS[3].key, "sell") T.eq(UI.TABS[6].key, "craft")
   openAH()
   T.eq(UI.ah.tabs.selected, "browse")
   T.ok(UI.builders.sell)
@@ -81,7 +81,7 @@ T.test("a tab whose builder is missing is left out of the strip and ShowPage ign
   UI.builders.auctions, UI.pages.auctions = nil, nil     -- the builder and any page it built earlier
   local keys = {}
   for _, t in ipairs(UI.VisibleTabs()) do table.insert(keys, t.key) end
-  T.eq(table.concat(keys, ","), "deals,browse,sell,craft")
+  T.eq(table.concat(keys, ","), "deals,browse,sell,history,craft")
   openAH()
   UI.ah.tabs:Select("browse")
   T.eq(UI.ShowPage("auctions"), false)
@@ -323,4 +323,61 @@ T.test("opening Sell, selecting and searching never spend: only the click does",
   end
   click(p.postBtn)
   T.eq(T.count("StartAuction"), 1)
+end)
+
+local function history(sold, expired, unit, secs)
+  local c = DB.Char()
+  c.sales = {}
+  for _ = 1, sold do table.insert(c.sales, { key = "14047:0", outcome = "sold", money = unit * 5, qty = 5, unit = unit, secs = secs, at = time() - 86400 }) end
+  for _ = 1, expired do table.insert(c.sales, { key = "14047:0", outcome = "expired", at = time() - 86400 }) end
+end
+
+T.test("the sales panel reads the history of the selected item", function()
+  seed()
+  history(12, 6, 11000, 32400)
+  local p = page()
+  pick(p, "Runecloth")
+  T.eq(p.salesText:GetText(), "Sold 12 of 18 (67%), avg 1g 10s each, sells in ~9h")
+end)
+
+T.test("the sales panel says so when there is no history", function()
+  seed()
+  DB.Char().sales = {}
+  local p = page()
+  pick(p, "Runecloth")
+  T.eq(p.salesText:GetText(), "No sales history yet.")
+  T.eq(p.warnText:GetText(), "")
+end)
+
+T.test("a buyout above warnPct of the average sale price warns and still allows Post", function()
+  seed()
+  history(4, 0, 11000, 3600)
+  local p = page()
+  pick(p, "Runecloth")
+  p.buyoutIn:SetValue(14000)
+  WoW.runScript(p.buyoutIn.gold, "OnTextChanged")
+  T.eq(p.warnText:GetText(), "You've sold this at about 1g 10s. 1g 40s rarely sells.")
+  T.eq(p.postBtn.enabled, true)
+  p.buyoutIn:SetValue(13200)                  -- exactly 120%
+  WoW.runScript(p.buyoutIn.gold, "OnTextChanged")
+  T.eq(p.warnText:GetText(), "")
+  p.buyoutIn:SetValue(13201)
+  WoW.runScript(p.buyoutIn.gold, "OnTextChanged")
+  T.ok(p.warnText:GetText() ~= "")
+  DB.S().sales.warnPct = 150
+  SellUI.Update()
+  T.eq(p.warnText:GetText(), "")
+  DB.S().sales.warnPct = 120
+end)
+
+T.test("no warning without a known average", function()
+  seed()
+  local c = DB.Char()
+  c.sales = { { key = "14047:0", outcome = "sold", money = 500, at = time() - 86400 } }
+  local p = page()
+  pick(p, "Runecloth")
+  p.buyoutIn:SetValue(99999)
+  WoW.runScript(p.buyoutIn.gold, "OnTextChanged")
+  T.eq(p.warnText:GetText(), "")
+  T.eq(p.salesText:GetText(), "Sold 1 of 1 (100%)")
 end)

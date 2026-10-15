@@ -56,3 +56,40 @@ T.test("hovering an item teaches the cache its name", function()
   GameTooltip:SetHyperlink("item:4306:0:0:0")
   T.eq(TaxTheFoolsDB.items[4306].n, "Silk Cloth")
 end)
+
+local function sales(sold, expired)
+  local c = DB.Char()
+  c.sales = {}
+  for _ = 1, sold do table.insert(c.sales, { key = "14047:0", outcome = "sold", money = 100, qty = 1, unit = 100, at = time() - 86400 }) end
+  for _ = 1, expired do table.insert(c.sales, { key = "14047:0", outcome = "expired", at = time() - 86400 }) end
+end
+
+T.test("the Sells line shows the rate and the number of results", function()
+  seed()
+  sales(13, 5)
+  local lines = Tip.Lines("14047:0", 1, WoW.now)
+  local found
+  for _, l in ipairs(lines) do if l[1] == "Sells" then found = l[2] end end
+  T.eq(found, "72% (18)")
+end)
+
+T.test("the Sells line is left out with no results or when switched off", function()
+  seed()
+  sales(0, 0)
+  for _, l in ipairs(Tip.Lines("14047:0", 1, WoW.now)) do T.ok(l[1] ~= "Sells") end
+  sales(3, 1)
+  DB.S().sales.tooltip = false
+  for _, l in ipairs(Tip.Lines("14047:0", 1, WoW.now)) do T.ok(l[1] ~= "Sells") end
+  DB.S().sales.tooltip = true
+end)
+
+T.test("the Sells line follows the sales window", function()
+  seed()
+  sales(3, 1)
+  DB.Char().sales[1].at = time() - 20 * 86400
+  DB.S().sales.days = 7
+  local n
+  for _, l in ipairs(Tip.Lines("14047:0", 1, WoW.now)) do if l[1] == "Sells" then n = l[2] end end
+  T.eq(n, "67% (3)")
+  DB.S().sales.days = 30
+end)

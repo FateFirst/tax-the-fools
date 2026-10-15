@@ -6,7 +6,8 @@ TaxTheFools.UI = UI
 
 -- A tab with no registered builder is left out of the strip until it exists.
 UI.TABS = { { key = "deals", label = "Deals" }, { key = "browse", label = "Browse" }, { key = "sell", label = "Sell" },
-            { key = "auctions", label = "Auctions" }, { key = "craft", label = "Crafting" } }
+            { key = "auctions", label = "Auctions" }, { key = "history", label = "History" },
+            { key = "craft", label = "Crafting" } }
 
 function UI.VisibleTabs()
   local out = {}
@@ -17,6 +18,14 @@ function UI.VisibleTabs()
 end
 
 local SEP = "  -  "
+
+-- A rough span for prose: "~40m", "~9h", "~2d".
+function UI.Approx(s)
+  s = s or 0
+  if s < 3600 then return "~" .. math.max(1, math.floor(s / 60 + 0.5)) .. "m" end
+  if s < 86400 then return "~" .. math.floor(s / 3600 + 0.5) .. "h" end
+  return "~" .. math.floor(s / 86400 + 0.5) .. "d"
+end
 
 function UI.Duration(s)
   s = math.floor((s or 0) + 0.5)
