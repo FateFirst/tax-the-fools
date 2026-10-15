@@ -105,9 +105,10 @@ end
 
 -- Totals for an item across chars (any table of character records) over the last `days` days.
 -- { sold, expired, cancelled, rate, n, avgUnit, avgSecs, income }
--- n = sold mails whose quantity is known; avgUnit and avgSecs average those only.
+-- n = sold + expired + cancelled (the rate denominator); nKnown = sold mails whose quantity is known,
+-- the sample avgUnit and avgSecs average over.
 function Sales.Stats(chars, key, days, now)
-  local r = { sold = 0, expired = 0, cancelled = 0, n = 0, income = 0 }
+  local r = { sold = 0, expired = 0, cancelled = 0, n = 0, nKnown = 0, income = 0 }
   local cutoff = now - days * 86400
   local unitSum, secsSum, secsN = 0, 0, 0
   for _, char in pairs(chars or {}) do
@@ -117,7 +118,7 @@ function Sales.Stats(chars, key, days, now)
         if e.outcome == "sold" then
           r.income = r.income + (e.money or 0)
           if e.qty and e.unit then
-            r.n = r.n + 1
+            r.nKnown = r.nKnown + 1
             unitSum = unitSum + e.unit
             if e.secs then secsSum = secsSum + e.secs secsN = secsN + 1 end
           end
@@ -126,8 +127,9 @@ function Sales.Stats(chars, key, days, now)
     end
   end
   local total = r.sold + r.expired + r.cancelled
+  r.n = total
   if total > 0 then r.rate = r.sold / total end
-  if r.n > 0 then r.avgUnit = unitSum / r.n end
+  if r.nKnown > 0 then r.avgUnit = unitSum / r.nKnown end
   if secsN > 0 then r.avgSecs = secsSum / secsN end
   return r
 end

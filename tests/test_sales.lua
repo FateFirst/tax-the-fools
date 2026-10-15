@@ -73,7 +73,7 @@ T.test("a sold mail fitting two different stack/buyout postings leaves qty unkno
   T.eq(e.outcome, "sold") T.eq(e.money, 950) T.eq(e.qty, nil) T.eq(e.unit, nil) T.eq(e.secs, nil)
   T.eq(c.postings[1].done, nil) T.eq(c.postings[2].done, nil, "neither is consumed")
   local st = S.Stats({ c }, K1, 30, 1000)
-  T.eq(st.sold, 1) T.eq(st.rate, 1) T.eq(st.n, 0) T.eq(st.avgUnit, nil) T.eq(st.income, 950)
+  T.eq(st.sold, 1) T.eq(st.rate, 1) T.eq(st.n, 1, "one result") T.eq(st.nKnown, 0) T.eq(st.avgUnit, nil) T.eq(st.income, 950)
 end)
 
 T.test("a sold mail with no posting, or an unknown item, records without qty", function()
@@ -123,13 +123,13 @@ T.test("stats across two characters: rate, averages and income", function()
   local st = S.Stats({ a, b }, K1, 30, 1001 * DAY)
   -- in the window: sold 950, 400, 123 (3); expired 1; cancelled 1 -> rate 3 / 5 = 0.6. The 900-day sale is too old.
   T.eq(st.sold, 3) T.eq(st.expired, 1) T.eq(st.cancelled, 1) T.eq(st.rate, 0.6)
-  -- qty known on 2 sales: avgUnit (50 + 40) / 2 = 45, avgSecs (3600 + 7200) / 2 = 5400. income 950 + 400 + 123 = 1473.
-  T.eq(st.n, 2) T.eq(st.avgUnit, 45) T.eq(st.avgSecs, 5400) T.eq(st.income, 1473)
+  -- n = 3 sold + 1 expired + 1 cancelled = 5. qty known on 2 sales (nKnown): avgUnit (50 + 40) / 2 = 45, avgSecs (3600 + 7200) / 2 = 5400. income 950 + 400 + 123 = 1473.
+  T.eq(st.n, 5) T.eq(st.nKnown, 2) T.eq(st.avgUnit, 45) T.eq(st.avgSecs, 5400) T.eq(st.income, 1473)
   local none = S.Stats({ a, b }, "999:0", 30, 1001 * DAY)
-  T.eq(none.rate, nil) T.eq(none.n, 0) T.eq(none.avgUnit, nil) T.eq(none.income, 0)
+  T.eq(none.rate, nil) T.eq(none.n, 0) T.eq(none.nKnown, 0) T.eq(none.avgUnit, nil) T.eq(none.income, 0)
   -- a 3-day window drops the 995-day sales (6 days old): sold 1, expired 1 -> 0.5.
   local w = S.Stats({ a, b }, K1, 3, 1001 * DAY)
-  T.eq(w.sold, 1) T.eq(w.rate, 0.5)
+  T.eq(w.sold, 1) T.eq(w.rate, 0.5) T.eq(w.n, 2)
   -- chars keyed by name works too.
   T.eq(S.Stats({ Alt = a, Main = b }, K1, 30, 1001 * DAY).sold, 3)
 end)
