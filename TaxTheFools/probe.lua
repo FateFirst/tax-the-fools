@@ -10,6 +10,7 @@ Probe.FUNCTIONS = {
   "GetAuctionItemTimeLeft", "PlaceAuctionBid", "StartAuction", "CancelAuction", "GetOwnerAuctionItems",
   "ClickAuctionSellItemButton", "GetAuctionSellItemInfo", "CalculateAuctionDeposit",
   "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem", "TakeInboxMoney",
+  "GetSendMailItem", "ClickSendMailItemButton", "SendMail", "TakeInboxItem", "CheckInbox",
   "GetTradeSkillInfo", "GetTradeSkillNumMade", "GetTradeSkillReagentInfo", "GetTradeSkillReagentItemLink",
   "GetTradeSkillItemLink", "GetMerchantItemLink", "GetItemInfo",
   "GetNumTrainerServices", "GetTrainerServiceInfo", "GetTrainerServiceCost", "GetTrainerServiceSkillReq",
@@ -35,6 +36,8 @@ function Probe.Lines()
     add("fn " .. n .. " " .. ((type(getglobal(n)) == "function") and "yes" or "MISSING"))
   end
   for _, n in ipairs(Probe.VARS) do add("var " .. n .. " = " .. tostring(getglobal(n))) end
+  add("var ATTACHMENTS_MAX_SEND = " .. tostring(getglobal("ATTACHMENTS_MAX_SEND")))
+  add("MailFrame OnHide script " .. ((MailFrame and MailFrame:GetScript("OnHide")) and "yes" or "no"))
   local batch, total = GetNumAuctionItems("list")
   if batch and batch > 0 then
     local r = { GetAuctionItemInfo("list", 1) }

@@ -25,3 +25,12 @@ T.test("the probe window holds copyable text and the dump is saved", function()
   T.ok(Probe.frame:IsShown())
   T.ok(string.find(Probe.frame.edit:GetText(), "||Hitem:14047", 1, true), "links shown as text, not as links")
 end)
+
+T.test("the probe reports the mail API, ATTACHMENTS_MAX_SEND and MailFrame's OnHide", function()
+  local all = table.concat(Probe.Lines(), "\n")
+  for _, n in ipairs({ "GetSendMailItem", "ClickSendMailItemButton", "SendMail", "TakeInboxItem", "CheckInbox" }) do
+    T.ok(string.find(all, "fn " .. n .. " yes", 1, true), n)
+  end
+  T.ok(string.find(all, "ATTACHMENTS_MAX_SEND = nil", 1, true), all)
+  T.ok(string.find(all, "MailFrame OnHide script yes", 1, true), all)
+end)

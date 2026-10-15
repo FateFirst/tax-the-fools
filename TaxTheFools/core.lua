@@ -70,8 +70,11 @@ function Core.OnEvent(e)
   elseif e == "MAIL_SHOW" or e == "MAIL_INBOX_UPDATE" then
     Core.Safe("mail", A.Mail.OnEvent, e)
     Core.Safe("mailbox", A.Mailbox.OnEvent, e)
+    if e == "MAIL_SHOW" then Core.Safe("mail window", A.MailHook.OnShow) end
   elseif e == "MAIL_SEND_SUCCESS" then Core.Safe("mailbox", A.Mailbox.OnEvent, e)
-  elseif e == "MAIL_CLOSED" then Core.Safe("mailbox", A.Mailbox.OnClosed)
+  elseif e == "MAIL_CLOSED" then
+    Core.Safe("mailbox", A.Mailbox.OnClosed)
+    Core.Safe("mail window", A.MailHook.OnClosed)
   elseif e == "TRAINER_SHOW" or e == "TRAINER_UPDATE" then Core.Safe("trainer", A.RecipesLearn.OnTrainer)
   elseif e == "CHAT_MSG_SYSTEM" or e == "UI_ERROR_MESSAGE" then
     Core.Safe("auction", A.Auction.OnMessage, arg1)
@@ -99,6 +102,7 @@ function Core.Update(now)
   Core.Safe("inventory", A.Inventory.Tick, now)
   Core.Safe("tradeskill", A.TradeSkill.Tick, now)
   Core.Safe("mail", A.Mail.Tick)
+  Core.Safe("mail window", A.MailHook.Tick)
   Core.Safe("mailbox", A.Mailbox.Tick, now)
   Core.Safe("trainer", A.RecipesLearn.Tick)
   if not Core.pruned then Core.Safe("prune", Core.PruneTick) end
