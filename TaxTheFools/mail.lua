@@ -141,7 +141,8 @@ function Mail.Read()
       local fresh = g.count - done
       if fresh > 0 then
         for _ = 1, fresh do
-          Sales.Record(char, g.outcome, g.name, g.money, now, TaxTheFoolsDB.items, Mail.Deposit)
+          local e = Sales.Record(char, g.outcome, g.name, g.money, now, TaxTheFoolsDB.items, Mail.Deposit)
+          A.Core.Safe("ledger", A.LedgerHooks.Mail, char, e, g.name)
         end
         seen[key] = { at = now, n = done + fresh }
       elseif done > seenCount(seen, key) then

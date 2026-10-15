@@ -21,6 +21,7 @@ ledger.lua
 mail.lua
 mailrules.lua
 mailbox.lua
+ledger_hooks.lua
 db.lua
 items.lua
 inventory.lua

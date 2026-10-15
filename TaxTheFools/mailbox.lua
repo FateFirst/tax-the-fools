@@ -280,6 +280,7 @@ local function collectStep(b, now)
         else
           -- a take that vanished the mail still landed: its gold is the header's from before the call
           if cur.action == "money" then
+            A.Core.Safe("ledger", A.LedgerHooks.Take, cur)
             b.gold = b.gold + cur.money
             Mailbox.collected = Mailbox.collected + cur.money
           end
@@ -324,7 +325,8 @@ local function collectStep(b, now)
       else
         b.tries = b.tries + 1
         setStatus(progressText(b, "Collecting"), "text")
-        b.cur = { idx = i, sig = h.sig, n = n, money = h.money, action = h.money > 0 and "money" or "item" }
+        b.cur = { idx = i, sig = h.sig, n = n, money = h.money, sender = h.sender,
+                  subject = h.subject, action = h.money > 0 and "money" or "item" }
         waitFor(b)
         b.skipCur = false   -- a unique-item error from before this take must not skip this mail
         -- A mail is read before anything is taken from it, as Blizzard's mailbox and TurtleMail do: the
@@ -432,12 +434,15 @@ local function sendStep(b)
     if not name then return finish(b) end
   end
   -- every mail sets its money, so a failed send's money is never carried into this one
+  b.mailMoney = 0
   if not b.moneySet then
     b.moneySet = true
+    b.mailMoney = b.money
     SetSendMailMoney(b.money)
   else
     SetSendMailMoney(0)
   end
+  b.postage = GetSendMailPrice and GetSendMailPrice() or 0
   local subject = b.subject
   if subject == "" and name then subject = A.MailRules.Subject(name, a.count) end
   if subject == "" then subject = b.money > 0 and "Money" or "(no subject)" end
@@ -463,6 +468,7 @@ function Mailbox.Tick(now)
     if b.evt then
       b.waiting, b.evt = false, false
       b.sent = b.sent + 1
+      A.Core.Safe("ledger", A.LedgerHooks.Sent, b)
       if Mailbox.progress then Mailbox.progress.done = b.sent end
     elseif now - b.at >= Mailbox.TIMEOUT then
       return finish(b, "No reply from the mailbox", "bad")

@@ -83,6 +83,18 @@ local function place(kind, index, r, amount, after, onFail)
   return true
 end
 
+-- The ledger gets each post's deposit once: the amount paid when the money change is read, else the preview
+-- (the learned figure or the client's) when it never comes or can't be believed.
+local function record(p, amount)
+  if p.recorded then return end
+  p.recorded = true
+  TaxTheFools.Core.Safe("ledger", TaxTheFools.LedgerHooks.Deposit, p, amount)
+end
+local function expire(p)
+  Auction.pending = false
+  if p then record(p, p.preview) end
+end
+
 local function clearSellSlot()
   ClearCursor()
   if GetAuctionSellItemInfo() then
@@ -111,7 +123,7 @@ function Auction.Post(bag, slot, stack, bid, buyout, minutes, key, allowBelowFlo
     if buyout < floor * stack then return refuse("That is below your floor. Tick Allow below floor to post it.") end
   end
   -- Get the stack into the sell slot, then check the deposit: the learned figure, or the client's.
-  Auction.pending = false                     -- a new post: an earlier unanswered deposit is no longer learnable
+  expire(Auction.pending)                     -- a new post: an earlier unanswered deposit is no longer learnable
   local _, _, _, _, _, _, maxStack = GetItemInfo(id)
   maxStack = maxStack or stack
   local learned = Sell.Deposit(TaxTheFoolsDB.items, id, minutes, stack, maxStack)
@@ -136,7 +148,7 @@ function Auction.Post(bag, slot, stack, bid, buyout, minutes, key, allowBelowFlo
   end
   name = name or key
   Auction.busy = { kind = "post", key = key, id = id, count = stack, bid = bid, buyout = buyout, minutes = minutes, maxStack = maxStack,
-                   before = GetMoney(), at = GetTime(), name = name, after = after or false, onFail = onFail or false }
+                   before = GetMoney(), at = GetTime(), name = name, preview = deposit, after = after or false, onFail = onFail or false }
   StartAuction(bid, buyout, minutes)
   Auction.Changed()
   return true
@@ -249,7 +261,9 @@ end
 local function learn(p)
   Auction.pending = false
   local deposit = p.before - GetMoney()
-  if deposit <= 0 or not plausible(p, deposit) then return end
+  TaxTheFools.LedgerHooks.Sync()               -- this money change is the deposit's, not a vendor's
+  if deposit <= 0 or not plausible(p, deposit) then return expire(p) end
+  record(p, deposit)
   p.entry.deposit = deposit
   if p.id then Sell.LearnDeposit(TaxTheFoolsDB.items, p.id, p.minutes, deposit, p.count, p.maxStack) end
 end
@@ -266,20 +280,22 @@ local function finish(ok, text)
   end
   if b.kind == "buy" then
     Scan.SnapshotRemove(b.sig)
+    TaxTheFools.Core.Safe("ledger", TaxTheFools.LedgerHooks.Buy, b)
     Auction.Say("Bought " .. b.name .. " x" .. b.count .. " for " .. U.money(b.amount, true) .. ".", "good")
   elseif b.kind == "post" then
     -- The deposit is what the server took: money before the post less money now. Real servers often send
     -- the money change after the chat reply: with none yet, wait (Auction.OnMoney) for the next one.
     local entry = { key = b.key, stack = b.count, bid = b.bid, buyout = b.buyout, minutes = b.minutes }
     Sell.Log(DB.Char(), entry, time())
-    local p = { id = b.id, minutes = b.minutes, count = b.count, maxStack = b.maxStack, before = b.before,
-                at = GetTime(), entry = entry }
+    local p = { id = b.id, key = b.key, minutes = b.minutes, count = b.count, maxStack = b.maxStack, before = b.before,
+                at = GetTime(), entry = entry, preview = b.preview }
     if b.before - GetMoney() > 0 then learn(p) else Auction.pending = p end
     Auction.Say("Posted " .. b.name .. " x" .. b.count .. " for " .. U.money(b.buyout, true) .. ".", "good")
   elseif b.kind == "cancel" then
     GetOwnerAuctionItems(0)
     Auction.Say("Cancelled " .. b.name .. " x" .. b.count .. ".", "good")
   else
+    TaxTheFools.Core.Safe("ledger", TaxTheFools.LedgerHooks.Bid, b)
     Auction.Say("Bid " .. U.money(b.amount, true) .. " on " .. b.name .. " x" .. b.count .. ".", "good")
   end
   if b.after then b.after(b) end
@@ -303,13 +319,13 @@ end
 function Auction.OnMoney(now)
   local p = Auction.pending
   if not p then return end
-  if now - p.at > Auction.LEARN_SECS then Auction.pending = false return end
+  if now - p.at > Auction.LEARN_SECS then return expire(p) end
   learn(p)
 end
 
 function Auction.Tick(now)
   local p = Auction.pending
-  if p and now - p.at > Auction.LEARN_SECS then Auction.pending = false end
+  if p and now - p.at > Auction.LEARN_SECS then expire(p) end
   local b = Auction.busy
   if b and now - b.at >= D.ACTION_TIMEOUT then finish(false, (b.kind == "post" or b.kind == "cancel") and Auction.NO_REPLY_ACTION or Auction.NO_REPLY) end
 end

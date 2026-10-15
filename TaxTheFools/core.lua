@@ -34,6 +34,9 @@ function Core.Init()
   Core.pruned = false
   Core.Safe("selling log", A.Sell.Prune, DB.Char(), time())
   Core.Safe("sales log", A.Sales.Prune, DB.Char(), time())
+  Core.Safe("ledger prune", A.Ledger.Prune, DB.Char(), time())
+  Core.Safe("ledger backfill", A.Ledger.Backfill, DB.Char())
+  Core.Safe("ledger", A.LedgerHooks.Sync)
   A.Inventory.bagsDirty = true      -- count the bags once at login, whichever event comes first
   Core.ready = true
   local prev = TaxTheFoolsDB.version
@@ -60,6 +63,8 @@ function Core.OnEvent(e)
   elseif e == "MERCHANT_SHOW" then
     Core.Safe("items", A.Items.LearnVendorPrices)
     Core.Safe("items", A.Items.LearnMerchantPrices)
+    Core.Safe("ledger", A.LedgerHooks.MerchantShow)
+  elseif e == "MERCHANT_CLOSED" then Core.Safe("ledger", A.LedgerHooks.MerchantClosed)
   elseif Core.INVENTORY_EVENTS[e] then
     Core.Safe("inventory", A.Inventory.OnEvent, e)
     if e == "BAG_UPDATE" then Core.Safe("mail window", A.MailUI.OnBag) end
@@ -68,6 +73,7 @@ function Core.OnEvent(e)
   elseif e == "PLAYER_MONEY" then
     Core.Safe("interface", A.UI.RefreshGold)
     Core.Safe("auction money", A.Auction.OnMoney, GetTime())
+    Core.Safe("ledger", A.LedgerHooks.OnMoney)
     Core.Safe("auction", A.Auction.Changed)
   elseif e == "AUCTION_OWNED_LIST_UPDATE" then Core.Safe("auctions", A.AuctionsUI.Read)
   elseif e == "MAIL_SHOW" or e == "MAIL_INBOX_UPDATE" then
@@ -193,7 +199,7 @@ SlashCmdList["TAXTHEFOOLS"] = function(msg) Core.Safe("command", Core.Command, m
 
 local frame = CreateFrame("Frame", "TaxTheFoolsCore")
 for _, e in ipairs({ "VARIABLES_LOADED", "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "AUCTION_ITEM_LIST_UPDATE",
-                     "MERCHANT_SHOW", "PLAYER_MONEY", "BAG_UPDATE", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
+                     "MERCHANT_SHOW", "MERCHANT_CLOSED", "PLAYER_MONEY", "BAG_UPDATE", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
                      "PLAYERBANKSLOTS_CHANGED", "PLAYER_ENTERING_WORLD", "TRADE_SKILL_SHOW", "TRADE_SKILL_UPDATE",
                      "TRADE_SKILL_CLOSE", "CHAT_MSG_SYSTEM", "UI_ERROR_MESSAGE", "AUCTION_OWNED_LIST_UPDATE",
                      "MAIL_SHOW", "MAIL_INBOX_UPDATE", "MAIL_SEND_SUCCESS", "MAIL_CLOSED", "TRAINER_SHOW", "TRAINER_UPDATE" }) do
