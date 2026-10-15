@@ -3,7 +3,7 @@ LUA := $(LUA_DIR)/bin/lua
 LUAC := $(LUA_DIR)/bin/luac
 ADDON := TaxTheFools
 
-.PHONY: test lint lua clean install media fonts
+.PHONY: test lint lua clean install media fonts recipes
 
 lua: $(LUA)
 
@@ -16,11 +16,16 @@ lint: $(LUA)
 	LUAC=$(LUAC) sh tools/lint.sh
 
 test: lint
+	python3 -m unittest tools/test_make_recipes.py
 	$(LUA) tests/run.lua $(wildcard tests/test_*.lua)
 
 # Regenerate the white-mask textures the theme tints at run time.
 media:
 	python3 tools/make-media.py
+
+# Regenerate the built-in recipe data from the pinned LibCrafts-1.0 commit.
+recipes:
+	python3 tools/make-recipes.py Tailoring --out TaxTheFools/recipedata.lua
 
 # Download the bundled fonts (OFL) and their licences.
 fonts:
