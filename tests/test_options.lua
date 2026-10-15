@@ -315,3 +315,20 @@ T.test("the keep list shows names, removes on click, and caps at eight", functio
   T.eq(kl.lines[9].text:GetText(), "+3 more")
   m.keep = {}
 end)
+
+T.test("the Ledger and trend options are bound to their settings", function()
+  local f = Opt.Create()
+  Opt.Select("ledger")
+  local c = f.pages.ledger.controls
+  T.eq(table.getn(c), 1)
+  T.eq(DB.S().ledger.vendor, true)
+  WoW.runScript(c[1], "OnClick")
+  T.eq(DB.S().ledger.vendor, false)
+  DB.S().ledger.vendor = true
+  Opt.Select("tooltip")
+  local tc = f.pages.tooltip.controls
+  T.eq(table.getn(tc), 4)
+  WoW.runScript(tc[4], "OnClick")
+  T.eq(DB.S().trend.tooltip, false)
+  DB.S().trend.tooltip = true
+end)

@@ -70,7 +70,7 @@ local function compete(id, name, count, buyout, owner)
 end
 
 T.test("Sell sits third in the tabs and Browse is still selected on open", function()
-  T.eq(UI.TABS[3].key, "sell") T.eq(UI.TABS[6].key, "craft")
+  T.eq(UI.TABS[3].key, "sell") T.eq(UI.TABS[6].key, "ledger") T.eq(UI.TABS[7].key, "craft")
   openAH()
   T.eq(UI.ah.tabs.selected, "browse")
   T.ok(UI.builders.sell)
@@ -81,7 +81,7 @@ T.test("a tab whose builder is missing is left out of the strip and ShowPage ign
   UI.builders.auctions, UI.pages.auctions = nil, nil     -- the builder and any page it built earlier
   local keys = {}
   for _, t in ipairs(UI.VisibleTabs()) do table.insert(keys, t.key) end
-  T.eq(table.concat(keys, ","), "deals,browse,sell,history,craft")
+  T.eq(table.concat(keys, ","), "deals,browse,sell,history,ledger,craft")
   openAH()
   UI.ah.tabs:Select("browse")
   T.eq(UI.ShowPage("auctions"), false)

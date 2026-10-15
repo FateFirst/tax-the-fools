@@ -79,6 +79,10 @@ Opt.CATEGORIES = {
       fmt = function(v) return v .. "%" end },
     { kind = "switch", path = { "sales", "tooltip" }, label = "Sells line in item tooltips" },
   } },
+  { key = "ledger", label = "Ledger", rows = {
+    { kind = "switch", path = { "ledger", "vendor" }, label = "Count vendor buys and sales",
+      hint = "Gold spent at and earned from vendors shows in the Ledger." },
+  } },
   { key = "selling", label = "Selling", rows = {
     { kind = "slider", path = { "sell", "bidPct" }, label = "Starting bid, % of buyout", min = 50, max = 100, step = 5,
       fmt = function(v) return v .. "%" end },
@@ -93,6 +97,7 @@ Opt.CATEGORIES = {
     { kind = "switch", path = { "tooltip", "market" }, label = "Market value" },
     { kind = "switch", path = { "tooltip", "low" }, label = "Lowest price in the latest scan" },
     { kind = "switch", path = { "tooltip", "vendor" }, label = "Vendor price" },
+    { kind = "switch", path = { "trend", "tooltip" }, label = "Price trend line" },
   } },
   { key = "appearance", label = "Appearance", rows = {
     { kind = "dropdown", key = "theme", label = "Theme", options = themes(), after = function(v) Th.Apply(v) end },

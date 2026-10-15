@@ -7,7 +7,7 @@ TaxTheFools.UI = UI
 -- A tab with no registered builder is left out of the strip until it exists.
 UI.TABS = { { key = "deals", label = "Deals" }, { key = "browse", label = "Browse" }, { key = "sell", label = "Sell" },
             { key = "auctions", label = "Auctions" }, { key = "history", label = "History" },
-            { key = "craft", label = "Crafting" } }
+            { key = "ledger", label = "Ledger" }, { key = "craft", label = "Crafting" } }
 
 function UI.VisibleTabs()
   local out = {}
