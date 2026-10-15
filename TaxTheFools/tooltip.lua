@@ -42,7 +42,8 @@ function Tip.Add(tt, link, count)
   local key, id = U.keyFromLink(link)
   if not key then return end
   I.Resolve(id)
-  TaxTheFools.RecipesLearn.FromTooltip(tt, link)
+  -- Learning must never cost the price lines: an error here is swallowed.
+  pcall(TaxTheFools.RecipesLearn.FromTooltip, tt, link)
   local lines = Tip.Lines(key, count, time())
   for _, l in ipairs(lines) do tt:AddDoubleLine(l[1], l[2], 0.78, 0.78, 0.74, 1, 1, 1) end
   if table.getn(lines) > 0 then tt:Show() end
