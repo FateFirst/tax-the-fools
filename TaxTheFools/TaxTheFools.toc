@@ -19,6 +19,7 @@ deals.lua
 snipe.lua
 sell.lua
 sales.lua
+stock.lua
 ledger.lua
 mail.lua
 mailrules.lua
