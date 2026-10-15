@@ -328,3 +328,26 @@ The trainer and vendor windows are only read. Nothing is bought from them; buy a
      each goes quiet. Turn them back on.
 135. **Your own listings.** Post an item that matches your snipe list. It never alerts and never shows as
      a Snipe deal.
+
+## Repost and Stock (phase 8)
+
+136. **The switch.** On Sell, the top left reads Bags, Repost and Stock. Pick Repost, close the window
+     and reopen it (or `/reload`): Sell opens on Repost. Bags shows the item grid as before.
+137. **Repost.** Post an item for 12h, let it expire (or cancel it), collect it from the mail so it is in
+     your bags again, then open Repost. It is listed with Have, the last price, the price now and the
+     change (green up, red down). Hover the row for the last stack and outcome.
+138. **Repost in one click per stack.** Click that row: the item is selected in the pricing panel with the
+     stack size of your last posting (when the bags hold that many; otherwise the usual default). Post
+     is still one click per stack. Nothing posts on the row click.
+139. **Empty and window.** With nothing back in the window the list says "Nothing came back from the
+     auction house in the last N days." Options > Selling > Repost list covers (1 to 30 days) changes N
+     and what is listed. An item you have since sold or moved out of the bags is not listed.
+140. **Stock.** Pick Stock: a full-width list with Item, Bags, Bank, On AH, Total, Each, Value, Sells and
+     Trend, and the strip under it "N items - X units - worth ~Yg (not counting mail)". Nothing is cut off
+     at the smallest AH window. The grid and the pricing panel are hidden.
+141. **Stock totals.** Compare a few rows with your bags, the bank (open it once per character) and My
+     auctions on each character. Items in mail are not counted; the tooltip says so. Hover a row for the
+     per-character bags, bank and on-AH counts.
+142. **Stock refresh.** With Stock open, move an item into the bank, post a stack, or finish a scan: the
+     list and totals update. Pick an item on Bags, switch to Stock and back: the pricing panel and your
+     selection are as you left them.

@@ -126,6 +126,8 @@ Opt.CATEGORIES = {
     { kind = "slider", path = { "sell", "undercut" }, label = "Undercut by", min = 1, max = 10000, step = 1,
       fmt = money,
       hint = "How much Sell takes off the cheapest rival's buyout price per item when it suggests a price. Default 1 copper." },
+    { kind = "slider", path = { "sell", "repostDays" }, label = "Repost list covers", min = 1, max = 30, step = 1, fmt = days,
+      hint = "The Repost view on Sell lists items in your bags whose auctions expired or were cancelled within this many days. Default 7 days." },
     { kind = "dropdown", path = { "sell", "duration" }, label = "Default duration", options = {
       { value = 120, label = "6h" }, { value = 480, label = "24h" }, { value = 1440, label = "72h" } },
       hint = "How long Sell lists an auction for to begin with. Longer lasts more time but costs a bigger deposit. Default 24h." },

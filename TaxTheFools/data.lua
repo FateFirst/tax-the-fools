@@ -2,7 +2,7 @@ TaxTheFools = TaxTheFools or {}
 local D = {}
 TaxTheFools.Data = D
 
-D.VERSION = "0.9.2"
+D.VERSION = "0.10.0"
 -- Bump when saved data needs a one-time migration (see db.lua MIGRATIONS).
 D.DATA_VERSION = 1
 
@@ -57,6 +57,6 @@ D.DEFAULTS = {
   recipes = {},
 }
 
-D.CHAR_DEFAULTS = { windows = {} }
+D.CHAR_DEFAULTS = { windows = {}, sellView = "bags" }
 
 D.REALM_DEFAULTS = { history = {}, market = {}, scan = {}, chars = {}, watch = {}, snipe = {} }

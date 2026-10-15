@@ -10,7 +10,8 @@ TaxTheFools.SellUI = SellUI
 -- Phase 3b spec section 4. Nothing here spends: a search is a Scan.Browse, and the one button
 -- reaches Auction.Split / Auction.Post only from its OnClick.
 
-SellUI.COLS, SellUI.ROWS, SellUI.CELL = 6, 8, 38
+SellUI.COLS, SellUI.ROWS, SellUI.CELL = 6, 7, 38
+SellUI.GY = 26             -- the Bags | Repost | Stock switch sits above the grid
 SellUI.RX = 252            -- left edge of the pricing panel
 SellUI.PW = 380            -- its width at the smallest window (660 wide, less the margins and the item grid)
 
@@ -82,6 +83,10 @@ end
 
 function SellUI.PaintGrid()
   local p = SellUI.frame
+  if p.view ~= "bags" then
+    for _, c in ipairs(p.cells) do c:Hide() end
+    return
+  end
   local per = SellUI.COLS
   local rows = math.ceil(table.getn(p.items) / per)
   local maxOff = math.max(0, rows - SellUI.ROWS)
@@ -121,6 +126,7 @@ function SellUI.Refresh()
   if p.sel then SellUI.Clamp() end
   SellUI.PaintGrid()
   SellUI.Update()
+  if TaxTheFools.StockUI then TaxTheFools.StockUI.Paint(p) end
 end
 
 -- ---------- selecting and competition ----------
@@ -446,6 +452,7 @@ function SellUI.UpdateChart()
   local p = SellUI.frame
   if not p or not p.chart then return end
   local it = p.sel
+  if p.view == "stock" then p.chart:Hide() return end
   local short = SellUI.LIST_H - SellUI.CHART_H - SellUI.CHART_GAP
   local rows = math.floor((short - 20) / p.list.rowHeight)
   if not it or rows < SellUI.LIST_MIN_ROWS then
@@ -515,6 +522,7 @@ local function label(p, text, anchor, x, y)
   local t = Th.Text(p, "body", 12, "dim")
   t:SetPoint("TOPLEFT", p, "TOPLEFT", x, y)
   t:SetText(text)
+  table.insert(p.labels, t)
   return t
 end
 
@@ -525,7 +533,7 @@ function SellUI.BuildGrid(p)
     local c = CreateFrame("Button", nil, p)
     c:SetWidth(size - 2)
     c:SetHeight(size - 2)
-    c:SetPoint("TOPLEFT", p, "TOPLEFT", math.mod(i - 1, per) * size, -math.floor((i - 1) / per) * size)
+    c:SetPoint("TOPLEFT", p, "TOPLEFT", math.mod(i - 1, per) * size, -SellUI.GY - math.floor((i - 1) / per) * size)
     c.bg = Th.Solid(c, "BACKGROUND", "strip")
     c.bg:SetAllPoints(c)
     c.icon = c:CreateTexture(nil, "ARTWORK")
@@ -560,6 +568,7 @@ function SellUI.Build(parent)
   SellUI.frame = p
   p.items, p.gridOffset, p.sel, p.listings = {}, 0, false, {}
   p.searchKey, p.updating, p.splitting = false, false, false
+  p.view, p.labels = "bags", {}
   st.buyout, st.bid, st.source, p.bidEdited = nil, nil, nil, false
   p.stackSize, p.nStacks, p.posted, p.minutes, p.allowBelow = 1, 1, 0, 480, false
   SellUI.BuildGrid(p)
@@ -632,6 +641,7 @@ function SellUI.Build(parent)
   p.Layout = function(self) SellUI.UpdateChart() self.list:Paint() end
   Scan.OnChange(function() SellUI.OnScan() end)
   Auction.OnChange(function() if p:IsVisible() then SellUI.Update() end end)
+  if TaxTheFools.StockUI then TaxTheFools.StockUI.Build(p) end
   SellUI.Refresh()
   return p
 end
