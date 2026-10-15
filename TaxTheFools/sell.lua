@@ -110,18 +110,26 @@ function Sell.Log(char, entry, now)
   while table.getn(char.postings) > Sell.LOG_MAX do table.remove(char.postings, 1) end
 end
 
--- items[id].dep = { [minutes] = per-unit deposit } as learned from money lost on a post.
-function Sell.LearnDeposit(items, id, minutes, perUnit)
+-- Turtle's stack surcharge: a part stack costs more per unit than a full one (parent spec section 7).
+local function surcharge(stack, maxStack)
+  if not maxStack or maxStack < stack then maxStack = stack end
+  return 1 + (maxStack - stack) * 0.05
+end
+
+-- items[id].dep = { [minutes] = base }: the deposit per unit of a stack with no surcharge, learned from
+-- the money a post of `count` units (stack limit maxStack) took. Stack-size independent, so a full stack
+-- predicts a single and the reverse.
+function Sell.LearnDeposit(items, id, minutes, deposit, count, maxStack)
   items[id] = items[id] or {}
   local rec = items[id]
   rec.dep = rec.dep or {}
-  rec.dep[minutes] = perUnit
+  rec.dep[minutes] = deposit / (count * surcharge(count, maxStack))
 end
 
--- The learned deposit for a stack, or nil when none is known for this item and duration.
-function Sell.Deposit(items, id, minutes, stack)
+-- The learned deposit for a stack, rounded down, or nil when none is known for this item and duration.
+function Sell.Deposit(items, id, minutes, stack, maxStack)
   local rec = items and items[id]
-  local per = rec and rec.dep and rec.dep[minutes]
-  if not per then return nil end
-  return math.floor(per * stack + 0.5)
+  local base = rec and rec.dep and rec.dep[minutes]
+  if not base then return nil end
+  return math.floor(base * stack * surcharge(stack, maxStack) + 1e-6)
 end

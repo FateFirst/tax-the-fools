@@ -1,6 +1,6 @@
 TaxTheFools = TaxTheFools or {}
 local U, D, DB, Scan, Sell = TaxTheFools.Util, TaxTheFools.Data, TaxTheFools.DB, TaxTheFools.Scan, TaxTheFools.Sell
-local Auction = { busy = false, note = false, listeners = {} }
+local Auction = { busy = false, note = false, pending = false, listeners = {} }
 TaxTheFools.Auction = Auction
 
 -- PlaceAuctionBid is called in exactly one place, place() below, and only from
@@ -15,9 +15,10 @@ TaxTheFools.Auction = Auction
 Auction.FAILURES = { "ERR_NOT_ENOUGH_MONEY", "ERR_ITEM_NOT_FOUND", "ERR_AUCTION_HIGHER_BID", "ERR_AUCTION_BID_OWN",
                      "ERR_AUCTION_DATABASE_ERROR", "ERR_AUCTION_RESTRICTED_ACCOUNT",
                      "ERR_AUCTION_LIMITED_DURATION_ITEM", "ERR_AUCTION_REPAIR_ITEM", "ERR_AUCTION_USED_CHARGES" }
+Auction.LEARN_SECS = 3
 Auction.NO_REPLY = "No reply from the auction house. Search again to see whether it went through."
 
-function Auction.ResetState() Auction.busy, Auction.note = false, false end
+function Auction.ResetState() Auction.busy, Auction.note, Auction.pending = false, false, false end
 
 function Auction.OnChange(fn) table.insert(Auction.listeners, fn) end
 function Auction.Changed() for _, fn in ipairs(Auction.listeners) do fn() end end
@@ -109,7 +110,10 @@ function Auction.Post(bag, slot, stack, bid, buyout, minutes, key, allowBelowFlo
     if buyout < floor * stack then return refuse("That is below your floor. Tick Allow below floor to post it.") end
   end
   -- Get the stack into the sell slot, then check the deposit: the learned figure, or the client's.
-  local learned = Sell.Deposit(TaxTheFoolsDB.items, id, minutes, stack)
+  Auction.pending = false                     -- a new post: an earlier unanswered deposit is no longer learnable
+  local _, _, _, _, _, _, maxStack = GetItemInfo(id)
+  maxStack = maxStack or stack
+  local learned = Sell.Deposit(TaxTheFoolsDB.items, id, minutes, stack, maxStack)
   if learned and learned > GetMoney() then
     return refuse("You can't afford the deposit of " .. U.money(learned, true) .. ".")
   end
@@ -130,7 +134,7 @@ function Auction.Post(bag, slot, stack, bid, buyout, minutes, key, allowBelowFlo
     return refuse("You can't afford the deposit of " .. U.money(deposit, true) .. ".")
   end
   name = name or key
-  Auction.busy = { kind = "post", key = key, id = id, count = stack, bid = bid, buyout = buyout, minutes = minutes,
+  Auction.busy = { kind = "post", key = key, id = id, count = stack, bid = bid, buyout = buyout, minutes = minutes, maxStack = maxStack,
                    before = GetMoney(), at = GetTime(), name = name, after = after or false, onFail = onFail or false }
   StartAuction(bid, buyout, minutes)
   Auction.Changed()
@@ -224,6 +228,26 @@ function Auction.Bid(index, sig, after)
   return place("bid", index, r, amount, after)
 end
 
+-- A deposit is believed when it is within 0.25x - 4x of Turtle's formula for the stack (parent spec
+-- section 7); with no vendor price there is nothing to compare with.
+local function plausible(p, deposit)
+  local vendor = p.id and TaxTheFools.Items and TaxTheFools.Items.Vendor(p.id)
+  if not vendor then return true end
+  local est = TaxTheFools.Craft.Deposit(vendor, p.maxStack, p.count, p.minutes, 1)
+  if est <= 0 then return true end
+  return deposit >= est * 0.25 and deposit <= est * 4
+end
+
+-- Reads the deposit off the money lost since the post: fills in the log entry and teaches Sell.Deposit.
+-- Out of band, it stays unknown (nil) and nothing is learned.
+local function learn(p)
+  Auction.pending = false
+  local deposit = p.before - GetMoney()
+  if deposit <= 0 or not plausible(p, deposit) then return end
+  p.entry.deposit = deposit
+  if p.id then Sell.LearnDeposit(TaxTheFoolsDB.items, p.id, p.minutes, deposit, p.count, p.maxStack) end
+end
+
 local function finish(ok, text)
   local b = Auction.busy
   Auction.busy = false
@@ -238,12 +262,13 @@ local function finish(ok, text)
     Scan.SnapshotRemove(b.sig)
     Auction.Say("Bought " .. b.name .. " x" .. b.count .. " for " .. U.money(b.amount, true) .. ".", "good")
   elseif b.kind == "post" then
-    -- The deposit is what the server took: money before the post less money now.
-    local deposit = b.before - GetMoney()
-    if deposit <= 0 then deposit = nil end
-    Sell.Log(DB.Char(), { key = b.key, stack = b.count, bid = b.bid, buyout = b.buyout, minutes = b.minutes,
-                          deposit = deposit }, time())
-    if deposit and b.id then Sell.LearnDeposit(TaxTheFoolsDB.items, b.id, b.minutes, deposit / b.count) end
+    -- The deposit is what the server took: money before the post less money now. Real servers often send
+    -- the money change after the chat reply: with none yet, wait (Auction.OnMoney) for the next one.
+    local entry = { key = b.key, stack = b.count, bid = b.bid, buyout = b.buyout, minutes = b.minutes }
+    Sell.Log(DB.Char(), entry, time())
+    local p = { id = b.id, minutes = b.minutes, count = b.count, maxStack = b.maxStack, before = b.before,
+                at = GetTime(), entry = entry }
+    if b.before - GetMoney() > 0 then learn(p) else Auction.pending = p end
     Auction.Say("Posted " .. b.name .. " x" .. b.count .. " for " .. U.money(b.buyout, true) .. ".", "good")
   elseif b.kind == "cancel" then
     GetOwnerAuctionItems(0)
@@ -267,7 +292,18 @@ function Auction.OnMessage(msg)
   end
 end
 
+-- PLAYER_MONEY (through Core.Safe): the first money change within Auction.LEARN_SECS of a post's reply
+-- is that post's deposit.
+function Auction.OnMoney(now)
+  local p = Auction.pending
+  if not p then return end
+  if now - p.at > Auction.LEARN_SECS then Auction.pending = false return end
+  learn(p)
+end
+
 function Auction.Tick(now)
+  local p = Auction.pending
+  if p and now - p.at > Auction.LEARN_SECS then Auction.pending = false end
   local b = Auction.busy
   if b and now - b.at >= D.ACTION_TIMEOUT then finish(false, Auction.NO_REPLY) end
 end

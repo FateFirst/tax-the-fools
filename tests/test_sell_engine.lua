@@ -95,9 +95,10 @@ T.test("Post makes the exact call sequence, logs the posting and learns the depo
   local e = DB.Char().postings[1]
   T.eq(e.key, "14047:0") T.eq(e.stack, 20) T.eq(e.bid, 72000) T.eq(e.buyout, 80000) T.eq(e.minutes, 480)
   T.eq(e.deposit, 720) T.eq(e.at, WoW.now)
-  -- 720 / 20 = 36 per unit, learned
-  T.eq(Sell.Deposit(TaxTheFoolsDB.items, 14047, 480, 20), 720)
-  T.eq(Sell.Deposit(TaxTheFoolsDB.items, 14047, 480, 5), 180)
+  -- 720 / (20 x (1 + (20-20) x 0.05)) = 36 per unit base, learned. A full stack predicts 720; a stack of 5 is
+  -- 36 x 5 x (1 + (20-5) x 0.05) = 180 x 1.75 = 315 (the old linear model said 180).
+  T.eq(Sell.Deposit(TaxTheFoolsDB.items, 14047, 480, 20, 20), 720)
+  T.eq(Sell.Deposit(TaxTheFoolsDB.items, 14047, 480, 5, 20), 315)
   T.ok(T.calledWith("Posted Runecloth x20"))
 end)
 
@@ -180,7 +181,7 @@ end)
 
 T.test("a learned deposit is what affordability uses", function()
   stock() WoW.money = 800
-  Sell.LearnDeposit(TaxTheFoolsDB.items, 14047, 480, 36)   -- 36 x 20 = 720
+  Sell.LearnDeposit(TaxTheFoolsDB.items, 14047, 480, 720, 20, 20)   -- 720 / 20 = 36 per unit; a full stack 720
   T.eq(Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true), true, "800 >= 720 although the client says 1200")
 end)
 
@@ -482,9 +483,87 @@ T.test("Split skips quivers and soul bags", function()
   T.ok(T.calledWith("PickupContainerItem 1 1"), "a plain Bag is general")
 end)
 
+-- Review I2: real servers often send the money change after the chat reply.
+local function lateMoney() WoW.ah.moneyLate = true end
+
+T.test("money arriving after the reply still teaches the deposit (Review I2)", function()
+  stock() WoW.money = 100000
+  TaxTheFoolsDB.items[14047] = { v = 100 }
+  lateMoney()
+  Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  WoW.postRespond()                                      -- the reply; the money has not moved
+  T.eq(Auction.busy, false)
+  T.eq(WoW.money, 100000)
+  T.eq(DB.Char().postings[1].deposit, nil, "unknown at the reply")
+  WoW.clock = WoW.clock + 1.5
+  WoW.moneyArrive()                                      -- 1200 x 0.6 = 720 leaves, PLAYER_MONEY fires
+  T.eq(WoW.money, 100000 - 720)
+  -- 720 against the estimate floor(100 x 20 x 4 x 1 x 0.025) = 200: 3.6x, inside 0.25x - 4x (50 - 800).
+  T.eq(DB.Char().postings[1].deposit, 720, "the log entry is filled in")
+  T.eq(Sell.Deposit(TaxTheFoolsDB.items, 14047, 480, 20, 20), 720)
+  -- a second money event teaches nothing more
+  WoW.money = WoW.money - 5000
+  WoW.fire("PLAYER_MONEY")
+  T.eq(Sell.Deposit(TaxTheFoolsDB.items, 14047, 480, 20, 20), 720)
+end)
+
+T.test("a late money change after 3 seconds teaches nothing (Review I2)", function()
+  stock() WoW.money = 100000
+  lateMoney()
+  Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  WoW.postRespond()
+  WoW.clock = WoW.clock + 3.1
+  WoW.moneyArrive()
+  T.eq(DB.Char().postings[1].deposit, nil)
+  T.eq(TaxTheFoolsDB.items[14047] and TaxTheFoolsDB.items[14047].dep, nil)
+end)
+
+T.test("a deposit outside 0.25x - 4x of the estimate is not learned (Review I2)", function()
+  TaxTheFoolsDB.items[14047] = { v = 100 }
+  -- estimate 200 for 20 x 480: the band is 50 to 800. The fake server charges 1200 x factor.
+  for _, c in ipairs({ { 0.01, "12 is under 50" }, { 1, "1200 is over 800" } }) do
+    stock() WoW.money = 100000
+    WoW.ah.depositFactor = c[1]
+    WoW.ah.moneyLate = true
+    Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+    WoW.postRespond()
+    WoW.moneyArrive()
+    T.eq(DB.Char().postings[table.getn(DB.Char().postings)].deposit, nil, c[2] .. ": logged as nil (late)")
+    T.eq(TaxTheFoolsDB.items[14047].dep, nil, c[2] .. ": not learned (late)")
+    -- and money before the reply
+    stock() WoW.money = 100000
+    WoW.ah.moneyLate = false
+    Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+    WoW.postRespond()
+    T.eq(DB.Char().postings[table.getn(DB.Char().postings)].deposit, nil, c[2] .. ": logged as nil (early)")
+    T.eq(TaxTheFoolsDB.items[14047].dep, nil, c[2] .. ": not learned (early)")
+  end
+end)
+
+T.test("a stack learned full predicts a single correctly (Review I2)", function()
+  stock() WoW.money = 100000
+  Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  WoW.postRespond()                                      -- 720 for a full stack of 20 (max 20)
+  -- base 720 / (20 x 1) = 36; one unit: 36 x 1 x (1 + (20-1) x 0.05) = 36 x 1.95 = 70.2 -> 70
+  T.eq(Sell.Deposit(TaxTheFoolsDB.items, 14047, 480, 1, 20), 70)
+end)
+
+T.test("starting another post drops a pending learn (Review I2)", function()
+  stock() WoW.money = 100000
+  lateMoney()
+  Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  WoW.postRespond()
+  stock() WoW.ah.moneyLate = false
+  Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  WoW.postRespond()
+  WoW.fire("PLAYER_MONEY")
+  T.eq(DB.Char().postings[1].deposit, nil, "the first post's entry is not given the second one's money")
+  T.eq(DB.Char().postings[2].deposit, 720)
+end)
+
 T.test("a learned deposit that can't be paid refuses before any pickup", function()
   stock() WoW.money = 719
-  Sell.LearnDeposit(TaxTheFoolsDB.items, 14047, 480, 36)   -- 720
+  Sell.LearnDeposit(TaxTheFoolsDB.items, 14047, 480, 720, 20, 20)   -- 720
   T.eq(Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true), false)
   T.eq(T.count("PickupContainerItem") + T.count("ClearCursor") + T.count("StartAuction"), 0)
 end)

@@ -62,6 +62,7 @@ function Core.OnEvent(e)
     Core.Safe("tradeskill", A.TradeSkill.OnEvent, e, GetTime())
   elseif e == "PLAYER_MONEY" then
     Core.Safe("interface", A.UI.RefreshGold)
+    Core.Safe("auction money", A.Auction.OnMoney, GetTime())
     Core.Safe("auction", A.Auction.Changed)
   elseif e == "AUCTION_OWNED_LIST_UPDATE" then Core.Safe("auctions", A.AuctionsUI.Read)
   elseif e == "CHAT_MSG_SYSTEM" or e == "UI_ERROR_MESSAGE" then Core.Safe("auction", A.Auction.OnMessage, arg1)

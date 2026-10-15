@@ -315,7 +315,7 @@ end
 function SellUI.Deposit()
   local p = SellUI.frame
   local item = p.sel
-  local learned = Sell.Deposit(TaxTheFoolsDB.items, item.id, p.minutes, p.stackSize)
+  local learned = Sell.Deposit(TaxTheFoolsDB.items, item.id, p.minutes, p.stackSize, item.maxStack)
   if learned then return learned, false end
   local v = I.Vendor(item.id)
   if v then return TaxTheFools.Craft.Deposit(v, item.maxStack, p.stackSize, p.minutes, 1), true end

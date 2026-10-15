@@ -221,7 +221,7 @@ function WoW.reset()
              bids = {}, bidReply = "auto",
              owned = {}, ownerPending = false, posts = {}, postReply = "auto", cancels = {}, cancelReply = "auto",
              depositFactor = 0.6 }
-  WoW.cursor, WoW.sellSlot = nil, nil
+  WoW.cursor, WoW.sellSlot, WoW.lateDeposit = nil, nil, nil
   WoW.classicAPI(false)
   if AuctionFrame then AuctionFrame.shown = false end
   if TradeSkillFrame then TradeSkillFrame.shown = false end
@@ -565,15 +565,24 @@ function WoW.postRespond()
   local s = p.slot
   local deposit = math.floor(((s.item.vendor or 0) * s.count * 0.15 * p.minutes / 120) * WoW.ah.depositFactor)
   if deposit > WoW.money then return fail(ERR_NOT_ENOUGH_MONEY) end
-  WoW.money = WoW.money - deposit
+  -- WoW.ah.moneyLate: the server's PLAYER_MONEY arrives after the chat reply (WoW.moneyArrive()), as it
+  -- often does on the real client.
+  if WoW.ah.moneyLate then WoW.lateDeposit = deposit else WoW.money = WoW.money - deposit end
   -- the stack leaves the bag; the auction joins the server's listings
   WoW.bags[s.bag][s.slot] = {}
   WoW.sellSlot = nil
   table.insert(WoW.ah.listings, { id = s.item.id, name = s.item.name, count = s.count, buyout = p.buyout,
     minBid = p.bid, owner = WoW.player, quality = s.item.quality, tex = s.item.tex })
-  WoW.fire("PLAYER_MONEY")
+  if not WoW.ah.moneyLate then WoW.fire("PLAYER_MONEY") end
   WoW.fire("CHAT_MSG_SYSTEM", ERR_AUCTION_STARTED)
   WoW.fire("BAG_UPDATE")
+end
+function WoW.moneyArrive()
+  local d = WoW.lateDeposit
+  if not d then error("no late deposit") end
+  WoW.lateDeposit = nil
+  WoW.money = WoW.money - d
+  WoW.fire("PLAYER_MONEY")
 end
 -- GetOwnerAuctionItems(page) asks for your auctions; WoW.ownerRespond() answers with
 -- AUCTION_OWNED_LIST_UPDATE (the page the client then shows is a copy, stale until asked again).

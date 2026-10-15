@@ -169,19 +169,25 @@ T.test("log prunes entries older than 35 days", function()
   S.Prune({}, now)                                    -- no log: nothing to do
 end)
 
-T.test("learned deposits are per item and duration, per unit", function()
+T.test("learned deposits are a stack-size-independent base per item and duration (Review I2)", function()
   local items = {}
-  T.eq(S.Deposit(items, 100, 480, 5), nil, "nothing learned")
-  -- 20 units cost 30 copper to post: 1.5 each. A stack of 5 then costs 7.5 -> 8.
-  S.LearnDeposit(items, 100, 480, 30 / 20)
+  T.eq(S.Deposit(items, 100, 480, 5, 20), nil, "nothing learned")
+  -- 20 units (a full stack, max 20) cost 30 copper: base = 30 / (20 x (1 + (20-20) x 0.05)) = 30 / 20 = 1.5 per unit.
+  S.LearnDeposit(items, 100, 480, 30, 20, 20)
   T.eq(items[100].dep[480], 1.5)
-  T.eq(S.Deposit(items, 100, 480, 20), 30)
+  T.eq(S.Deposit(items, 100, 480, 20, 20), 30)
+  -- a stack of 5 costs more per unit: 1.5 x 5 x (1 + (20-5) x 0.05) = 7.5 x 1.75 = 13.125 -> 13 (rounded down).
+  -- (The old linear model said 7.5 -> 8, which undercharged small stacks.)
+  T.eq(S.Deposit(items, 100, 480, 5, 20), 13)
+  T.eq(S.Deposit(items, 100, 1440, 5, 20), nil, "another duration is unknown")
+  T.eq(S.Deposit(items, 101, 480, 5, 20), nil, "another item is unknown")
+  -- learned from a stack of 5 instead: 14 copper -> base = 14 / (5 x 1.75) = 1.6; a full stack then 1.6 x 20 x 1 = 32.
+  S.LearnDeposit(items, 100, 480, 14, 5, 20)
+  T.eq(S.Deposit(items, 100, 480, 20, 20), 32, "a later post replaces it")
+  T.eq(S.Deposit(items, 100, 480, 5, 20), 14, "and predicts the stack it came from")
+  -- no max stack known: the stack itself is the max, so no surcharge. 1.6 x 5 = 8.
   T.eq(S.Deposit(items, 100, 480, 5), 8)
-  T.eq(S.Deposit(items, 100, 1440, 5), nil, "another duration is unknown")
-  T.eq(S.Deposit(items, 101, 480, 5), nil, "another item is unknown")
-  S.LearnDeposit(items, 100, 480, 2)
-  T.eq(S.Deposit(items, 100, 480, 5), 10, "a later post replaces it")
   items[102] = { n = "Name" }
-  S.LearnDeposit(items, 102, 120, 1)
+  S.LearnDeposit(items, 102, 120, 1, 1, 1)
   T.eq(items[102].n, "Name", "other fields are kept")
 end)

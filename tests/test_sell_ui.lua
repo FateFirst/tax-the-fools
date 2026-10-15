@@ -200,7 +200,8 @@ T.test("deposit, after-cut and the post button read from the chosen stack and du
   T.eq(p.depositText:GetText(), "Deposit approx " .. A.Util.money(est, true))
   T.eq(UI.ShowPage("sell"), true)
   -- learned deposit wins
-  A.Sell.LearnDeposit(TaxTheFoolsDB.items, 14047, 480, 4)
+  -- 40 copper for a stack of 10 (max 20): base = 40 / (10 x (1 + 10 x 0.05)) = 40 / 15 = 2.667; predicts 40 again.
+  A.Sell.LearnDeposit(TaxTheFoolsDB.items, 14047, 480, 40, 10, 20)
   p:Refresh()
   T.eq(p.depositText:GetText(), "Deposit " .. A.Util.money(40, true))
   T.eq(p.netText:GetText(), "You receive " .. A.Util.money(1000 * 10 * 0.95 - 40, true))
