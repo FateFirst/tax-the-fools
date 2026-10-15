@@ -265,7 +265,7 @@ function CraftUI.UnlearnedDetail(row, today, staleDays)
   local head
   local token = "text"
   if type(pb) == "number" and pb > 0 then
-    head = "Pays back after " .. pb .. " crafts at " .. U.money(row.profit, true) .. " each"
+    head = "Pays back after " .. pb .. (pb == 1 and " craft" or " crafts") .. " at +" .. U.money(row.profit, true) .. " each"
     token = "good"
   elseif pb == 0 then
     head = "Free to learn" .. (row.profit and (", " .. U.money(row.profit, true) .. " each craft") or "")

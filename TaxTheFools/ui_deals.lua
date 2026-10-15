@@ -165,8 +165,13 @@ function DealsUI.Paint()
   local ctx = TS.Context()
   local deals = Deals.Find(snap, ctx, DB.S().deals, DB.charName)
   for _, u in ipairs(Deals.FindUnder(snap, ctx, DB.S().deals, DealsUI.UnderSource(ctx))) do table.insert(deals, u) end
+  -- A pattern that is already a market or vendor deal is listed once, under that type.
+  local listed = {}
+  for _, d in ipairs(deals) do listed[d.key .. "|" .. (d.count or 0) .. "|" .. (d.buyout or 0) .. "|" .. (d.owner or "")] = true end
   for _, r in ipairs(Deals.FindRecipes(snap, ctx, DB.S().deals, DB.charName, DealsUI.RecipeSource())) do
-    table.insert(deals, r)
+    if not listed[r.key .. "|" .. (r.count or 0) .. "|" .. (r.buyout or 0) .. "|" .. (r.owner or "")] then
+      table.insert(deals, r)
+    end
   end
   table.sort(deals, function(a, b)
     if a.profit ~= b.profit then return a.profit > b.profit end

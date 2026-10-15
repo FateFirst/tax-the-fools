@@ -440,6 +440,19 @@ T.test("a pattern that pays back shows as a Recipe row with its payback text", f
   A.RecipeData = savedData
 end)
 
+T.test("a pattern that is also a market deal is listed once, as the market deal", function()
+  seedRecipe()
+  DB.Realm().market["600:0"] = { v = 20000, conf = 0.9, n = 5 }
+  local p = page()
+  local n, kinds = 0, ""
+  for _, d in ipairs(p.list.data) do
+    if d.key == "600:0" then n = n + 1 kinds = kinds .. d.type end
+  end
+  T.eq(n, 1) T.ok(kinds ~= "recipe", "kept the market/vendor deal, got " .. kinds)
+  DB.Realm().market["600:0"] = nil
+  A.RecipeData = savedData
+end)
+
 T.test("the Deals rail has the Recipe switch and no payback slider; it drives the list", function()
   seedRecipe()
   local p = page()

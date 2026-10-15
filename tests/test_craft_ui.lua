@@ -247,7 +247,7 @@ T.test("Not learned: the Learnable soon filter, sort and selection detail", func
     T.eq(p.ulist.data[1].name, "Dud Hat")
     WoW.runScript(p.ulist.rows[2], "OnClick", "LeftButton") -- Silk Cape
     local d = p.detail.lines
-    T.eq(d[1]:GetText(), "Silk Cape: Pays back after 2 crafts at 32s each")
+    T.eq(d[1]:GetText(), "Silk Cape: Pays back after 2 crafts at +32s each")
     T.eq(d[2]:GetText(), "Source: vendor   Pattern: Pattern: Silk Cape")
     T.ok(string.find(d[3]:GetText(), "2 x Silk Cloth", 1, true), d[3]:GetText())
   end)
