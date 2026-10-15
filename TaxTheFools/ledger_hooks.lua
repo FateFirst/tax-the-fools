@@ -22,7 +22,10 @@ function Hooks.IsAlt(name)
 end
 
 -- b: the finished auction.lua busy record of a buy or bid.
-function Hooks.Buy(b) add("buy", b.amount, b.key, b.count) end
+function Hooks.Buy(b)
+  add("buy", b.amount, b.key, b.count)
+  A.Ledger.PendingBuy(A.DB.Char(), b.name, time())
+end
 function Hooks.Bid(b) A.Ledger.PendingBid(A.DB.Char(), b.name, b.amount, time(), b.key) end
 
 -- p: the post record { key, count, at }; amount: the deposit paid.
@@ -34,14 +37,14 @@ function Hooks.Mail(char, e, name)
   if e.outcome == "sold" then
     L.Add(char, { kind = "sale", amount = e.money, key = e.key, qty = e.qty, at = e.at }, e.at)
   elseif e.outcome == "won" then L.BidWon(char, name, e.at)
-  elseif e.outcome == "outbid" then L.BidLost(char, name) end
+  elseif e.outcome == "outbid" then L.BidLost(char, name, e.money) end
 end
 
 -- cur: the mailbox's step { sender, subject, money } from before a confirmed TakeInboxMoney.
 -- AH mail is covered by its sale entry.
 function Hooks.Take(cur)
   local s = cur.sender
-  if (s and string.find(s, "Auction House", 1, true)) or A.Sales.Classify(cur.subject) then return end
+  if A.Mailbox.IsAH(s, cur.subject) then return end
   add(Hooks.IsAlt(s) and "transferIn" or "mailIn", cur.money, nil, nil, s)
 end
 

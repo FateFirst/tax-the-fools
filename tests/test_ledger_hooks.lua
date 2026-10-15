@@ -91,6 +91,46 @@ T.test("a bid is pending, then a won mail makes the bid entry; an outbid mail re
   T.eq(kinds(), "bid:3000", "no spending for an outbid")
 end)
 
+T.test("a buyout's won mail adds no bid, even with a pending bid on the same name", function()
+  fresh()
+  WoW.money = 20000
+  TaxTheFoolsDB.items[14047] = { n = "Runecloth" }
+  A.Ledger.PendingBid(DB.Char(), "Runecloth", 300, WoW.now, "14047:0")
+  page({ { id = 14047, name = "Runecloth", count = 20, buyout = 4000, owner = "Sel" } })
+  Auction.Buy(1, sig(1))
+  WoW.bidRespond()
+  T.eq(kinds(), "buy:4000")
+  WoW.mail = { { subject = "Auction won: Runecloth", money = 0, daysLeft = 29.5, hasItem = 1 } }
+  WoW.now = WoW.now + 1800
+  WoW.fire("MAIL_SHOW") frame()
+  T.eq(kinds(), "buy:4000", "no extra spend")
+  T.eq(table.getn(DB.Char().pendingBids), 1, "the live bid survives")
+  T.eq(table.getn(DB.Char().pendingBuys), 0, "the marker is used up")
+end)
+
+T.test("outbid then rebid before the mail: the new bid survives", function()
+  fresh()
+  TaxTheFoolsDB.items[14047] = { n = "Runecloth" }
+  A.Ledger.PendingBid(DB.Char(), "Runecloth", 300, WoW.now, "14047:0")
+  A.Ledger.PendingBid(DB.Char(), "Runecloth", 400, WoW.now + 5, "14047:0")
+  WoW.mail = { { subject = "Outbid on Runecloth", money = 300, daysLeft = 29.5 } }
+  WoW.now = WoW.now + 1800
+  WoW.fire("MAIL_SHOW") frame()
+  T.eq(table.getn(DB.Char().pendingBids), 1)
+  T.eq(DB.Char().pendingBids[1].amount, 400)
+end)
+
+T.test("the merchant flag clears when the auction house, mailbox or a new zone opens", function()
+  for _, e in ipairs({ "AUCTION_HOUSE_SHOW", "MAIL_SHOW", "PLAYER_ENTERING_WORLD" }) do
+    fresh()
+    WoW.money = 1000 WoW.fire("PLAYER_MONEY")
+    WoW.fire("MERCHANT_SHOW")
+    WoW.fire(e)
+    WoW.money = 1500 WoW.fire("PLAYER_MONEY")
+    T.eq(table.getn(led()), 0, e)
+  end
+end)
+
 T.test("a post's deposit is the money actually paid", function()
   fresh() stock() WoW.money = 100000
   Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)

@@ -139,10 +139,36 @@ function Ledger.PendingBid(char, name, amount, now, key)
   table.insert(char.pendingBids, { name = name, amount = amount, at = now, key = key })
 end
 
--- The newest pending bid for this name becomes a bid entry. Returns the entry, or nil.
+-- A buyout (not a bid) also sends an "Auction won" mail; the buy entry already counted it, so the marker
+-- lets BidWon swallow that mail. Markers expire like bids.
+function Ledger.PendingBuy(char, name, now)
+  if not char or not name then return end
+  now = now or time()
+  local kept = {}
+  local cutoff = now - Ledger.BID_DAYS * 86400
+  for _, b in ipairs(char.pendingBuys or {}) do
+    if b.at >= cutoff then table.insert(kept, b) end
+  end
+  table.insert(kept, { name = name, at = now })
+  char.pendingBuys = kept
+end
+
+local function takeBuy(char, name, now)
+  local buys = char.pendingBuys
+  if not buys then return false end
+  local cutoff = now - Ledger.BID_DAYS * 86400
+  for i = table.getn(buys), 1, -1 do
+    if buys[i].name == name and buys[i].at >= cutoff then table.remove(buys, i) return true end
+  end
+  return false
+end
+
+-- A won mail first consumes the newest buy marker for the name (no entry: the buy is already counted);
+-- otherwise the newest pending bid for the name becomes a bid entry. Returns the entry, or nil.
 function Ledger.BidWon(char, name, now)
   if not char then return nil end
   now = now or time()
+  if takeBuy(char, name, now) then return nil end
   dropOldBids(char, now)
   for i = table.getn(char.pendingBids), 1, -1 do
     local b = char.pendingBids[i]
@@ -154,11 +180,18 @@ function Ledger.BidWon(char, name, now)
   return nil
 end
 
--- An outbid removes the newest pending bid for the name (no spending). Returns true when one was removed.
-function Ledger.BidLost(char, name)
+-- An outbid mail refunds the bid: it removes the pending bid for the name whose amount equals the refund
+-- (newest such), else the oldest for the name. No spending. Returns true when one was removed.
+function Ledger.BidLost(char, name, money)
   if not char or not char.pendingBids then return false end
-  for i = table.getn(char.pendingBids), 1, -1 do
-    if char.pendingBids[i].name == name then table.remove(char.pendingBids, i) return true end
+  local bids = char.pendingBids
+  if money then
+    for i = table.getn(bids), 1, -1 do
+      if bids[i].name == name and bids[i].amount == money then table.remove(bids, i) return true end
+    end
+  end
+  for i = 1, table.getn(bids) do
+    if bids[i].name == name then table.remove(bids, i) return true end
   end
   return false
 end

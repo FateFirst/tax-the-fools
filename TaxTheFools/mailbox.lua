@@ -41,7 +41,7 @@ end
 
 local function money(c) return U.money(c, true) end
 
-local function isAH(sender, subject)
+function Mailbox.IsAH(sender, subject)
   if sender and string.find(sender, "Auction House", 1, true) then return true end
   return A.Sales.Classify(subject) ~= nil
 end
@@ -372,7 +372,7 @@ function Mailbox.Return(i)
   if not i or i < 1 or i > (GetInboxNumItems() or 0) then return refuse("No such mail") end
   local h = header(i)
   if h.isGM then return refuse("Game master mail can't be touched") end
-  if isAH(h.sender, h.subject) then return refuse("Auction house mail can't be returned") end
+  if Mailbox.IsAH(h.sender, h.subject) then return refuse("Auction house mail can't be returned") end
   ReturnInboxItem(i)
   say("Returned", "text")
   return true

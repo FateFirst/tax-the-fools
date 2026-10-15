@@ -57,6 +57,10 @@ Core.INVENTORY_EVENTS = { BAG_UPDATE = true, BANKFRAME_OPENED = true, BANKFRAME_
 function Core.OnEvent(e)
   if e == "VARIABLES_LOADED" then return Core.Init() end
   if not Core.ready then return end
+  -- another window or a new zone means the merchant is gone, even if MERCHANT_CLOSED was missed
+  if e == "AUCTION_HOUSE_SHOW" or e == "MAIL_SHOW" or e == "PLAYER_ENTERING_WORLD" then
+    Core.Safe("ledger", A.LedgerHooks.MerchantClosed)
+  end
   if e == "AUCTION_HOUSE_SHOW" then Core.Safe("auction open", A.AH.OnShow)
   elseif e == "AUCTION_HOUSE_CLOSED" then Core.Safe("auction close", A.AH.OnClosed)
   elseif e == "AUCTION_ITEM_LIST_UPDATE" then Core.Safe("scan", A.Scan.OnListUpdate, GetTime())

@@ -134,6 +134,20 @@ T.test("an outbid bid never becomes spending", function()
   T.eq(L.Totals({ A = c }, 30, NOW + 5).out, 0)
 end)
 
+T.test("a buy marker swallows the won mail of a buyout; BidLost prefers the refunded amount", function()
+  local c = {}
+  L.PendingBuy(c, "Wool", NOW)
+  L.PendingBid(c, "Wool", 70, NOW + 1)
+  T.eq(L.BidWon(c, "Wool", NOW + 2), nil)
+  T.eq(table.getn(c.pendingBids), 1)
+  T.eq(L.BidWon(c, "Wool", NOW + 3).amount, 70)
+  L.PendingBid(c, "Silk", 10, NOW) L.PendingBid(c, "Silk", 20, NOW + 1)
+  T.eq(L.BidLost(c, "Silk", 10), true)
+  T.eq(c.pendingBids[1].amount, 20)
+  T.eq(L.BidLost(c, "Silk", 999), true, "no amount match: the oldest")
+  T.eq(table.getn(c.pendingBids), 0)
+end)
+
 T.test("pending bids older than 7 days are dropped", function()
   local c = {}
   L.PendingBid(c, "Linen Cloth", 100, NOW)
