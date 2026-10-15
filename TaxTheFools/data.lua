@@ -41,6 +41,7 @@ D.DEFAULTS = {
     deals = { market = true, vendor = true, mats = true, belowMarketPct = 70, minProfit = 5000, matPct = 85,
               minConfidence = 0.4 },
     buy = { confirmAbove = 50000 },        -- copper; 0 never asks
+    sell = { bidPct = 90, floorPct = 80, undercut = 1, duration = 480 },
   },
   items = {},
   realms = {},

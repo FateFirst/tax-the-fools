@@ -12,6 +12,7 @@ stats.lua
 price.lua
 craft.lua
 deals.lua
+sell.lua
 db.lua
 items.lua
 inventory.lua
