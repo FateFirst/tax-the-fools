@@ -504,3 +504,121 @@ T.test("'< Crafting' clears when the AH closes and the pager text yields to it",
   T.eq(Browse.frame.back:IsShown(), false)
   T.ok(Browse.frame.pageText:IsShown())
 end)
+
+-- ---------- shopping list ----------
+
+local function listPage()
+  seed() openAH()
+  UI.ah.tabs:Select("craft")
+  local p = UI.pages.craft
+  p.list:SetHeight(200) p.list:Paint()
+  p.shopN, p.listMode = 1, false
+  return p
+end
+
+local function texts(p)
+  local t = {}
+  for i, l in ipairs(p.detail.lines) do
+    if p.detail.btns[i]:IsShown() or l:GetText() ~= "" then t[i] = l:GetText() end
+  end
+  return t
+end
+
+T.test("the Craft box clamps 1-99 and the List toggle swaps in the shopping lines", function()
+  local p = listPage()
+  T.eq(p.craftBox:GetText(), "1")
+  T.eq(CraftUI.ReadN("0"), 1)
+  T.eq(CraftUI.ReadN("250"), 99)
+  T.eq(CraftUI.ReadN(""), nil)
+  WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")    -- Silk Headband
+  WoW.runScript(p.listBtn, "OnClick")
+  T.ok(p.listMode)
+  local t = texts(p)
+  T.eq(t[1], "Shopping for 1 x Silk Headband")
+  T.eq(t[2], "Buy 9 x Silk Cloth   ~27s (AH)", "3 held, 12 needed")
+  T.eq(t[3], "Buy 1 x Fine Thread   ~1s (vendor)")
+  T.eq(t[4], "Craft 3 x Bolt of Silk Cloth")
+  T.eq(t[5], "Total to buy: ~28s")
+  T.eq(t[6], "Counts bags and bank on all characters, not mail.")
+  T.ok(p.detail.btns[2]:IsShown(), "AH line clickable")
+  T.ok(not p.detail.btns[3]:IsShown(), "vendor line plain")
+  T.ok(p.snipeBtn:IsShown())
+  p.craftBox:SetText("2")
+  WoW.runScript(p.craftBox, "OnTextChanged")
+  T.eq(p.shopN, 2)
+  T.eq(texts(p)[1], "Shopping for 2 x Silk Headband")
+  T.eq(texts(p)[2], "Buy 21 x Silk Cloth   ~63s (AH)")
+  WoW.runScript(p.listBtn, "OnClick")
+  T.ok(not p.listMode)
+  T.ok(string.find(p.detail.lines[1]:GetText(), "Silk Headband: profit", 1, true))
+  T.ok(not p.snipeBtn:IsShown())
+end)
+
+T.test("Snipe these adds every AH line at its unit price and buys nothing", function()
+  local p = listPage()
+  WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")
+  WoW.runScript(p.listBtn, "OnClick")
+  T.eq(CraftUI.shopping.recipeName, "Silk Headband")
+  WoW.runScript(p.snipeBtn, "OnClick")
+  local e = DB.Realm().snipe["4306:0"]
+  T.eq(e.max, 300)
+  T.eq(e.name, "Silk Cloth")
+  T.eq(DB.Realm().snipe["2321:0"], nil, "vendor lines are not sniped")
+  T.eq(p.detail.status:GetText(), "Added 1 items to your snipe list")
+  noBuying()
+end)
+
+T.test("shopping line clicks search, show Next material, cycle and hide it", function()
+  local p = listPage()
+  WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")
+  WoW.runScript(p.listBtn, "OnClick")
+  CraftUI.shopping.buys = { { key = "4306:0", name = "Silk Cloth", qty = 9, unit = 300, source = "ah", total = 2700 },
+    { key = "2321:0", name = "Fine Thread", qty = 1, unit = 100, source = "vendor", total = 100 },
+    { key = "4305:0", name = "Bolt of Silk Cloth", qty = 1, unit = 2000, source = "ah", total = 2000 } }
+  WoW.runScript(p.detail.btns[2], "OnClick")
+  T.eq(Browse.frame.search:GetText(), "Silk Cloth")
+  T.ok(Browse.frame.nextMat:IsShown())
+  T.eq(Browse.frame.nextMat.label:GetText(), "NEXT MATERIAL (1/2)")
+  T.eq(Browse.frame.search.width, Browse.SEARCH_W_NEXT)
+  -- fits beside the arrows at the 660 window (about 640 wide page)
+  local used = Browse.SEARCH_W_NEXT + 6 + 80 + 6 + 90 + 6 + 100 + 6 + Browse.NEXT_W
+  T.ok(used <= 640 - 48 - 8, "needs " .. used)
+  WoW.runScript(Browse.frame.nextMat, "OnClick")
+  T.eq(Browse.frame.search:GetText(), "Bolt of Silk Cloth")
+  T.eq(Browse.frame.nextMat.label:GetText(), "NEXT MATERIAL (2/2)")
+  T.ok(Browse.frame.back:IsShown(), "way back kept")
+  WoW.runScript(Browse.frame.nextMat, "OnClick")
+  T.eq(Browse.frame.search:GetText(), "Silk Cloth", "wraps")
+  T.eq(Browse.frame.nextMat.label:GetText(), "NEXT MATERIAL (1/2)")
+  WoW.runScript(Browse.frame.back, "OnClick")
+  T.ok(not Browse.frame.nextMat:IsShown(), "hidden after < Crafting")
+  T.eq(Browse.frame.search.width, Browse.SEARCH_W)
+  WoW.runScript(p.detail.btns[2], "OnClick")
+  T.ok(Browse.frame.nextMat:IsShown())
+  Browse.frame.search:SetText("Linen")
+  WoW.runScript(Browse.frame.go, "OnClick")
+  T.ok(not Browse.frame.nextMat:IsShown(), "hidden after a manual search")
+  WoW.runScript(p.detail.btns[2], "OnClick")
+  AH.switching = true UI.ah:Hide() AH.switching = false
+  T.ok(not Browse.frame.nextMat:IsShown(), "hidden when the AH closes")
+  noBuying()
+end)
+
+T.test("a plain material click shows no Next material, and the standalone window only says to open the AH", function()
+  local p = listPage()
+  WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")
+  WoW.runScript(p.detail.btns[2], "OnClick")
+  T.ok(Browse.frame.back:IsShown())
+  T.ok(not Browse.frame.nextMat:IsShown())
+  Browse.SetBack(false)
+  AH.switching = true UI.ah:Hide() AH.switching = false
+  AH.open = false
+  local sp = open()
+  WoW.runScript(sp.list.rows[2], "OnClick", "LeftButton")
+  WoW.runScript(sp.listBtn, "OnClick")
+  local before = T.count("CHAT")
+  WoW.runScript(sp.detail.btns[2], "OnClick")
+  T.eq(T.count("CHAT"), before + 1)
+  T.ok(T.calledWith("Open the auction house to search"))
+  noBuying()
+end)

@@ -2,14 +2,17 @@ TaxTheFools = TaxTheFools or {}
 local U, Th, W, L, DB, Scan, UI = TaxTheFools.Util, TaxTheFools.Theme, TaxTheFools.Widgets, TaxTheFools.List,
   TaxTheFools.DB, TaxTheFools.Scan, TaxTheFools.UI
 local Auction, P = TaxTheFools.Auction, TaxTheFools.Price
-local Browse = { query = "", page = 0, frame = nil, back = false }
+local Browse = { query = "", page = 0, frame = nil, back = false, shopIdx = false }
+Browse.SEARCH_W, Browse.SEARCH_W_NEXT = 220, 150   -- the box narrows while "Next material" shows
+Browse.NEXT_W = 130
 TaxTheFools.Browse = Browse
 
-function Browse.ResetState() Browse.query, Browse.page, Browse.back = "", 0, false end
+function Browse.ResetState() Browse.query, Browse.page, Browse.back, Browse.shopIdx = "", 0, false, false end
 
 -- The "< Crafting" button: shown after a jump from another tab, until used or a different search is made.
 function Browse.SetBack(to)
   Browse.back = to or false
+  if not to then Browse.shopIdx = false end
   if Browse.frame then
     if to then Browse.frame.back:Show() else Browse.frame.back:Hide() end
     Browse.UpdatePager()
@@ -21,6 +24,48 @@ function Browse.UpdatePager()
   local p = Browse.frame
   if not p then return end
   if Browse.back then p.pageText:Hide() else p.pageText:Show() end
+  local n = Browse.ShopCount()
+  local on = Browse.back and Browse.shopIdx and n > 0
+  if on then
+    if Browse.shopIdx > n then Browse.shopIdx = 1 end
+    p.nextMat:SetLabel("Next material (" .. Browse.shopIdx .. "/" .. n .. ")")
+    p.nextMat:Show()
+    p.search:SetWidth(Browse.SEARCH_W_NEXT)
+  else
+    p.nextMat:Hide()
+    p.search:SetWidth(Browse.SEARCH_W)
+  end
+end
+
+-- The names of the shopping plan's auction house buy lines, in list order.
+function Browse.ShopBuys()
+  local out = {}
+  local plan = TaxTheFools.CraftUI and TaxTheFools.CraftUI.shopping
+  for _, b in ipairs((plan and plan.buys) or {}) do
+    if (b.source == "ah" or not b.source) and b.name then table.insert(out, b.name) end
+  end
+  return out
+end
+
+function Browse.ShopCount() return table.getn(Browse.ShopBuys()) end
+
+-- Search the next AH buy line of the shopping plan, wrapping round. Keeps the way back.
+function Browse.NextMaterial()
+  local names = Browse.ShopBuys()
+  local n = table.getn(names)
+  if n == 0 or not Browse.shopIdx then return false end
+  local i = Browse.shopIdx + 1
+  if i > n then i = 1 end
+  local back = Browse.back
+  local ok = Browse.Lookup(names[i])
+  Browse.SetBack(back)
+  Browse.SetShop(i)
+  return ok
+end
+
+function Browse.SetShop(i)
+  Browse.shopIdx = i or false
+  Browse.UpdatePager()
 end
 
 function Browse.GoBack()
@@ -43,11 +88,12 @@ function Browse.Lookup(name)
 end
 
 -- Jump to the Browse tab and look an item up. `back` names the tab a "< ..." button returns to.
-function Browse.SearchFor(name, back)
+function Browse.SearchFor(name, back, shopIdx)
   if not UI.ah then return false end
   UI.ah.tabs:Select("browse")
   local ok = Browse.Lookup(name)
   Browse.SetBack(back)
+  if back and shopIdx then Browse.SetShop(shopIdx) end
   return ok
 end
 
@@ -113,6 +159,10 @@ function Browse.Build(parent)
   p.back:SetPoint("LEFT", p.watchBtn, "RIGHT", 6, 0)
   W.Tip(p.back, "Back to Crafting", "Return to the recipe you came from.")
   p.back:Hide()
+  p.nextMat = W.Button(p, "Next material", Browse.NEXT_W, 22, function() Browse.NextMaterial() end)
+  p.nextMat:SetPoint("LEFT", p.back, "RIGHT", 6, 0)
+  W.Tip(p.nextMat, "Next material", "Search the next auction house item on your shopping list.")
+  p.nextMat:Hide()
   p.next = W.IconButton(p, "icon-arrow-right", 22, function() Browse.Search(Browse.query, Browse.page + 1) end)
   p.next:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
   p.prev = W.IconButton(p, "icon-arrow-left", 22, function() Browse.Search(Browse.query, Browse.page - 1) end)

@@ -10,8 +10,11 @@ CraftUI.SKILL_COLOR = { optimal = "|cffff8040", medium = "|cffffff00", easy = "|
 CraftUI.SOURCE = { ah = "AH", vendor = "vendor", craft = "craft" }
 CraftUI.DETAIL_LINES = 24     -- line buttons built: the most that fit on a tall window
 CraftUI.LINE_H = 14
-CraftUI.DETAIL_H = 10 + 9 * 14  -- the least height: a heading and eight materials
-CraftUI.DETAIL_MIN = 78         -- never below four lines plus the "more" hint
+CraftUI.HEAD_H = 26             -- the Craft box, List toggle and Snipe these row above the lines
+CraftUI.DETAIL_H = 10 + CraftUI.HEAD_H + 9 * 14  -- the least height: a heading and eight materials
+CraftUI.DETAIL_MIN = 78 + CraftUI.HEAD_H         -- never below four lines plus the "more" hint
+CraftUI.MAX_CRAFTS = 99
+CraftUI.FOOTER = "Counts bags and bank on all characters, not mail."
 CraftUI.LIST_KEEP = 132         -- page height kept above the pane: dropdowns, header and four rows
 CraftUI.NO_AH = "Open the auction house to search"
 CraftUI.SEARCH_TIP = "Click to search the auction house"
@@ -144,6 +147,134 @@ function CraftUI.MaterialText(l)
   return head .. unit .. "   " .. src
 end
 
+-- ---------- the shopping list ----------
+
+-- The Craft box's number: whole, 1 to 99; nil for text that is not one yet (blank).
+function CraftUI.ReadN(text)
+  local n = tonumber(text or "")
+  if not n then return nil end
+  n = math.floor(n)
+  if n < 1 then n = 1 end
+  if n > CraftUI.MAX_CRAFTS then n = CraftUI.MAX_CRAFTS end
+  return n
+end
+
+-- The shopping lines as { text, token, searchName, ahIndex }: Buy lines (AH ones clickable), Craft
+-- lines, what has no price, the total and the footer. Pure: the plan comes from Shopping.Plan.
+function CraftUI.ShoppingLines(name, n, plan)
+  local out = { { "Shopping for " .. n .. " x " .. name, "text" } }
+  local ai = 0
+  for _, b in ipairs(plan.buys) do
+    local text = "Buy " .. b.qty .. " x " .. b.name .. "   ~" .. U.money(b.total, true) .. " ("
+      .. (CraftUI.SOURCE[b.source] or "?") .. ")"
+    if b.source == "ah" or not b.source then
+      ai = ai + 1
+      table.insert(out, { text, "text", CraftUI.SearchName(b.name, b.key), ai })
+    else
+      table.insert(out, { text, "text" })
+    end
+  end
+  for _, c in ipairs(plan.crafts) do
+    table.insert(out, { "Craft " .. c.qty .. " x " .. c.name, "text" })
+  end
+  if table.getn(plan.buys) == 0 and table.getn(plan.crafts) == 0 and table.getn(plan.missing) == 0 then
+    table.insert(out, { "Nothing to buy: you already hold everything.", "good" })
+  end
+  if table.getn(plan.missing) > 0 then
+    table.insert(out, { "No price for: " .. table.concat(plan.missing, ", "), "warn" })
+  end
+  table.insert(out, { "Total to buy: ~" .. U.money(plan.total, true), "gold" })
+  table.insert(out, { CraftUI.FOOTER, "dim" })
+  return out
+end
+
+-- Plans the selected row for the page's Craft number, keeps it as CraftUI.shopping and returns its
+-- lines. Holdings are every character's bags and bank; prices are the detail's own context.
+function CraftUI.ShoppingDetail(p, row)
+  if not row then return { { "Select a recipe to plan its shopping.", "dim" } } end
+  local plan = TaxTheFools.Shopping.Plan(row.recipe or row.entry, p.shopN or 1, TS.Context(),
+    TaxTheFools.Inventory.Held(DB.Realm()))
+  CraftUI.shopping = { recipeName = row.name, n = p.shopN or 1, buys = plan.buys, crafts = plan.crafts,
+    total = plan.total }
+  return CraftUI.ShoppingLines(row.name, p.shopN or 1, plan)
+end
+
+local function selectedRow(p)
+  if p.view == "unlearned" then return p.ulist.selected or nil end
+  return p.list.selected or nil
+end
+
+function CraftUI.Repaint(p)
+  p.detail.status:SetText("")
+  if p.view == "unlearned" then CraftUI.ShowUnlearnedDetail(p, selectedRow(p))
+  else CraftUI.ShowDetail(p, selectedRow(p)) end
+end
+
+function CraftUI.SetN(p, text)
+  local n = CraftUI.ReadN(text)
+  if not n or n == p.shopN then return end
+  p.shopN = n
+  if p.listMode then CraftUI.Repaint(p) end
+end
+
+-- Show the box as the number it stands for (blank or out of range text is put right).
+function CraftUI.NormaliseN(p)
+  p.craftBox:SetText(tostring(p.shopN))
+end
+
+function CraftUI.SetListMode(p, on)
+  p.listMode = on and true or false
+  p.detail.offset = 0
+  Th.Color(p.listBtn.label, p.listMode and "gold" or "white")
+  if p.listMode then p.snipeBtn:Show() else p.snipeBtn:Hide() end
+  CraftUI.Repaint(p)
+end
+
+-- Adds every AH buy line to the snipe list at its unit price, rounded down. Never buys anything.
+function CraftUI.SnipeThese(p)
+  local plan = CraftUI.shopping
+  local realm = DB.Realm()
+  realm.snipe = realm.snipe or {}
+  local n = 0
+  for _, b in ipairs((plan and plan.buys) or {}) do
+    if (b.source == "ah" or not b.source) and b.key then
+      TaxTheFools.Snipe.Set(realm.snipe, b.key, b.name, math.floor(b.unit), time())
+      n = n + 1
+    end
+  end
+  if n == 0 then p.detail.status:SetText("No auction house items to add")
+  else p.detail.status:SetText("Added " .. n .. " items to your snipe list") end
+  return n
+end
+
+-- The Craft box, List toggle and Snipe these button along the top of the pane.
+function CraftUI.Header(d, p)
+  local label = Th.Text(d, "body", 11, "dim")
+  label:SetPoint("TOPLEFT", d, "TOPLEFT", 8, -7)
+  label:SetText("Craft")
+  p.craftBox = W.EditBox(d, 36, function(text) CraftUI.SetN(p, text) CraftUI.NormaliseN(p) end)
+  p.craftBox:SetHeight(18)
+  p.craftBox:SetPoint("LEFT", label, "RIGHT", 6, 0)
+  if p.craftBox.SetNumeric then p.craftBox:SetNumeric(true) end
+  if p.craftBox.SetMaxLetters then p.craftBox:SetMaxLetters(2) end
+  p.craftBox:SetText("1")
+  p.craftBox.page = p
+  p.craftBox:SetScript("OnTextChanged", function() CraftUI.SetN(this.page, this:GetText()) end)
+  p.craftBox:SetScript("OnEditFocusLost", function() CraftUI.NormaliseN(this.page) end)
+  W.Tip(p.craftBox, "Crafts", "How many to make, 1 to 99. Used by the shopping list.")
+  p.listBtn = W.Button(d, "List", 50, 18, function() CraftUI.SetListMode(p, not p.listMode) end)
+  p.listBtn:SetPoint("LEFT", p.craftBox, "RIGHT", 8, 0)
+  W.Tip(p.listBtn, "Shopping list", "Swap the materials for what to buy for this many crafts.")
+  p.snipeBtn = W.Button(d, "Snipe these", 96, 18, function() CraftUI.SnipeThese(p) end)
+  p.snipeBtn:SetPoint("LEFT", p.listBtn, "RIGHT", 8, 0)
+  W.Tip(p.snipeBtn, "Snipe these", "Add every auction house item on the list to your snipe list, at its price each.")
+  p.snipeBtn:Hide()
+  d.status = Th.Text(d, "body", 10, "good")
+  d.status:SetPoint("TOPRIGHT", d, "TOPRIGHT", -8, -8)
+  d.status:SetJustifyH("RIGHT")
+  d.status:SetText("")
+end
+
 -- The pane's height for a page of this height: the fixed minimum or 40% of the page, whichever is
 -- larger, but leaving the list above room for four rows. 0 (not laid out yet) gives the minimum.
 function CraftUI.DetailHeight(pageH)
@@ -164,7 +295,7 @@ local function wheel(p, dir) CraftUI.Scroll(p, dir) end
 
 -- One line button: a transparent hit area over its text, with a highlight bar behind the text.
 local function lineButton(d, p, i)
-  local y = -6 - (i - 1) * CraftUI.LINE_H
+  local y = -6 - CraftUI.HEAD_H - (i - 1) * CraftUI.LINE_H
   local hl = Th.Solid(d, "BORDER", "subtle", 0.6)
   hl:SetPoint("TOPLEFT", d, "TOPLEFT", 4, y + 1)
   hl:SetPoint("RIGHT", d, "RIGHT", -4, 0)
@@ -175,7 +306,7 @@ local function lineButton(d, p, i)
   b:SetHeight(CraftUI.LINE_H)
   b:SetPoint("TOPLEFT", d, "TOPLEFT", 4, y + 1)
   b:SetPoint("RIGHT", d, "RIGHT", -4, 0)
-  b.page, b.index, b.search = p, i, false
+  b.page, b.index, b.search, b.shopIdx = p, i, false, false
   b:EnableMouseWheel(true)
   b:SetScript("OnMouseWheel", function() wheel(this.page, -arg1) end)
   b:SetScript("OnEnter", function()
@@ -187,7 +318,7 @@ local function lineButton(d, p, i)
     d.hl[this.index]:Hide()
     W.HideTip()
   end)
-  b:SetScript("OnClick", function() CraftUI.Jump(this.page, this.search) end)
+  b:SetScript("OnClick", function() CraftUI.Jump(this.page, this.search, this.shopIdx) end)
   b:Hide()
   d.btns[i] = b
 end
@@ -203,7 +334,7 @@ function CraftUI.Detail(p)
   d.all, d.offset, d.slots, d.fitH = {}, 0, CraftUI.DETAIL_LINES, false
   for i = 1, CraftUI.DETAIL_LINES do
     local fs = Th.Text(d, "body", 11, "text")
-    fs:SetPoint("TOPLEFT", d, "TOPLEFT", 8, -6 - (i - 1) * CraftUI.LINE_H)
+    fs:SetPoint("TOPLEFT", d, "TOPLEFT", 8, -6 - CraftUI.HEAD_H - (i - 1) * CraftUI.LINE_H)
     fs:SetPoint("RIGHT", d, "RIGHT", -8, 0)
     d.lines[i] = fs
     lineButton(d, p, i)
@@ -214,6 +345,7 @@ function CraftUI.Detail(p)
   d.more:Hide()
   d:EnableMouseWheel(true)
   d:SetScript("OnMouseWheel", function() wheel(p, -arg1) end)
+  CraftUI.Header(d, p)
   return d
 end
 
@@ -225,13 +357,14 @@ end
 
 -- A material line was clicked. From the AH's own Crafting tab the Browse tab gets a "< Crafting"
 -- button to come back; the standalone window has no AH to search without it open. Only ever searches.
-function CraftUI.Jump(p, name)
+function CraftUI.Jump(p, name, shopIdx)
   if not name then return false end
   if not CraftUI.CanSearch() then
     U.msg(CraftUI.NO_AH)
     return false
   end
-  return TaxTheFools.Browse.SearchFor(name, (UI.pages.craft == p) and "craft" or false)
+  return TaxTheFools.Browse.SearchFor(name, (UI.pages.craft == p) and "craft" or false,
+    (p.listMode and shopIdx) or false)
 end
 
 -- Draw `lines` ({ text, token, searchName }) from the scroll offset. The "more" hint shows the
@@ -240,9 +373,9 @@ function CraftUI.Render(p, lines)
   local d = p.detail
   d.all = lines
   local n = table.getn(lines)
-  local avail = math.floor((d:GetHeight() - 10) / CraftUI.LINE_H)
+  local avail = math.floor((d:GetHeight() - 10 - CraftUI.HEAD_H) / CraftUI.LINE_H)
   local slots = avail
-  if n > avail then slots = math.floor((d:GetHeight() - 22) / CraftUI.LINE_H) end
+  if n > avail then slots = math.floor((d:GetHeight() - 22 - CraftUI.HEAD_H) / CraftUI.LINE_H) end
   if slots > CraftUI.DETAIL_LINES then slots = CraftUI.DETAIL_LINES end
   if slots < 1 then slots = 1 end
   d.slots = slots
@@ -260,10 +393,11 @@ function CraftUI.Render(p, lines)
     end
     if l and l[3] then
       b.search = l[3]
+      b.shopIdx = l[4] or false
       setTip(b)
       b:Show()
     else
-      b.search = false
+      b.search, b.shopIdx = false, false
       b:Hide()
       d.hl[i]:Hide()
     end
@@ -309,9 +443,15 @@ local function detailed(row)
   if row then row.ev = Craft.Evaluate(row.recipe or row.entry, TS.Context(), true) end
 end
 
+-- The lines for the pane: the materials, or in List mode the shopping list.
+local function paneLines(p, row, normal)
+  if p.listMode then return CraftUI.ShoppingDetail(p, row) end
+  return normal
+end
+
 function CraftUI.ShowDetail(p, row)
   detailed(row)
-  show(p, CraftUI.DetailLines(row, U.day(time()), DB.S().craft.staleDays), row)
+  show(p, paneLines(p, row, not p.listMode and CraftUI.DetailLines(row, U.day(time()), DB.S().craft.staleDays)), row)
 end
 
 -- ---------- the "Not learned" view ----------
@@ -476,7 +616,7 @@ end
 
 function CraftUI.ShowUnlearnedDetail(p, row)
   detailed(row)
-  show(p, CraftUI.UnlearnedDetail(row, U.day(time()), DB.S().craft.staleDays), row)
+  show(p, paneLines(p, row, not p.listMode and CraftUI.UnlearnedDetail(row, U.day(time()), DB.S().craft.staleDays)), row)
 end
 
 function CraftUI.SetView(p, view)
@@ -539,6 +679,7 @@ function CraftUI.Build(parent)
   local p = CreateFrame("Frame", nil, parent)
   p.char, p.prof = false, false
   p.view, p.soon = "learned", true
+  p.shopN, p.listMode = 1, false
   p.charDD = W.Dropdown(p, 150, {}, function() return p.char end, function(v) CraftUI.SetChar(p, v) end)
   p.charDD:SetPoint("TOPLEFT", p, "TOPLEFT", 0, 0)
   p.profDD = W.Dropdown(p, 150, {}, function() return p.prof end, function(v) CraftUI.SetProf(p, v) end)
