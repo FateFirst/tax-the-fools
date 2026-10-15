@@ -164,3 +164,17 @@ T.test("a failure building the pattern line never costs the other lines", functi
     T.eq(lines[1][1], "Market")
   end)
 end)
+
+T.test("the free-to-learn pattern line", function()
+  withPattern(function()
+    TaxTheFoolsDB.recipes = { Tailoring = { trainer = { ["Silk Cape"] = { c = 0, s = 1 } }, seen = {} } }
+    T.eq(recipeLine(Tip.Lines("7000:0", 1, WoW.now)), "Free to learn (+32s each)")
+  end)
+end)
+
+T.test("unknown profit gives no pattern line, not 'No profit per craft'", function()
+  withPattern(function()
+    DB.Realm().market["4306:0"] = nil          -- the material has no price
+    T.eq(recipeLine(Tip.Lines("7000:0", 1, WoW.now)), nil)
+  end)
+end)

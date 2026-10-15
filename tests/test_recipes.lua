@@ -101,7 +101,7 @@ T.test("payback rounds up, free, never, unknown", function()
   T.eq(R.Payback(0, nil), 0)
   T.eq(R.Payback(1000, 0), "never")
   T.eq(R.Payback(1000, -5), "never")
-  T.eq(R.Payback(1000, nil), "never")
+  T.eq(R.Payback(1000, nil), nil, "unknown profit is unknown, not never")
   T.eq(R.Payback(nil, 300), nil)
 end)
 

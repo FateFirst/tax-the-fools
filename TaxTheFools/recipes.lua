@@ -171,7 +171,8 @@ end
 function Recipes.Payback(cost, profit)
   if cost == nil then return nil end
   if cost == 0 then return 0 end
-  if profit == nil or profit <= 0 then return "never" end
+  if profit == nil then return nil end
+  if profit <= 0 then return "never" end
   local n = math.ceil(cost / profit)
   if n < 1 then n = 1 end
   return n

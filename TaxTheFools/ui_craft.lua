@@ -272,6 +272,8 @@ function CraftUI.UnlearnedDetail(row, today, staleDays)
     token = "good"
   elseif pb == "never" then
     head, token = "No profit per craft: never pays back", "bad"
+  elseif row.cost then
+    head, token = "Profit unknown: a price is missing", "dim"
   else
     head, token = "No cost known for this recipe", "dim"
   end

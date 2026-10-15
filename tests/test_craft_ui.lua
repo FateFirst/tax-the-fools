@@ -270,3 +270,15 @@ T.test("Not learned with no recipe list says so, and Learned is unchanged afterw
     T.eq(p.list.sortCol, CraftUI.COLUMNS[4])
   end)
 end)
+
+T.test("Not learned: a recipe with a missing price shows '-' payback, not never", function()
+  withData(function()
+    local p = unlearnedPage()
+    DB.Realm().market["4306:0"] = nil
+    CraftUI.Paint(p)
+    local cape
+    for i, r in ipairs(p.ulist.data) do if r.name == "Silk Cape" then cape = i end end
+    T.eq(p.ulist.data[cape].payback, nil)
+    T.eq(p.ulist.rows[cape].cells[5]:GetText(), "-")
+  end)
+end)

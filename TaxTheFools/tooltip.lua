@@ -67,6 +67,7 @@ function Tip.RecipeLine(key)
   local cost = R.Cost(entry, ctx, realm.snapshot)
   if not cost then return nil end
   local ev = TaxTheFools.Craft.Evaluate(entry, ctx)
+  if ev.profit == nil then return nil end
   local pb = R.Payback(math.floor(cost), ev.profit)
   if pb == "never" then return "No profit per craft" end
   local each = " (+" .. U.money(ev.profit, true) .. " each)"
