@@ -3,11 +3,12 @@
 Auction house price history, deal finding and crafting profit for the Ravencraft
 server (Turtle WoW 1.18.1 client, WoW 1.12, Lua 5.0).
 
-This release (0.4.0): the auction window, scanning, price history, tooltips, crafting
-profit for every recipe your characters know, buying, and selling. The **Deals** tab finds
-below-market, below-vendor and cheap-materials listings; **Browse** buys and bids on
-the selected row; **Sell** and **Auctions** post and cancel your own auctions. Next is
-phase 4: tracking your sales from auction house mail. See
+This release (0.5.0): the auction window, scanning, price history, tooltips, crafting
+profit for every recipe your characters know, buying, selling, and sales tracking from
+auction house mail. The **Deals** tab finds below-market, below-vendor, cheap-materials and
+undersupplied listings; **Browse** buys and bids on the selected row; **Sell** and **Auctions**
+post and cancel your own auctions; **History** shows what has sold. Next is phase 5: a recipe
+database and a mailbox tab. See
 `docs/superpowers/specs/2026-10-14-tax-the-fools-design.md` for the overall design.
 
 ## Install
@@ -48,6 +49,9 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
   - *Below vendor*: under what a vendor pays for the item.
   - *Cheap materials*: a material listed at or under 85% of market that makes one
     of your known recipes more profitable.
+  - *Undersupplied*: an item you hold that sells well (at least half of its recent
+    auctions) and is scarce on the auction house now. It is a sell suggestion, never a
+    buy: its button reads **Sell** and opens the Sell tab with that item selected.
   Use the left rail to switch each type on or off, set the thresholds, the minimum profit
   and the minimum confidence. Select a deal and press **Find**: the addon pages through
   the auction house until it finds that listing, and the button becomes **Buy <price>**.
@@ -72,12 +76,27 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
   it has a bid, a confirmation says the bidder is refunded and you lose the deposit first.
 - **Selling options.** Options > Selling: starting bid % (50 to 100), price floor % (50 to
   100), undercut (1c to 1g), and the default duration.
+- **Sales tracking.** Open a mailbox and the addon reads the headers of your auction mail
+  (sold, expired, cancelled, won, outbid) and records each one once, across visits and relogs.
+  It never opens a mail, so nothing is marked read or has its expiry shortened; collecting the
+  items and gold is still TurtleMail's job.
+- **History tab.** One row per item with sales: Sold, Expired, Rate, Avg price, Avg time and
+  Income, for 7, 30 or 90 days, for all characters or one, with a totals line.
+- **Sell panel and warning.** The Sell tab shows the selected item's sell rate, average sale
+  price and average time to sell. It warns when the buyout is well above that average price
+  (120% by default). The warning does not block **Post**. Item tooltips get a **Sells** line.
+- **Right-click from bags.** With the auction window open on Browse, right-click a bag item to
+  search for it; on Sell, right-click it to select it. With Shift, Ctrl or Alt held, or away from
+  the auction house, a right-click works as usual.
+- **Sales options.** Options > Sales: the sell-rate window (7 to 90 days), the price warning
+  (100% to 200%), and the Sells tooltip line. Options > General: "Right-click bag items to search
+  or sell". Options > Deals & buying: Undersupplied, and its thresholds.
 - **Blizzard UI** switches to the stock window at any time; its **Tax the Fools** button
   switches back.
 
 Nothing is ever bought, bid on, posted, cancelled, crafted or sold without your
-click. The only thing that runs by itself is a scan turning pages. Sales tracking from
-auction house mail is next, in phase 4.
+click. The only things that run by themselves are a scan turning pages and reading the
+headers of auction mail. Phase 5 (a recipe database and a mailbox tab) is next.
 
 ## Commands
 

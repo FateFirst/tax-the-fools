@@ -4,7 +4,7 @@ Run this after every install, on the real client. The tests prove the logic
 against a fake client; this proves the fake client was right.
 
 ## Load
-1. Log in on the bank character. Chat shows `TTF: v0.4.0 loaded`.
+1. Log in on the bank character. Chat shows `TTF: v0.5.0 loaded`.
 2. `/ttf probe`. The window opens with text selected. Press Ctrl+C and paste it
    into `tools/probe-<date>.txt` in this repo. Check:
    - every `fn` line says `yes`, except possibly `GetInboxInvoiceInfo`, `CalculateAuctionDeposit` (spec §13 Q2)
@@ -138,3 +138,31 @@ against a fake client; this proves the fake client was right.
     house refuses). Post reports the failure, the item is not left in the auction sell slot and
     its bag slot is not locked, and after you fix the cause the same stack posts on the next click.
 58. At no point above was anything crafted, bought, posted or cancelled without your click.
+
+## Sales tracking (phase 4)
+59. Have a posted auction sell, and have another auction expire. Open a mailbox with that
+    AH mail waiting. History (the AH tab) fills with the sold and expired counts, and the
+    Rate column is the sold share.
+60. Check the mail itself is untouched: the sold and expired mails stay unread and keep
+    their items and gold for TurtleMail or you. The addon never opens a mail.
+61. Close the mailbox, `/reload` or log over and back, open the mailbox again. Nothing is
+    counted twice: the History counts and the totals are the same as before.
+62. Hover an item you have sold before (the tooltip reads "Sells NN% (n)"). Options > Sales,
+    "Sells line in item tooltips" off: the line goes. Turn it back on.
+63. Sell tab, pick that item: the sales line reads "Sold X of Y (Z%), avg ... each, sells in ...".
+    Pick an item with no history: it reads "No sales history yet."
+64. Type a buyout well above the average sale price (more than 120% of it by default). The
+    warning reads "You've sold this at about ... rarely sells." Post still works.
+    Options > Sales, "Price warning above" 200: the same buyout no longer warns.
+65. Deals tab, Undersupplied on (left rail). A deal whose type reads Under shows a **Sell**
+    button. Press it: the Sell tab opens with that item selected. Nothing is bought, and
+    nothing is posted until you press Post.
+66. Browse, AH open: right-click a bag item. Its name fills the search box and Browse searches
+    for it. Left-click the same bag item: it behaves as it always does (nothing is searched).
+67. Sell tab, AH open: right-click a bag item. That item is selected on the Sell tab. Right-click
+    a soulbound or quest item: the status says "Can't auction that".
+68. Close the AH. Right-click a potion in your bags: it is drunk, as normal.
+69. AH open on Browse or Sell: Shift-right-click a bag item (and Ctrl- or Alt-right-click). Nothing
+    is searched or selected; the click behaves as it does away from the AH.
+70. Options > General, "Right-click bag items to search or sell" off. Right-click a bag item on
+    Browse: nothing is searched. Turn it back on.
