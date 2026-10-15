@@ -247,6 +247,7 @@ function WoW.classicAPI(on)
 end
 
 function WoW.reset()
+  WoW.sellSlotLag, WoW.sellSlotShown = false, false
   WoW.calls = {}
   WoW.clock = 1000                      -- GetTime(): seconds since the client started
   WoW.now = 20375 * 86400 + 43200       -- time(): midday UTC on day 20375 (2025-10-14)
@@ -633,9 +634,13 @@ function PickupContainerItem(bag, slot)
 end
 -- ClickAuctionSellItemButton(): hand holds an item and the slot is empty: it goes in the slot; hand
 -- empty and slot full: it comes back to the hand; both full: they swap.
+-- 1.12 CursorHasItem(): true while the cursor holds an item.
+function CursorHasItem() return WoW.cursor ~= nil end
+function WoW.showSellSlot() WoW.sellSlotShown = true WoW.fire("NEW_AUCTION_UPDATE") end
 function ClickAuctionSellItemButton()
   WoW.log("ClickAuctionSellItemButton")
   local c, s = WoW.cursor, WoW.sellSlot
+  WoW.sellSlotShown = false
   if c then
     WoW.sellSlot = { item = c.item, count = c.count, bag = c.bag, slot = c.slot }
     WoW.cursor = s and { item = s.item, count = s.count, bag = s.bag, slot = s.slot } or nil
@@ -644,9 +649,12 @@ function ClickAuctionSellItemButton()
   end
 end
 -- 1.12 returns name, texture, count, quality, canUse, price; nothing for an empty slot.
+-- WoW.sellSlotLag: the real client only shows the slot's new item after the server answers (the
+-- NEW_AUCTION_UPDATE event), so straight after the click this reads empty. WoW.showSellSlot() ends the lag.
 function GetAuctionSellItemInfo()
   local s = WoW.sellSlot
   if not s then return nil end
+  if WoW.sellSlotLag and not WoW.sellSlotShown then return nil end
   return s.item.name, s.item.tex or "tex", s.count, s.item.quality or 1, 1, (s.item.vendor or 0) * s.count
 end
 -- ---------- mailbox actions and the send slot (phase 5b) ----------

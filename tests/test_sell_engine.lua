@@ -580,3 +580,13 @@ T.test("an unknown deposit (no money change at the reply) is logged as nil and n
   T.eq(DB.Char().postings[1].deposit, nil)
   T.eq(TaxTheFoolsDB.items[14047] and TaxTheFoolsDB.items[14047].dep, nil)
 end)
+
+T.test("Post goes ahead when the real client hasn't shown the sell slot yet (the slot updates after the server answers)", function()
+  stock() WoW.money = 100000
+  WoW.sellSlotLag = true
+  local r = Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  T.eq(r, true)
+  T.eq(T.count("StartAuction"), 1, "one post")
+  T.ok(not T.calledWith("The item didn't reach the sell slot. Try again."))
+  WoW.sellSlotLag = false
+end)

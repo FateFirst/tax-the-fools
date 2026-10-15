@@ -138,12 +138,19 @@ function Auction.Post(bag, slot, stack, bid, buyout, minutes, key, allowBelowFlo
   clearSellSlot()
   PickupContainerItem(bag, slot)
   ClickAuctionSellItemButton()
-  -- The item must really be in the slot, in this count, before anything is posted.
+  -- Still on the cursor: the slot refused it (a locked or unauctionable item). The real client only shows
+  -- the slot's new item once the server answers (NEW_AUCTION_UPDATE), so an empty read straight after the
+  -- click is normal and the post goes ahead, as Aux's does; the server's reply says whether it worked. A
+  -- slot that does read back must hold this item in this count.
   local name = GetItemInfo(id)
-  local slotName, _, slotCount = GetAuctionSellItemInfo()
-  if not slotName or slotCount ~= stack or (name and slotName ~= name) then
+  if CursorHasItem and CursorHasItem() then
     clearSellSlot()
     return refuse("The item didn't reach the sell slot. Try again.")
+  end
+  local slotName, _, slotCount = GetAuctionSellItemInfo()
+  if slotName and (slotCount ~= stack or (name and slotName ~= name)) then
+    clearSellSlot()
+    return refuse("A different item is in the sell slot. Try again.")
   end
   -- An unknown deposit (the client gives none) skips the affordability check.
   local deposit = learned or CalculateAuctionDeposit(minutes)
