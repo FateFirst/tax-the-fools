@@ -622,3 +622,28 @@ T.test("a plain material click shows no Next material, and the standalone window
   T.ok(T.calledWith("Open the auction house to search"))
   noBuying()
 end)
+
+T.test("the shopping plan follows the selected recipe; Next skips unknown names; status clears on reselect", function()
+  local p = listPage()
+  WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")    -- Silk Headband
+  WoW.runScript(p.listBtn, "OnClick")
+  T.eq(CraftUI.shopping.recipeName, "Silk Headband")
+  WoW.runScript(p.snipeBtn, "OnClick")
+  T.ok(p.detail.status:GetText() ~= "")
+  WoW.runScript(p.list.rows[1], "OnClick", "LeftButton")
+  T.eq(p.detail.status:GetText(), "", "status cleared")
+  T.ok(CraftUI.shopping.recipeName ~= "Silk Headband", "plan is for the shown recipe")
+  p.list.selected = nil
+  CraftUI.ShowDetail(p, nil)
+  T.eq(CraftUI.shopping, nil, "no row, no plan")
+  WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")
+  WoW.runScript(p.listBtn, "OnClick")                       -- list off
+  WoW.runScript(p.list.rows[1], "OnClick", "LeftButton")
+  T.eq(CraftUI.shopping, nil, "list off, other recipe")
+  WoW.runScript(p.list.rows[2], "OnClick", "LeftButton")
+  WoW.runScript(p.listBtn, "OnClick")
+  CraftUI.shopping.buys = { { key = "1:0", name = "Unknown item 1", qty = 1, unit = 5, source = "ah", total = 5 },
+    { key = "4306:0", name = "Silk Cloth", qty = 1, unit = 300, source = "ah", total = 300 } }
+  T.eq(table.getn(Browse.ShopBuys()), 1)
+  T.eq(Browse.ShopBuys()[1], "Silk Cloth")
+end)

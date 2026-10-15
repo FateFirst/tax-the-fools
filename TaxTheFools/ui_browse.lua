@@ -42,7 +42,8 @@ function Browse.ShopBuys()
   local out = {}
   local plan = TaxTheFools.CraftUI and TaxTheFools.CraftUI.shopping
   for _, b in ipairs((plan and plan.buys) or {}) do
-    if (b.source == "ah" or not b.source) and b.name then table.insert(out, b.name) end
+    local sn = (b.source == "ah" or not b.source) and TaxTheFools.CraftUI.SearchName(b.name, b.key) or nil
+    if sn then table.insert(out, sn) end
   end
   return out
 end

@@ -167,9 +167,10 @@ function CraftUI.ShoppingLines(name, n, plan)
   for _, b in ipairs(plan.buys) do
     local text = "Buy " .. b.qty .. " x " .. b.name .. "   ~" .. U.money(b.total, true) .. " ("
       .. (CraftUI.SOURCE[b.source] or "?") .. ")"
-    if b.source == "ah" or not b.source then
+    local sn = (b.source == "ah" or not b.source) and CraftUI.SearchName(b.name, b.key) or nil
+    if sn then
       ai = ai + 1
-      table.insert(out, { text, "text", CraftUI.SearchName(b.name, b.key), ai })
+      table.insert(out, { text, "text", sn, ai })
     else
       table.insert(out, { text, "text" })
     end
@@ -194,7 +195,7 @@ function CraftUI.ShoppingDetail(p, row)
   if not row then return { { "Select a recipe to plan its shopping.", "dim" } } end
   local plan = TaxTheFools.Shopping.Plan(row.recipe or row.entry, p.shopN or 1, TS.Context(),
     TaxTheFools.Inventory.Held(DB.Realm()))
-  CraftUI.shopping = { recipeName = row.name, n = p.shopN or 1, buys = plan.buys, crafts = plan.crafts,
+  CraftUI.shopping = { page = p, recipeName = row.name, n = p.shopN or 1, buys = plan.buys, crafts = plan.crafts,
     total = plan.total }
   return CraftUI.ShoppingLines(row.name, p.shopN or 1, plan)
 end
@@ -433,7 +434,10 @@ end
 local function show(p, lines, row)
   CraftUI.Fit(p)
   local key = row and (p.view .. "|" .. row.name) or false
-  if p.detail.row ~= key then p.detail.offset = 0 end
+  if p.detail.row ~= key then
+    p.detail.offset = 0
+    p.detail.status:SetText("")
+  end
   p.detail.row = key
   CraftUI.Render(p, lines)
 end
@@ -445,6 +449,8 @@ end
 
 -- The lines for the pane: the materials, or in List mode the shopping list.
 local function paneLines(p, row, normal)
+  local cs = CraftUI.shopping
+  if cs and cs.page == p and (not row or not p.listMode and cs.recipeName ~= row.name) then CraftUI.shopping = nil end
   if p.listMode then return CraftUI.ShoppingDetail(p, row) end
   return normal
 end
