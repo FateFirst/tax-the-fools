@@ -322,5 +322,13 @@ T.test("selling and auctions: nothing posts, cancels, splits or bids without a c
   pump()
   T.ok(T.count("GetInboxHeaderInfo") >= 2, "the headers were read")
   quiet("mailbox open with AH mail")
+  -- our mail window opened (MailHook swaps it in) and painted on those events, still headers only
+  T.ok(A.MailUI.win:IsShown(), "the TTF mail window is open")
+  A.MailUI.frame.list:SetHeight(300)
+  A.MailUI.frame:Refresh()
+  WoW.runScript(A.MailUI.frame.list.rows[1], "OnEnter")
+  WoW.runScript(A.MailUI.frame.list.rows[1], "OnClick")
+  pump()
+  quiet("mail window painted, hovered and selected")
   UI.ah.tabs:Select("browse")
 end)

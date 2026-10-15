@@ -57,6 +57,9 @@ end)
 
 T.test("a burst of update events gives one read per frame (Review Focus 4)", function()
   known()
+  local oldWindow = TaxTheFools.MailHook.window
+  TaxTheFools.MailHook.window = nil   -- our mail window paints too (test_mail_ui counts that), so keep it closed
+  TaxTheFools.MailUI.win.shown = false
   WoW.mail = {}
   for i = 1, 50 do table.insert(WoW.mail, { subject = "Auction successful: Linen Cloth", money = 100 + i, daysLeft = 29.5 }) end
   WoW.fire("MAIL_SHOW")
@@ -73,6 +76,7 @@ T.test("a burst of update events gives one read per frame (Review Focus 4)", fun
   T.eq(T.count("GetInboxNumItems"), 2, "a new burst is one more read")
   T.eq(table.getn(DB.Char().sales), 50, "and records nothing again")
   noForbidden("50 mails")
+  TaxTheFools.MailHook.window = oldWindow
 end)
 
 T.test("the same mail on two visits, and after a relog, is recorded once (Review Focus 1)", function()

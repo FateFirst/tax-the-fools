@@ -38,6 +38,7 @@ ui_deals.lua
 ui_sell.lua
 ui_auctions.lua
 ui_history.lua
+ui_mail.lua
 bagclick.lua
 ui_craft.lua
 ui_confirm.lua

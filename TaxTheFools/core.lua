@@ -27,6 +27,7 @@ function Core.Init()
   A.Theme.Apply(DB.S().theme)
   A.Tooltip.Hook()
   A.UI.CreateAH()
+  A.MailUI.Create()
   A.Minimap.Create()
   A.BagClick.Install()
   DB.StartPrune()
@@ -70,6 +71,7 @@ function Core.OnEvent(e)
   elseif e == "MAIL_SHOW" or e == "MAIL_INBOX_UPDATE" then
     Core.Safe("mail", A.Mail.OnEvent, e)
     Core.Safe("mailbox", A.Mailbox.OnEvent, e)
+    if e == "MAIL_INBOX_UPDATE" then Core.Safe("mail window", A.MailUI.OnEvent, e) end
     if e == "MAIL_SHOW" then Core.Safe("mail window", A.MailHook.OnShow) end
   elseif e == "MAIL_SEND_SUCCESS" then Core.Safe("mailbox", A.Mailbox.OnEvent, e)
   elseif e == "MAIL_CLOSED" then
@@ -104,6 +106,7 @@ function Core.Update(now)
   Core.Safe("mail", A.Mail.Tick)
   Core.Safe("mail window", A.MailHook.Tick)
   Core.Safe("mailbox", A.Mailbox.Tick, now)
+  Core.Safe("mail window", A.MailUI.Tick)
   Core.Safe("trainer", A.RecipesLearn.Tick)
   if not Core.pruned then Core.Safe("prune", Core.PruneTick) end
   if now - Core.uiAt >= 0.25 then

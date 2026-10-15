@@ -155,6 +155,14 @@ local function newFrame(kind, name, parent)
       if it and WoW.merchantOpen and it.vendor then runScript(self, "OnTooltipAddMoney", it.vendor * (it.count or 1)) end
       return "orig-bag"
     end
+    -- 1.12 InboxFrameItem_OnEnter: GameTooltip:SetInboxItem(this.index). Reads the mail's item, no mail call.
+    f.SetInboxItem = function(self, index)
+      self.lines = {}
+      WoW.log("SetInboxItem", self.name, index)
+      local m = WoW.mail[index]
+      if m and m.item then table.insert(self.lines, { m.item.name }) end
+      syncLines(self)
+    end
     -- Tests put an item's tooltip text in WoW.tooltips[id] = { "line 1", "line 2", ... }.
     f.SetHyperlink = function(self, link)
       self.lines = {}
