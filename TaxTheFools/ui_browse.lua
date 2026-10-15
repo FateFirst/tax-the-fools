@@ -65,21 +65,20 @@ local function money(v)
 end
 
 Browse.COLUMNS = {
-  { label = "Item", width = 130, sort = "name", fmt = function(r) return U.quality(r.quality) .. r.name .. "|r" end },
-  { label = "Qty", width = 40, align = "RIGHT", sort = "count", desc = true, fmt = function(r) return tostring(r.count) end },
-  { label = "Bid", width = 74, align = "RIGHT", sort = "bidNow", fmt = function(r) return money(r.bidNow) end },
-  { label = "Buyout", width = 74, align = "RIGHT", sort = "buy", fmt = function(r) return money(r.buy) end },
-  { label = "Each", width = 66, align = "RIGHT", sort = "unit", fmt = function(r) return money(r.unit) end },
-  { label = "Market", width = 66, align = "RIGHT", sort = "market", fmt = function(r) return money(r.market) end },
-  { label = "%", width = 44, align = "RIGHT", sort = "pct",
+  { label = "Item", width = 120, flex = 3, sort = "name", fmt = function(r) return U.quality(r.quality) .. r.name .. "|r" end },
+  { label = "Qty", width = 36, align = "RIGHT", sort = "count", desc = true, fmt = function(r) return tostring(r.count) end },
+  { label = "Bid", width = 80, flex = 1, align = "RIGHT", sort = "bidNow", fmt = function(r) return money(r.bidNow) end },
+  { label = "Buyout", width = 80, flex = 1, align = "RIGHT", sort = "buy", fmt = function(r) return money(r.buy) end },
+  { label = "Each", width = 76, flex = 1, align = "RIGHT", sort = "unit", fmt = function(r) return money(r.unit) end },
+  { label = "Market", width = 76, flex = 1, align = "RIGHT", sort = "market", fmt = function(r) return money(r.market) end },
+  { label = "%", width = 40, align = "RIGHT", sort = "pct",
     fmt = function(r) return r.pct and (r.pct .. "%") or "-", Browse.PctToken(r.pct) end },
   { label = "Trend", width = 56, align = "RIGHT", sort = "trend",
     fmt = function(r)
       if not r.trend then return "-", "dim" end
-      local t = (r.trend > 0) and "good" or ((r.trend < 0) and "bad" or "text")
-      return ((r.trend > 0) and "+" or "") .. r.trend .. "%", t
+      return ((r.trend > 0) and "+" or "") .. r.trend .. "%", P.TrendToken(r.trendDir)
     end },
-  { label = "Seller", width = 70, sort = "owner", fmt = function(r) return r.owner or "?" end },
+  { label = "Seller", width = 64, flex = 1, sort = "owner", fmt = function(r) return r.owner or "?" end },
 }
 
 function Browse.Decorate(rows, market, history, today)
@@ -89,6 +88,7 @@ function Browse.Decorate(rows, market, history, today)
     r.pct = nil
     local t = history and P.Trend(history[r.key], today or U.day())
     r.trend = t and t.pct or nil
+    r.trendDir = t and t.dir or nil
     if r.unit and r.market and r.market > 0 then r.pct = math.floor(r.unit / r.market * 100 + 0.5) end
     r.bidNow = ((r.bid or 0) > 0) and r.bid or r.minBid
     r.buy = ((r.buyout or 0) > 0) and r.buyout or nil

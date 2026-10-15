@@ -122,6 +122,13 @@ function P.Trend(entry, today)
   return { pct = round(ratio * 100), dir = dir, recent = recent, prior = prior }
 end
 
+-- Theme token for a trend direction, shared by the tooltip and Browse.
+function P.TrendToken(dir)
+  if dir == "rising" then return "good" end
+  if dir == "falling" then return "bad" end
+  return "dim"
+end
+
 -- The p25 of each day in the last `days` days, oldest first, gaps left out.
 function P.Series(entry, today, days)
   local out = {}

@@ -1,4 +1,5 @@
 -- trends: price, tooltip and browse column
+local Th, L = TaxTheFools.Theme, TaxTheFools.List
 local DB, P, Tip, Browse, U = TaxTheFools.DB, TaxTheFools.Price, TaxTheFools.Tooltip, TaxTheFools.Browse, TaxTheFools.Util
 
 local TODAY = 20400
@@ -63,10 +64,15 @@ T.test("the tooltip shows the trend, and not when off or unknown", function()
   local now = TODAY * 86400 + 100
   local t = trendLine(Tip.Lines("14047:0", 1, now))
   T.ok(t and string.find(t, "+12% rising", 1, true), tostring(t))
+  T.eq(string.sub(t, 1, 10), Th.Code("good"))
   DB.Realm().history["14047:0"] = flat(92, 100)
-  T.ok(string.find(trendLine(Tip.Lines("14047:0", 1, now)), "-8% falling", 1, true))
+  t = trendLine(Tip.Lines("14047:0", 1, now))
+  T.ok(string.find(t, "-8% falling", 1, true))
+  T.eq(string.sub(t, 1, 10), Th.Code("bad"))
   DB.Realm().history["14047:0"] = flat(100, 100)
-  T.ok(string.find(trendLine(Tip.Lines("14047:0", 1, now)), "0% steady", 1, true))
+  t = trendLine(Tip.Lines("14047:0", 1, now))
+  T.ok(string.find(t, "0% steady", 1, true))
+  T.eq(string.sub(t, 1, 10), Th.Code("dim"))
   DB.S().trend.tooltip = false
   T.eq(trendLine(Tip.Lines("14047:0", 1, now)), nil)
   DB.S().trend.tooltip = true
@@ -84,8 +90,34 @@ T.test("Browse rows get a trend and the column shows it", function()
   T.eq(rows[1][col.sort], 12) T.eq(rows[4][col.sort], nil)
 end)
 
-T.test("Browse columns still fit the 660 wide window", function()
+T.test("steady trends read dim in the column, rising good, falling bad", function()
+  local history = { ["1:0"] = flat(103, 100), ["2:0"] = flat(112, 100), ["3:0"] = flat(92, 100) }
+  local rows = Browse.Decorate({ { key = "1:0" }, { key = "2:0" }, { key = "3:0" } }, {}, history, TODAY)
+  local col
+  for _, c in ipairs(Browse.COLUMNS) do if c.label == "Trend" then col = c end end
+  local _, tok = col.fmt(rows[1]) T.eq(tok, "dim")
+  _, tok = col.fmt(rows[2]) T.eq(tok, "good")
+  _, tok = col.fmt(rows[3]) T.eq(tok, "bad")
+end)
+
+T.test("sorting puts rows with no trend last, both ways", function()
+  local rows = { { key = "a" }, { key = "b", trend = 5 }, { key = "c", trend = -3 }, { key = "d" } }
+  L.Sort(rows, "trend", false)
+  T.eq(rows[1].key, "c") T.eq(rows[2].key, "b") T.ok(rows[3].trend == nil and rows[4].trend == nil)
+  L.Sort(rows, "trend", true)
+  T.eq(rows[1].key, "b") T.eq(rows[2].key, "c") T.ok(rows[3].trend == nil and rows[4].trend == nil)
+end)
+
+T.test("Browse columns fit 660 and the money columns grow in a wider list", function()
   local sum = 0
   for _, c in ipairs(Browse.COLUMNS) do sum = sum + c.width end
   T.ok(sum <= 660 - 20 - 12, "fixed widths " .. sum)
+  local narrow, wide = L.Widths(Browse.COLUMNS, 628), L.Widths(Browse.COLUMNS, 768)
+  local total = 0
+  for c = 1, table.getn(Browse.COLUMNS) do
+    total = total + wide[c]
+    local col = Browse.COLUMNS[c]
+    if col.flex then T.ok(wide[c] > narrow[c], col.label .. " grows") else T.eq(wide[c], narrow[c]) end
+  end
+  T.eq(total, 768)
 end)
