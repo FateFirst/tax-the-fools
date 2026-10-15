@@ -13,6 +13,7 @@ price.lua
 craft.lua
 deals.lua
 sell.lua
+sales.lua
 db.lua
 items.lua
 inventory.lua
