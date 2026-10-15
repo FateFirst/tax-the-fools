@@ -240,7 +240,8 @@ function WoW.reset()
   WoW.merchant = {}
   WoW.mail, WoW.sent, WoW.returned, WoW.mailErrors, WoW.addons = {}, {}, {}, {}, {}
   WoW.sendSlot, WoW.sendMoney, WoW.mailOpen = nil, 0, false
-  if MailFrame then MailFrame.shown = false end
+  WoW.closingMail = false
+  if MailFrame then MailFrame.shown = false MailFrame.scripts.OnHide = WoW.mailFrameOnHide end
   WoW.tooltips = {}
   WoW.trainer = {}
   WoW.bankOpen = false
@@ -483,7 +484,8 @@ end
 -- price is for the whole lot of `quantity` units; numAvailable -1 means unlimited stock.
 -- ---------- scripted mailbox ----------
 -- Tests put mails in WoW.mail (WoW.inbox is the same table): { subject=, money=, cod=, daysLeft=, hasItem=,
--- sender=, wasRead=, item={id,name,count}, isGM=, returned=, body= }.
+-- sender=, wasRead=, item={id,name,count}, isGM=, returned=, body=, textCreated= }. textCreated means "a copy of
+-- the letter was made" and is nil unless a test sets it.
 -- GetInboxNumItems() and GetInboxHeaderInfo(index) are logged so a test can count reads.
 -- 1.12 GetInboxHeaderInfo(index) returns: packageIcon, stationeryIcon, sender, subject, money, CODAmount,
 -- daysLeft, hasItem, wasRead, wasReturned, textCreated, canReply, isGM (wowwiki, API GetInboxHeaderInfo).
@@ -494,7 +496,7 @@ function GetInboxHeaderInfo(i)
   if not m then return nil end
   return "Interface\\Icons\\INV_Misc_Note_01", "Interface\\Icons\\INV_Misc_Note_01", m.sender or "Auction House",
     m.subject, m.money or 0, m.cod or 0, m.daysLeft or 30, (m.item or m.hasItem) and 1 or nil, m.wasRead,
-    m.returned and 1 or nil, m.body and 1 or nil, nil, m.isGM and 1 or nil
+    m.returned and 1 or nil, m.textCreated and 1 or nil, nil, m.isGM and 1 or nil
 end
 -- GetInboxText, TakeInbox*, DeleteInboxItem, ReturnInboxItem, CheckInbox and the send model follow the cursor
 -- model further down (they need it).
@@ -749,7 +751,16 @@ end
 -- The mailbox session. Blizzard's MAIL_SHOW handler shows MailFrame (our hook must wait a frame to hide it);
 -- CloseMail() ends the session and fires MAIL_CLOSED. MailFrame's OnHide calls CloseMail, so hiding it
 -- closes the mailbox: this is what the hook must dodge.
-function CloseMail() WoW.log("CloseMail") WoW.mailOpen = false WoW.fire("MAIL_CLOSED") end
+-- Blizzard's MAIL_CLOSED handler hides MailFrame; CloseMail does so too, guarded because its OnHide calls back.
+function CloseMail()
+  if WoW.closingMail then return end
+  WoW.log("CloseMail")
+  WoW.closingMail = true
+  WoW.mailOpen = false
+  if MailFrame and MailFrame.shown then MailFrame:Hide() end
+  WoW.closingMail = false
+  WoW.fire("MAIL_CLOSED")
+end
 function OpenBackpack() WoW.log("OpenBackpack") end
 function IsAddOnLoaded(name) if WoW.addons[name] then return 1 end return nil end
 -- Test helper: the player walks up to a mailbox. MailFrame shows (Blizzard's handler), then MAIL_SHOW and one
@@ -981,7 +992,8 @@ AuctionFrame.shown = false
 AuctionFrame:SetScript("OnHide", function() CloseAuctionHouse() end)
 MailFrame = newFrame("Frame", "MailFrame")
 MailFrame.shown = false
-MailFrame:SetScript("OnHide", function() CloseMail() end)
+WoW.mailFrameOnHide = function() CloseMail() end
+MailFrame:SetScript("OnHide", WoW.mailFrameOnHide)
 AuctionFrameAuctions = newFrame("Frame", "AuctionFrameAuctions")
 UISpecialFrames = {}
 DEFAULT_CHAT_FRAME = { AddMessage = function(self, msg) WoW.log("CHAT", msg) end }

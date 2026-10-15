@@ -18,7 +18,7 @@ end)
 T.test("Plan takes and deletes AH mail and mail with an empty body", function()
   T.eq(R.Plan(h{ sender = "Auction House", subject = "Auction successful: Linen", money = 900, body = "Sold." }), "take+delete")
   T.eq(R.Plan(h{ sender = "Bob", subject = "gift", hasItem = true, body = "" }), "take+delete")
-  T.eq(R.Plan(h{ sender = "Bob", subject = "gift", money = 10 }), "take+delete")   -- body not read yet
+  T.eq(R.Plan(h{ sender = "Bob", subject = "gift", money = 10 }), "take")   -- body not read yet: never delete
 end)
 
 T.test("Plan only takes a player's letter, which keeps its text", function()
@@ -221,4 +221,45 @@ T.test("stub: hiding MailFrame calls CloseMail, which fires MAIL_CLOSED; IsAddOn
   T.eq(IsAddOnLoaded("TurtleMail"), 1)
   OpenBackpack()
   T.eq(T.count("OpenBackpack"), 1)
+end)
+
+T.test("stub: textCreated is nil unless set; CloseMail hides a shown MailFrame; reset restores OnHide", function()
+  WoW.inbox = { { subject = "a", body = "" } }
+  local _, _, _, _, _, _, _, _, _, _, textCreated = GetInboxHeaderInfo(1)
+  T.eq(textCreated, nil)
+  WoW.openMailbox()
+  CloseMail()
+  T.eq(MailFrame:IsShown(), false)
+  T.eq(T.count("CloseMail"), 1)
+  MailFrame:SetScript("OnHide", function() end)
+  WoW.reset()
+  T.eq(MailFrame.scripts.OnHide, WoW.mailFrameOnHide)
+end)
+
+T.test("stub: COD take pays the COD, or is refused without the money", function()
+  bagsWithRoom(1)
+  WoW.inbox = { { subject = "a", cod = 200, item = { id = 7, name = "Linen", count = 1 } } }
+  local err
+  local f = CreateFrame("Frame")
+  f:RegisterEvent("UI_ERROR_MESSAGE")
+  f:SetScript("OnEvent", function() err = arg1 end)
+  TakeInboxItem(1)
+  T.eq(err, ERR_NOT_ENOUGH_MONEY)
+  T.ok(WoW.mail[1].item ~= nil)
+  WoW.money = 500
+  TakeInboxItem(1)
+  T.eq(WoW.money, 300)
+  T.eq(WoW.bags[0][1].id, 7)
+end)
+
+T.test("stub: sending part of a stack leaves the rest in the bag", function()
+  WoW.money = 100
+  WoW.items[1] = { name = "Item1" }
+  WoW.bags = { [0] = { { id = 1, name = "Item1", count = 20 }, {} } }
+  SplitContainerItem(0, 1, 5)
+  ClickSendMailItemButton()
+  SendMail("Banker", "s", "b")
+  T.eq(WoW.sent[1].item.count, 5)
+  T.eq(WoW.bags[0][1].count, 15)
+  T.eq(WoW.bags[0][1].locked, nil)
 end)
