@@ -116,12 +116,20 @@ function Auction.Post(bag, slot, stack, bid, buyout, minutes, key, allowBelowFlo
   clearSellSlot()
   PickupContainerItem(bag, slot)
   ClickAuctionSellItemButton()
+  -- The item must really be in the slot, in this count, before anything is posted.
+  local name = GetItemInfo(id)
+  local slotName, _, slotCount = GetAuctionSellItemInfo()
+  if not slotName or slotCount ~= stack or (name and slotName ~= name) then
+    clearSellSlot()
+    return refuse("The item didn't reach the sell slot. Try again.")
+  end
+  -- An unknown deposit (the client gives none) skips the affordability check.
   local deposit = learned or CalculateAuctionDeposit(minutes)
-  if deposit > GetMoney() then
+  if deposit and deposit > GetMoney() then
     clearSellSlot()
     return refuse("You can't afford the deposit of " .. U.money(deposit, true) .. ".")
   end
-  local name = GetItemInfo(id) or key
+  name = name or key
   Auction.busy = { kind = "post", key = key, id = id, count = stack, bid = bid, buyout = buyout, minutes = minutes,
                    before = GetMoney(), at = GetTime(), name = name, after = after or false, onFail = onFail or false }
   StartAuction(bid, buyout, minutes)
@@ -220,6 +228,8 @@ local function finish(ok, text)
   local b = Auction.busy
   Auction.busy = false
   if not ok then
+    -- A failed or unanswered post leaves the stack in the sell slot, its bag slot locked: take it back.
+    if b.kind == "post" then clearSellSlot() end
     Auction.Say(text, "bad")
     if b.onFail then b.onFail(text) end
     return

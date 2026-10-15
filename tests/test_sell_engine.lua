@@ -213,6 +213,74 @@ T.test("a post failure releases the lock, runs onFail and learns nothing", funct
   end
 end)
 
+-- Review I1: a post that fails leaves nothing in the sell slot, so the bag slot is not stuck locked.
+local function slotFree()
+  T.eq(WoW.sellSlot, nil, "sell slot empty")
+  T.eq(WoW.cursor, nil, "hand empty")
+  local _, _, locked = GetContainerItemInfo(0, 1)
+  T.eq(locked, nil, "bag slot unlocked")
+end
+
+T.test("a failed post empties the sell slot, and the same stack posts on the next click (Review I1)", function()
+  stock() WoW.money = 100000
+  WoW.ah.postReply = "money"
+  Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  T.ok(WoW.sellSlot, "in the slot while pending")
+  WoW.postRespond()
+  T.eq(Auction.busy, false)
+  slotFree()
+  WoW.ah.postReply = "auto"
+  T.eq(Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true), true, "the next click posts the same stack")
+  T.eq(T.count("StartAuction"), 2)
+  WoW.postRespond()
+  T.eq(DB.Char().postings[1].stack, 20)
+end)
+
+T.test("a timed-out post empties the sell slot too (Review I1)", function()
+  stock() WoW.money = 100000
+  WoW.ah.postReply = "none"
+  Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  WoW.postRespond()
+  WoW.clock = WoW.clock + 5
+  frame()
+  T.eq(Auction.busy, false)
+  slotFree()
+end)
+
+T.test("Post refuses, clears and never starts when the item did not reach the sell slot (Review I1)", function()
+  stock() WoW.money = 100000
+  local keep = ClickAuctionSellItemButton
+  ClickAuctionSellItemButton = function() WoW.log("ClickAuctionSellItemButton") end   -- the click does nothing
+  local r = Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  ClickAuctionSellItemButton = keep
+  T.eq(r, false)
+  noPost("not in the slot")
+  T.ok(T.calledWith("The item didn't reach the sell slot. Try again."))
+  slotFree()
+end)
+
+T.test("Post refuses when the sell slot holds a different count (Review I1)", function()
+  stock() WoW.money = 100000
+  local keep = ClickAuctionSellItemButton
+  ClickAuctionSellItemButton = function() keep() if WoW.sellSlot then WoW.sellSlot.count = 14 end end
+  local r = Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  ClickAuctionSellItemButton = keep
+  T.eq(r, false)
+  noPost("wrong count in the slot")
+  slotFree()
+end)
+
+T.test("a nil client deposit does not raise or block the post (Review I1)", function()
+  stock() WoW.money = 100000
+  local keep = CalculateAuctionDeposit
+  CalculateAuctionDeposit = function() return nil end
+  local ok, r = pcall(Auction.Post, 0, 1, 20, 100, 200, 480, "14047:0", true)
+  CalculateAuctionDeposit = keep
+  T.ok(ok, "raised: " .. tostring(r))
+  T.eq(r, true)
+  T.eq(T.count("StartAuction"), 1)
+end)
+
 T.test("no reply to a post within 5 seconds releases the lock", function()
   stock() WoW.money = 100000
   WoW.ah.postReply = "none"
