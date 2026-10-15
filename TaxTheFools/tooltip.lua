@@ -34,7 +34,44 @@ function Tip.Lines(key, count, now)
       table.insert(lines, { "Sells", math.floor(st.rate * 100 + 0.5) .. "% (" .. st.n .. ")" })
     end
   end
+  local rs = DB.S().recipes
+  if rs and rs.tooltip then
+    local ok, text = pcall(Tip.RecipeLine, key)
+    if ok and text then table.insert(lines, { "Recipe", text }) end
+  end
   return lines
+end
+
+-- The payback line for a pattern item: "Pays back in 4 crafts (+1g 20s each)", "No profit per craft",
+-- "Learned by Name", or nil when the item is no pattern or no price is known.
+function Tip.RecipeLine(key)
+  local CraftUI = TaxTheFools.CraftUI
+  if not CraftUI then return nil end
+  local entry = CraftUI.PatternEntry(key)
+  if not entry then return nil end
+  local R, realm = TaxTheFools.Recipes, DB.Realm()
+  local rs = DB.S().recipes
+  local crafters = R.Crafters(realm.chars, entry.prof, entry, rs.skillAhead or 0)
+  if table.getn(crafters) == 0 then
+    local names = {}
+    for name, c in pairs(realm.chars or {}) do
+      if c.professions and c.professions[entry.prof] and table.getn(R.Unlearned({ entry }, c, entry.prof)) == 0 then
+        table.insert(names, name)
+      end
+    end
+    if table.getn(names) == 0 then return nil end
+    table.sort(names)
+    return "Learned by " .. names[1]
+  end
+  local ctx = TaxTheFools.TradeSkill.Context()
+  local cost = R.Cost(entry, ctx, realm.snapshot)
+  if not cost then return nil end
+  local ev = TaxTheFools.Craft.Evaluate(entry, ctx)
+  local pb = R.Payback(math.floor(cost), ev.profit)
+  if pb == "never" then return "No profit per craft" end
+  local each = " (+" .. U.money(ev.profit, true) .. " each)"
+  if pb == 0 then return "Free to learn" .. each end
+  return "Pays back in " .. pb .. (pb == 1 and " craft" or " crafts") .. each
 end
 
 function Tip.Add(tt, link, count)

@@ -93,3 +93,74 @@ T.test("the Sells line follows the sales window", function()
   T.eq(n, "67% (3)")
   DB.S().sales.days = 30
 end)
+
+-- ---------- the pattern payback line ----------
+
+local function recipeLine(lines)
+  for _, l in ipairs(lines) do if l[1] == "Recipe" then return l[2] end end
+end
+
+local function withPattern(fn)
+  local A = TaxTheFools
+  local saved = A.RecipeData
+  A.RecipeData = { Tailoring = {
+    [1] = { n = "Silk Cape", skill = 150, item = 9300, pat = { 7000 }, src = { "vendor" }, r = { 4306, 2 } } } }
+  A.CraftUI.cache = false
+  I.Remember(4306, "Silk Cloth")
+  I.Remember(7000, "Pattern: Silk Cape").vb = 4000
+  DB.Realm().market["4306:0"] = { v = 300, lowDay = 20374 }
+  DB.Realm().market["9300:0"] = { v = 4000, lowDay = 20374 }   -- 3800 - 600 = 3200 per craft
+  DB.Realm().chars.Tailor = { professions = { Tailoring = { rank = 140, recipes = {} } } }
+  local ok, err = pcall(fn)
+  A.RecipeData = saved
+  A.CraftUI.cache = false
+  if not ok then error(err, 0) end
+end
+
+T.test("a pattern tooltip says how many crafts it takes to pay back", function()
+  withPattern(function()
+    T.eq(recipeLine(Tip.Lines("7000:0", 1, WoW.now)), "Pays back in 2 crafts (+32s each)")
+  end)
+end)
+
+T.test("the pattern line in its other forms", function()
+  withPattern(function()
+    DB.Realm().market["9300:0"] = { v = 500, lowDay = 20374 }
+    T.eq(recipeLine(Tip.Lines("7000:0", 1, WoW.now)), "No profit per craft")
+    DB.Realm().market["9300:0"] = { v = 4000, lowDay = 20375 }
+    -- the cache is stamped on recipes, not prices: a learned recipe changes who can learn it
+    DB.Realm().chars.Tailor.professions.Tailoring.recipes["Silk Cape"] = { item = "9300:0", reagents = {} }
+    DB.Realm().chars.Tailor.professions.Tailoring.at = 5
+    T.eq(recipeLine(Tip.Lines("7000:0", 1, WoW.now)), "Learned by Tailor")
+    DB.Realm().chars.Tailor = nil
+    T.eq(recipeLine(Tip.Lines("7000:0", 1, WoW.now)), nil, "nobody to learn it and nobody has")
+  end)
+end)
+
+T.test("no price known leaves the pattern line out, and so does an ordinary item", function()
+  withPattern(function()
+    TaxTheFoolsDB.items[7000].vb = nil
+    DB.Realm().market["7000:0"] = nil
+    T.eq(recipeLine(Tip.Lines("7000:0", 1, WoW.now)), nil)
+    T.eq(recipeLine(Tip.Lines("5000:0", 1, WoW.now)), nil)
+  end)
+end)
+
+T.test("the pattern line follows the recipes tooltip setting", function()
+  withPattern(function()
+    DB.S().recipes.tooltip = false
+    T.eq(recipeLine(Tip.Lines("7000:0", 1, WoW.now)), nil)
+    DB.S().recipes.tooltip = true
+    T.ok(recipeLine(Tip.Lines("7000:0", 1, WoW.now)))
+  end)
+end)
+
+T.test("a failure building the pattern line never costs the other lines", function()
+  withPattern(function()
+    local saved = TaxTheFools.CraftUI.PatternEntry
+    TaxTheFools.CraftUI.PatternEntry = function() error("boom") end
+    local lines = Tip.Lines("7000:0", 1, WoW.now)
+    TaxTheFools.CraftUI.PatternEntry = saved
+    T.eq(lines[1][1], "Market")
+  end)
+end)

@@ -148,3 +148,125 @@ T.test("a bag change while the Crafting page is open repaints it", function()
   A.Inventory.ScanBags()
   T.ok(p.list.data[1].cash ~= before, "cash counts the new silk")
 end)
+
+-- ---------- the Not learned view ----------
+
+local function withData(fn)
+  local saved = A.RecipeData
+  A.RecipeData = { Tailoring = {
+    [1] = { n = "Silk Cape", skill = 150, item = 9300, pat = { 7000 }, src = { "vendor" }, r = { 4306, 2 } },
+    [2] = { n = "Silk Sash", skill = 160, item = 9400, pat = { 7001 }, src = { "drop" }, r = { 4306, 1 } },
+    [3] = { n = "Epic Robe", skill = 290, item = 9500, src = { "trainer" }, r = { 4306, 1 }, turtle = true },
+    [4] = { n = "Bolt of Silk Cloth", skill = 125, item = 4305, src = { "trainer" }, r = { 4306, 4 } },
+    [5] = { n = "Dud Hat", skill = 100, item = 9600, pat = { 7002 }, src = { "quest" }, r = { 4306, 9 } },
+  } }
+  A.CraftUI.cache = false
+  local ok, err = pcall(fn)
+  A.RecipeData = saved
+  A.CraftUI.cache = false
+  if not ok then error(err, 0) end
+end
+
+local function unlearnedPage()
+  seed()
+  DB.Realm().chars.Tailor.professions.Tailoring.rank = 140
+  A.Items.Remember(7000, "Pattern: Silk Cape").vb = 4000
+  A.Items.Remember(7001, "Pattern: Silk Sash")
+  A.Items.Remember(7002, "Pattern: Dud Hat")
+  DB.Realm().market["9300:0"] = { v = 4000, lowDay = 20375 }    -- Silk Cape: 4000 x 0.95 - 600 = 3200
+  DB.Realm().market["9400:0"] = { v = 900, lowDay = 20375 }     -- Silk Sash: 855 - 300 = 555
+  DB.Realm().market["9600:0"] = { v = 1000, lowDay = 20375 }    -- Dud Hat: 950 - 2700 < 0
+  DB.Realm().market["7001:0"] = { v = 1500.5, lowDay = 20375 }  -- the sash pattern on the AH
+  local p = open()
+  p.ulist:SetHeight(200)
+  p.view, p.soon = "unlearned", true
+  CraftUI.Paint(p)
+  return p
+end
+
+T.test("Not learned lists what this character has not learned, quickest payback first", function()
+  withData(function()
+    local p = unlearnedPage()
+    -- Epic Robe (290) is out of reach at rank 140 + 25; Bolt of Silk Cloth is already learned.
+    T.eq(names(p.ulist), "Silk Cape, Silk Sash, Dud Hat")
+    T.ok(p.ulist:IsShown())
+    T.eq(p.list:IsShown(), false)
+    local r = p.ulist.data[1]
+    T.eq(r.cost, 4000, "vendor price")
+    T.eq(r.payback, 2, "ceil(4000 / 3200)")
+    T.eq(p.ulist.rows[1].cells[3]:GetText(), TaxTheFools.Util.money(4000) .. " vendor")
+    T.eq(p.ulist.rows[1].cells[5]:GetText(), "2 crafts")
+    T.eq(p.ulist.data[2].cost, 1500, "AH cost floored")
+    T.eq(p.ulist.rows[2].cells[3]:GetText(), TaxTheFools.Util.money(1500) .. " AH")
+    T.eq(p.ulist.rows[2].cells[5]:GetText(), "3 crafts")
+    T.eq(p.ulist.data[3].payback, nil, "no cost")
+    T.eq(p.ulist.rows[3].cells[3]:GetText(), "quest")
+    T.eq(p.ulist.rows[3].cells[5]:GetText(), "-")
+  end)
+end)
+
+T.test("Not learned: never, free, the T tag, Sells and the warning colour", function()
+  withData(function()
+    local p = unlearnedPage()
+    A.Items.Remember(7002, "Pattern: Dud Hat").vb = 50
+    DB.Realm().market["7002:0"] = nil
+    DB.Char().sales = { { key = "9300:0", outcome = "sold", money = 100, qty = 1, unit = 100, at = time() - 86400 },
+      { key = "9300:0", outcome = "expired", at = time() - 86400 } }
+    CraftUI.Paint(p)
+    local byName = {}
+    for i, r in ipairs(p.ulist.data) do byName[r.name] = i end
+    T.eq(p.ulist.rows[byName["Dud Hat"]].cells[5]:GetText(), "never")
+    T.eq(p.ulist.rows[byName["Silk Cape"]].cells[6]:GetText(), "50%")
+    T.eq(p.ulist.rows[byName["Silk Sash"]].cells[6]:GetText(), "-")
+    -- a free trainer recipe, not yet reachable: warning colour and the T tag
+    TaxTheFoolsDB.recipes = { Tailoring = { trainer = { ["Epic Robe"] = { c = 0, s = 290 } }, seen = {} } }
+    p.soon = false
+    CraftUI.Paint(p)
+    local robe
+    for i, r in ipairs(p.ulist.data) do if r.name == "Epic Robe" then robe = i end end
+    T.ok(robe, "listed without the filter")
+    T.ok(string.find(p.ulist.rows[robe].cells[1]:GetText(), "T|r", 1, true), "Turtle tag")
+    T.ok(string.find(p.ulist.rows[robe].cells[1]:GetText(), Th.Code("warn"), 1, true), "beyond rank")
+    T.eq(p.ulist.rows[robe].cells[5]:GetText(), "free")
+  end)
+end)
+
+T.test("Not learned: the Learnable soon filter, sort and selection detail", function()
+  withData(function()
+    local p = unlearnedPage()
+    T.eq(table.getn(p.ulist.data), 3)
+    WoW.runScript(p.soonSw, "OnClick")
+    T.eq(p.soon, false)
+    T.eq(table.getn(p.ulist.data), 4, "Epic Robe appears")
+    DB.S().recipes.skillAhead = 0
+    CraftUI.SetSoon(p, true)
+    T.eq(table.getn(p.ulist.data), 1, "only skill <= 140: Dud Hat")
+    DB.S().recipes.skillAhead = 25
+    CraftUI.SetSoon(p, true)
+    WoW.runScript(p.ulist.headers[2], "OnClick")           -- Skill ascending
+    T.eq(p.ulist.data[1].name, "Dud Hat")
+    WoW.runScript(p.ulist.rows[2], "OnClick", "LeftButton") -- Silk Cape
+    local d = p.detail.lines
+    T.eq(d[1]:GetText(), "Silk Cape: Pays back after 2 crafts at 32s each")
+    T.eq(d[2]:GetText(), "Source: vendor   Pattern: Pattern: Silk Cape")
+    T.ok(string.find(d[3]:GetText(), "2 x Silk Cloth", 1, true), d[3]:GetText())
+  end)
+end)
+
+T.test("Not learned with no recipe list says so, and Learned is unchanged afterwards", function()
+  withData(function()
+    local p = unlearnedPage()
+    DB.Realm().chars.Zed = { professions = { Leatherworking = { recipes = {} } } }
+    CraftUI.SetChar(p, "Zed")
+    T.eq(p.empty:GetText(), "No recipe list for Leatherworking yet.")
+    T.ok(p.empty:IsShown())
+    CraftUI.SetChar(p, "Tailor")
+    CraftUI.SetView(p, "learned")
+    T.eq(p.empty:GetText(), CraftUI.EMPTY)
+    T.ok(p.list:IsShown())
+    T.eq(p.ulist:IsShown(), false)
+    T.eq(p.soonSw:IsShown(), false)
+    T.eq(names(p.list), "Bolt of Silk Cloth, Silk Headband, Spider Silk Robe")
+    T.eq(p.list.sortCol, CraftUI.COLUMNS[4])
+  end)
+end)
