@@ -175,3 +175,55 @@ function Deals.FindUnder(snapshot, ctx, s, src)
   end)
   return out
 end
+
+-- ---------- recipe deals (phase 5a spec section 5) ----------
+-- Pure. src = { indexes = { { prof, index = Recipes.PatternIndex(...) } }, chars = realm characters,
+-- skillAhead = number }. A listing is a deal when it is a pattern someone on the realm can learn and
+-- it pays back within s.paybackCrafts crafts; profit = perCraft x paybackCrafts - buyout.
+function Deals.FindRecipes(snapshot, ctx, s, me, src)
+  local out = {}
+  if not snapshot or not snapshot.rows or not s.recipe or not src then return out end
+  local R = TaxTheFools.Recipes
+  local limit, minProfit = s.paybackCrafts or 10, s.minProfit or 0
+  local per, crafters = {}, {}
+  for _, ix in ipairs(src.indexes or {}) do
+    for key, entry in pairs(ix.index or {}) do
+      local list = snapshot.rows[key]
+      if list then
+        local id = U.keyId(key)
+        local vrec = ctx.items[id]
+        local vendor = vrec and vrec.vb and vrec.vb > 0 and not vrec.vbLimited and vrec.vb or nil
+        for _, row in ipairs(list) do
+          local count, buyout, _, owner = TaxTheFools.Scan.ParseSnapRow(row)
+          if count == 1 and buyout and buyout > 0 and not (me and owner and owner == me)
+             and not (vendor and vendor < buyout) then
+            if crafters[entry] == nil then
+              crafters[entry] = R.Crafters(src.chars, ix.prof, entry, src.skillAhead)
+              per[entry] = Craft.Evaluate(entry, ctx).profit or false
+            end
+            local who = crafters[entry]
+            local perCraft = per[entry]
+            if table.getn(who) > 0 and perCraft then
+              local payback = R.Payback(buyout, perCraft)
+              if type(payback) == "number" and payback <= limit then
+                local profit = perCraft * limit - buyout
+                if profit >= minProfit then
+                  local m = ctx.market[key]
+                  table.insert(out, { type = "recipe", key = key, count = 1, buyout = buyout, unit = buyout,
+                                      market = m and m.v, crafter = who[1], recipe = entry.name, perCraft = perCraft,
+                                      payback = payback, profit = profit, owner = owner })
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+  table.sort(out, function(a, b)
+    if a.profit ~= b.profit then return a.profit > b.profit end
+    if a.key ~= b.key then return a.key < b.key end
+    return a.buyout < b.buyout
+  end)
+  return out
+end

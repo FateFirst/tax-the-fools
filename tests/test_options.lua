@@ -240,3 +240,40 @@ T.test("the General page binds the bag right-click switch to settings.bagClick",
   T.eq(DB.S().bagClick, false)
   DB.S().bagClick = true
 end)
+
+T.test("the recipe options are bound to settings.deals and settings.recipes, with their ranges", function()
+  local f = Opt.Create()
+  local function find(catKey, path2)
+    for _, cat in ipairs(Opt.CATEGORIES) do
+      if cat.key == catKey then
+        for i, row in ipairs(cat.rows) do
+          if row.path and row.path[2] == path2 then return i, row end
+        end
+      end
+    end
+  end
+  Opt.Select("deals")
+  local i, row = find("deals", "recipe")
+  T.ok(i, "Recipe switch") T.eq(row.label, "Recipe")
+  WoW.runScript(f.pages.deals.controls[i], "OnClick")
+  T.eq(DB.S().deals.recipe, false)
+  DB.S().deals.recipe = true
+  i, row = find("deals", "paybackCrafts")
+  T.eq(row.label, "Pays back within") T.eq(row.min, 1) T.eq(row.max, 50)
+  f.pages.deals.controls[i].slider:SetValue(20)
+  WoW.runScript(f.pages.deals.controls[i].slider, "OnMouseUp")
+  T.eq(DB.S().deals.paybackCrafts, 20)
+  DB.S().deals.paybackCrafts = 10
+  Opt.Select("crafting")
+  i, row = find("crafting", "tooltip")
+  T.eq(row.label, "Pattern payback tooltip line") T.eq(row.path[1], "recipes")
+  WoW.runScript(f.pages.crafting.controls[i], "OnClick")
+  T.eq(DB.S().recipes.tooltip, false)
+  DB.S().recipes.tooltip = true
+  i, row = find("crafting", "skillAhead")
+  T.eq(row.label, "Learnable soon: skill ahead") T.eq(row.min, 0) T.eq(row.max, 75) T.eq(row.step, 5)
+  f.pages.crafting.controls[i].slider:SetValue(50)
+  WoW.runScript(f.pages.crafting.controls[i].slider, "OnMouseUp")
+  T.eq(DB.S().recipes.skillAhead, 50)
+  DB.S().recipes.skillAhead = 25
+end)

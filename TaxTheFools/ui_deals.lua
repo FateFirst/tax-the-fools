@@ -7,7 +7,7 @@ TaxTheFools.DealsUI = DealsUI
 
 DealsUI.RAIL = 150
 DealsUI.STALE_DAYS = 2
-DealsUI.TYPE = { market = "Market", vendor = "Vendor", mats = "Mats", under = "Under" }
+DealsUI.TYPE = { market = "Market", vendor = "Vendor", mats = "Mats", under = "Under", recipe = "Recipe" }
 DealsUI.CONFIDENCE = { { value = 0, label = "Low" }, { value = 0.4, label = "Medium" }, { value = 0.7, label = "High" } }
 
 local function money(v)
@@ -59,8 +59,17 @@ function DealsUI.RowTip(row, d)
     GameTooltip:AddLine("You hold " .. d.held .. ". Few are listed and it sells.", 0.78, 0.78, 0.74, 1)
     GameTooltip:AddLine("Suggested price " .. U.money(d.suggest, true) .. " each.", 0.78, 0.78, 0.74, 1)
   end
+  if d.type == "recipe" then
+    GameTooltip:AddLine(DealsUI.RecipeText(d), 0.78, 0.78, 0.74, 1)
+    GameTooltip:AddLine(d.crafter .. " can learn it.", 0.78, 0.78, 0.74, 1)
+  end
   if d.type == "market" and d.depositUnknown then GameTooltip:AddLine("Deposit unknown: profit may be a little lower.", 0.78, 0.78, 0.74, 1) end
   GameTooltip:Show()
+end
+
+function DealsUI.RecipeText(d)
+  local n = d.payback == 1 and "1 craft" or (d.payback .. " crafts")
+  return "Pays back in " .. n .. " for " .. d.recipe
 end
 
 local function same(a, b)
@@ -97,8 +106,10 @@ function DealsUI.BuildRail(p)
   p.matsSw:SetPoint("TOPLEFT", p.vendorSw, "BOTTOMLEFT", 0, -2)
   p.underSw = sw(p, "Undersupplied", "under", "Items you hold that sell well and are scarce now. Sell opens the Sell tab.")
   p.underSw:SetPoint("TOPLEFT", p.matsSw, "BOTTOMLEFT", 0, -2)
+  p.recipeSw = sw(p, "Recipes", "recipe", "Patterns on the auction house that pay back quickly for a character who can learn them.")
+  p.recipeSw:SetPoint("TOPLEFT", p.underSw, "BOTTOMLEFT", 0, -2)
   p.belowSl = slider(p, "Below market", "belowMarketPct", 50, 95, 5, pct)
-  p.belowSl:SetPoint("TOPLEFT", p.underSw, "BOTTOMLEFT", 0, -14)
+  p.belowSl:SetPoint("TOPLEFT", p.recipeSw, "BOTTOMLEFT", 0, -14)
   p.profitSl = slider(p, "Minimum profit", "minProfit", 0, 100000, 1000, function(v) return U.money(v) end)
   p.profitSl:SetPoint("TOPLEFT", p.belowSl, "BOTTOMLEFT", 0, -8)
   p.matSl = slider(p, "Materials", "matPct", 50, 100, 5, pct)
@@ -156,11 +167,14 @@ function DealsUI.Paint()
   local text, token = DealsUI.BannerText(Scan.SnapshotAge(U.day(time())))
   p.banner:SetText(text)
   Th.Color(p.banner, token)
-  for _, c in ipairs({ p.marketSw, p.vendorSw, p.matsSw, p.underSw, p.belowSl, p.profitSl, p.matSl, p.confDD }) do c:Refresh() end
+  for _, c in ipairs({ p.marketSw, p.vendorSw, p.matsSw, p.underSw, p.recipeSw, p.belowSl, p.profitSl, p.matSl, p.confDD }) do c:Refresh() end
   local keep = p.list.selected and Auction.Sig(p.list.selected)
   local ctx = TS.Context()
   local deals = Deals.Find(snap, ctx, DB.S().deals, DB.charName)
   for _, u in ipairs(Deals.FindUnder(snap, ctx, DB.S().deals, DealsUI.UnderSource(ctx))) do table.insert(deals, u) end
+  for _, r in ipairs(Deals.FindRecipes(snap, ctx, DB.S().deals, DB.charName, DealsUI.RecipeSource())) do
+    table.insert(deals, r)
+  end
   table.sort(deals, function(a, b)
     if a.profit ~= b.profit then return a.profit > b.profit end
     if a.key ~= b.key then return a.key < b.key end
@@ -173,6 +187,22 @@ function DealsUI.Paint()
   p.list:Paint()
   if not p.list.selected then p.found = false end
   DealsUI.UpdateBar()
+end
+
+-- The pattern index of every profession that has recipe data, the realm's characters and the look-ahead.
+function DealsUI.RecipeSource()
+  local realm, R = DB.Realm(), TaxTheFools.Recipes
+  local profs, indexes = {}, {}
+  for prof in pairs(TaxTheFools.RecipeData or {}) do profs[prof] = true end
+  for prof in pairs(TaxTheFoolsDB.recipes or {}) do profs[prof] = true end
+  for _, c in pairs(realm.chars or {}) do
+    for prof in pairs(c.professions or {}) do profs[prof] = true end
+  end
+  for prof in pairs(profs) do
+    local cat = R.Catalogue(prof, TaxTheFools.RecipeData, TaxTheFoolsDB.recipes, realm.chars, TaxTheFoolsDB.items)
+    table.insert(indexes, { prof = prof, index = R.PatternIndex(cat) })
+  end
+  return { indexes = indexes, chars = realm.chars, skillAhead = DB.S().recipes.skillAhead }
 end
 
 -- Holdings, sell-rate stats over the Sales window and the median listing count per key.

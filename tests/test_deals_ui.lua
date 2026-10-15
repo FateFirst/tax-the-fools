@@ -404,3 +404,73 @@ T.test("Sell on an Under deal switches to the Sell tab and selects it, with no b
   T.eq(T.count("StartAuction"), 0)
   UI.ah.tabs:Select("deals")
 end)
+
+-- ---------- recipe deals (phase 5a) ----------
+-- Pattern 600 teaches Robe (skill 40, product 500, one Thread 300 at 200): 750 a craft. Listed at
+-- 2000 it pays back in 3 crafts (profit 750*10-2000 = 5500, over the default minimum). The current character is a tailor of rank 50 who hasn't learned it.
+local function seedRecipe()
+  local realm = DB.Realm()
+  realm.market["500:0"] = { v = 1000, conf = 0.8 }
+  realm.market["300:0"] = { v = 200, conf = 0.8 }
+  A.Items.Remember(600, "Pattern: Robe", 1, 1)
+  A.Items.Remember(500, "Robe", 1, 1)
+  A.Items.Remember(300, "Thread", 1, 20)
+  realm.snapshot = { at = time(), day = A.Util.day(time()), rows = { ["600:0"] = { "1|2000|0|Seller" } } }
+  realm.chars[DB.charName] = realm.chars[DB.charName] or {}
+  realm.chars[DB.charName].professions = { Tailoring = { rank = 50, recipes = {} } }
+  A.RecipeData = { Tailoring = { [900] = { n = "Robe", skill = 40, item = 500, pat = { 600 }, src = { "drop" }, r = { 300, 1 } } } }
+  WoW.money = 1000000
+  table.insert(WoW.ah.listings, { id = 600, name = "Pattern: Robe", count = 1, buyout = 2000, owner = "Seller" })
+end
+
+local savedData = A.RecipeData
+local function recipeRow(p)
+  for i, d in ipairs(p.list.data) do if d.type == "recipe" then return i, d end end
+end
+
+T.test("a pattern that pays back shows as a Recipe row with its payback text", function()
+  seedRecipe()
+  local p = page()
+  local i, d = recipeRow(p)
+  T.ok(i, "Recipe row present")
+  T.eq(d.typeLabel, "Recipe") T.eq(d.payback, 3) T.eq(d.crafter, A.DB.charName) T.eq(d.profit, 5500)
+  T.eq(p.list.rows[i].cells[8]:GetText(), "Recipe")
+  T.eq(Deals.RecipeText(d), "Pays back in 3 crafts for Robe")
+  T.eq(Deals.RecipeText({ payback = 1, recipe = "Robe" }), "Pays back in 1 craft for Robe")
+  A.RecipeData = savedData
+end)
+
+T.test("the Deals rail has the Recipe switch and no payback slider; it drives the list", function()
+  seedRecipe()
+  local p = page()
+  T.ok(p.recipeSw)
+  T.eq(rawget(p, "paybackSl"), nil)
+  T.ok(recipeRow(p))
+  WoW.runScript(p.recipeSw, "OnClick")
+  T.eq(DB.S().deals.recipe, false)
+  T.eq(recipeRow(p), nil)
+  WoW.runScript(p.recipeSw, "OnClick")
+  T.ok(recipeRow(p))
+  DB.S().deals.paybackCrafts = 2
+  A.DealsUI.Paint()
+  T.eq(recipeRow(p), nil, "3 crafts is not under a limit of 2")
+  DB.S().deals.paybackCrafts = 10
+  A.RecipeData = savedData
+end)
+
+T.test("a Recipe deal goes through Find then Buy, with one PlaceAuctionBid on the Buy click", function()
+  seedRecipe()
+  local p = page()
+  local _, d = recipeRow(p)
+  p.list.selected = d
+  A.DealsUI.UpdateBar()
+  T.eq(p.findBtn.label:GetText(), "FIND")
+  WoW.runScript(p.findBtn, "OnClick")
+  answer()
+  T.ok(string.find(p.status:GetText(), "Found on page 1", 1, true), p.status:GetText())
+  T.eq(p.findBtn.label:GetText(), string.upper("Buy " .. A.Util.money(2000)))
+  T.eq(T.count("PlaceAuctionBid"), 0, "finding never buys")
+  WoW.runScript(p.findBtn, "OnClick")
+  T.eq(T.count("PlaceAuctionBid"), 1)
+  A.RecipeData = savedData
+end)

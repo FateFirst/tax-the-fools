@@ -212,3 +212,90 @@ T.test("FindUnder walks the holdings, reads the snapshot count and lowest, sorts
   T.eq(table.getn(Dl.FindUnder(sn, ctx, US({ under = false }), src)), 0)
   T.eq(table.getn(Dl.FindUnder(nil, ctx, US(), src)), 0, "no snapshot")
 end)
+
+-- ---------- recipe deals (phase 5a) ----------
+-- Pattern 600 teaches Robe (product 500, skill 40): value 1000*0.95 = 950, material 300 costs 200,
+-- so 750 a craft. A listing at 3000 pays back in ceil(3000/750) = 4 crafts.
+local function rctx()
+  return ctxOf({ ["500:0"] = { v = 1000, conf = 0.8 }, ["300:0"] = { v = 200, conf = 0.8 } }, {})
+end
+local function rsrc(learnedBy, rank)
+  local entry = { name = "Robe", skill = 40, item = "500:0", yieldMin = 1, yieldMax = 1,
+                  reagents = { { item = "300:0", name = "Thread", count = 1 } }, pats = { 600 } }
+  local recipes = {}
+  if learnedBy then recipes.Robe = { item = "500:0" } end
+  local chars = { Alt = { professions = { Tailoring = { rank = rank or 50, recipes = recipes } } } }
+  return { indexes = { { prof = "Tailoring", index = TaxTheFools.Recipes.PatternIndex({ entry }) } }, chars = chars, skillAhead = 25 }
+end
+local function RS(o)
+  local s = S({ recipe = true, paybackCrafts = 10, minProfit = 0 })
+  for k, v in pairs(o or {}) do s[k] = v end
+  return s
+end
+local function rsnap(...)
+  return snap("600:0", unpack(arg))
+end
+
+T.test("a pattern deal: payback, crafter and the profit arithmetic", function()
+  local r = Dl.FindRecipes(rsnap("1|3000|0|Seller"), rctx(), RS(), "Me", rsrc())
+  T.eq(table.getn(r), 1)
+  local d = r[1]
+  T.eq(d.type, "recipe") T.eq(d.key, "600:0") T.eq(d.count, 1) T.eq(d.buyout, 3000) T.eq(d.unit, 3000)
+  T.eq(d.crafter, "Alt") T.eq(d.recipe, "Robe") T.eq(d.perCraft, 750) T.eq(d.payback, 4)
+  T.eq(d.profit, 750 * 10 - 3000)
+end)
+
+T.test("recipe deals: the payback threshold is inclusive", function()
+  -- 7500 / 750 = exactly 10 crafts; 7501 is 11.
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|7500|0|X"), rctx(), RS({ minProfit = -1 }), "Me", rsrc())), 1)
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|7501|0|X"), rctx(), RS({ minProfit = -10000 }), "Me", rsrc())), 0)
+end)
+
+T.test("recipe deals: minProfit and the switch", function()
+  -- profit 4500 at 3000
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|3000|0|X"), rctx(), RS({ minProfit = 4500 }), "Me", rsrc())), 1)
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|3000|0|X"), rctx(), RS({ minProfit = 4501 }), "Me", rsrc())), 0)
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|3000|0|X"), rctx(), RS({ recipe = false }), "Me", rsrc())), 0)
+end)
+
+T.test("recipe deals: not your own listing, and only a single pattern", function()
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|3000|0|Me"), rctx(), RS(), "Me", rsrc())), 0)
+  T.eq(table.getn(Dl.FindRecipes(rsnap("2|6000|0|X"), rctx(), RS(), "Me", rsrc())), 0)
+end)
+
+T.test("recipe deals: a listing that is not a pattern in the index is ignored", function()
+  T.eq(table.getn(Dl.FindRecipes(snap("999:0", "1|1|0|X"), rctx(), RS(), "Me", rsrc())), 0)
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|3000|0|X"), rctx(), RS(), "Me", { indexes = {}, chars = {} })), 0)
+end)
+
+T.test("recipe deals need a crafter: nobody, one who knows it, or one too low", function()
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|3000|0|X"), rctx(), RS(), "Me", { indexes = rsrc().indexes, chars = {} })), 0)
+  -- Review Focus 4: every tailor on the realm already knows it
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|3000|0|X"), rctx(), RS(), "Me", rsrc(true))), 0)
+  -- skill 40, rank 10 + 25 ahead = 35 < 40; rank 15 + 25 = 40 is enough
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|3000|0|X"), rctx(), RS(), "Me", rsrc(false, 10))), 0)
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|3000|0|X"), rctx(), RS(), "Me", rsrc(false, 15))), 1)
+end)
+
+T.test("recipe deals: no profit per craft means no deal", function()
+  local ctx = ctxOf({ ["500:0"] = { v = 100, conf = 0.8 }, ["300:0"] = { v = 200, conf = 0.8 } }, {})
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|1|0|X"), ctx, RS({ minProfit = -10000 }), "Me", rsrc())), 0)
+  local unpriced = ctxOf({ ["500:0"] = { v = 1000, conf = 0.8 } }, {})
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|1|0|X"), unpriced, RS(), "Me", rsrc())), 0, "a material with no price")
+end)
+
+T.test("recipe deals: a vendor that sells the pattern cheaper beats the listing, unless limited", function()
+  local function withVendor(vb, limited)
+    local c = rctx()
+    c.items[600] = { n = "Pattern: Robe", vb = vb, vbLimited = limited }
+    return c
+  end
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|3000|0|X"), withVendor(2999), RS(), "Me", rsrc())), 0)
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|3000|0|X"), withVendor(3000), RS(), "Me", rsrc())), 1, "equal is fine")
+  T.eq(table.getn(Dl.FindRecipes(rsnap("1|3000|0|X"), withVendor(1000, true), RS(), "Me", rsrc())), 1, "limited stock")
+end)
+
+T.test("recipe deals come best profit first", function()
+  local r = Dl.FindRecipes(rsnap("1|3000|0|X", "1|2000|0|Y"), rctx(), RS(), "Me", rsrc())
+  T.eq(table.getn(r), 2) T.eq(r[1].buyout, 2000) T.eq(r[2].buyout, 3000)
+end)
