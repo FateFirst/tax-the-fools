@@ -12,6 +12,10 @@ WoW = { frames = {}, allFrames = {} }
 -- Vanilla 1.12 does not (addons use getglobal / getfenv(0)): it is removed again at the end of this file.
 local G = getfenv(0)
 
+-- WoW.inbox is another name for WoW.mail (phase 4 tests assign WoW.mail).
+setmetatable(WoW, { __index = function(t, k) if k == "inbox" then return rawget(t, "mail") end end,
+                    __newindex = function(t, k, v) if k == "inbox" then rawset(t, "mail", v) else rawset(t, k, v) end end })
+
 local function noop() end
 local meta = { __index = function(t, k) return noop end }
 
@@ -234,7 +238,9 @@ function WoW.reset()
   WoW.bags = {}
   WoW.merchantOpen = false
   WoW.merchant = {}
-  WoW.mail = {}
+  WoW.mail, WoW.sent, WoW.returned, WoW.mailErrors, WoW.addons = {}, {}, {}, {}, {}
+  WoW.sendSlot, WoW.sendMoney, WoW.mailOpen = nil, 0, false
+  if MailFrame then MailFrame.shown = false end
   WoW.tooltips = {}
   WoW.trainer = {}
   WoW.bankOpen = false
@@ -476,7 +482,8 @@ end
 -- Merchant: WoW.merchant[i] = { id=, name=, price=, quantity=, numAvailable=, noLink= }.
 -- price is for the whole lot of `quantity` units; numAvailable -1 means unlimited stock.
 -- ---------- scripted mailbox ----------
--- Tests put mails in WoW.mail: { subject=, money=, cod=, daysLeft=, hasItem=, sender=, wasRead= }.
+-- Tests put mails in WoW.mail (WoW.inbox is the same table): { subject=, money=, cod=, daysLeft=, hasItem=,
+-- sender=, wasRead=, item={id,name,count}, isGM=, returned=, body= }.
 -- GetInboxNumItems() and GetInboxHeaderInfo(index) are logged so a test can count reads.
 -- 1.12 GetInboxHeaderInfo(index) returns: packageIcon, stationeryIcon, sender, subject, money, CODAmount,
 -- daysLeft, hasItem, wasRead, wasReturned, textCreated, canReply, isGM (wowwiki, API GetInboxHeaderInfo).
@@ -486,18 +493,11 @@ function GetInboxHeaderInfo(i)
   local m = WoW.mail[i]
   if not m then return nil end
   return "Interface\\Icons\\INV_Misc_Note_01", "Interface\\Icons\\INV_Misc_Note_01", m.sender or "Auction House",
-    m.subject, m.money or 0, m.cod or 0, m.daysLeft or 30, m.hasItem, m.wasRead, nil, nil, nil, nil
+    m.subject, m.money or 0, m.cod or 0, m.daysLeft or 30, (m.item or m.hasItem) and 1 or nil, m.wasRead,
+    m.returned and 1 or nil, m.body and 1 or nil, nil, m.isGM and 1 or nil
 end
--- Calls that open, read the invoice of, collect from or delete mail. The addon never makes them (opening
--- mail marks it read and shortens its expiry; collecting is left to TurtleMail), so they are only logged.
--- Signatures as in 1.12 MailFrame.lua / FrameXML: GetInboxText(index), GetInboxInvoiceInfo(index),
--- TakeInboxMoney(index), TakeInboxItem(index), DeleteInboxItem(index), ReturnInboxItem(index).
-function GetInboxText(i) WoW.log("GetInboxText", i) end
-function GetInboxInvoiceInfo(i) WoW.log("GetInboxInvoiceInfo", i) end
-function TakeInboxMoney(i) WoW.log("TakeInboxMoney", i) end
-function TakeInboxItem(i) WoW.log("TakeInboxItem", i) end
-function DeleteInboxItem(i) WoW.log("DeleteInboxItem", i) end
-function ReturnInboxItem(i) WoW.log("ReturnInboxItem", i) end
+-- GetInboxText, TakeInbox*, DeleteInboxItem, ReturnInboxItem, CheckInbox and the send model follow the cursor
+-- model further down (they need it).
 -- Events: MAIL_SHOW (mailbox opened), MAIL_INBOX_UPDATE (fires several times on first open), MAIL_CLOSED.
 
 function GetMerchantNumItems() return table.getn(WoW.merchant) end
@@ -624,6 +624,141 @@ function GetAuctionSellItemInfo()
   local s = WoW.sellSlot
   if not s then return nil end
   return s.item.name, s.item.tex or "tex", s.count, s.item.quality or 1, 1, (s.item.vendor or 0) * s.count
+end
+-- ---------- mailbox actions and the send slot (phase 5b) ----------
+-- Sources: Blizzard 1.12 FrameXML MailFrame.lua / InboxFrame (OpenMail_* and InboxFrame_OnClick call
+-- GetInboxText, TakeInboxMoney, TakeInboxItem, DeleteInboxItem, ReturnInboxItem; every take is answered by
+-- MAIL_INBOX_UPDATE), SendMailFrame.lua (SendMailFrame_SendMail -> SendMail(to, subject, body); the slot is
+-- ClickSendMailItemButton; MAIL_SEND_SUCCESS clears the form), and docs/research/notes-interact-mail.md
+-- (TurtleMail's observed sequencing: one take per update event, delete only once the mail is empty).
+-- WoW.inbox (alias of WoW.mail): { sender, subject, money, cod, item = { id, name, count, unique } or nil, isGM,
+-- returned, body, daysLeft, wasRead }. A take shifts later mails down, as the client's list does.
+local function inboxUpdate() WoW.fire("MAIL_INBOX_UPDATE") end
+local function errMsg(m) WoW.fire("UI_ERROR_MESSAGE", m) end
+-- 1.12: body, stationery, isTakeable, isInvoice. Reading marks the mail read.
+function GetInboxText(i)
+  WoW.log("GetInboxText", i)
+  local m = WoW.mail[i]
+  if not m then return nil end
+  m.wasRead = 1
+  return m.body, "Interface\\Icons\\INV_Misc_Note_01", nil, nil
+end
+function GetInboxInvoiceInfo(i) WoW.log("GetInboxInvoiceInfo", i) end
+function CheckInbox() WoW.log("CheckInbox") end
+function TakeInboxMoney(i)
+  WoW.log("TakeInboxMoney", i)
+  local m = WoW.mail[i]
+  if not m or (m.money or 0) <= 0 then return end
+  WoW.money = WoW.money + m.money
+  m.money = 0
+  WoW.fire("PLAYER_MONEY")
+  inboxUpdate()
+end
+-- The item goes to the first free slot of bags 0..4; with none, ERR_INV_FULL and the mail keeps it. A
+-- `unique` item the player already carries gives ERR_ITEM_MAX_COUNT. A COD mail is paid first (the addon
+-- never does this; ERR_NOT_ENOUGH_MONEY if the player can't). Stacks are not merged into existing ones.
+function TakeInboxItem(i)
+  WoW.log("TakeInboxItem", i)
+  local m = WoW.mail[i]
+  if not m or not m.item then return end
+  local it = m.item
+  if it.unique then
+    for bag = 0, 4 do
+      for slot = 1, GetContainerNumSlots(bag) do
+        local s = WoW.bags[bag][slot]
+        if s and s.id == it.id then return errMsg(ERR_ITEM_MAX_COUNT) end
+      end
+    end
+  end
+  if (m.cod or 0) > WoW.money then return errMsg(ERR_NOT_ENOUGH_MONEY) end
+  for bag = 0, 4 do
+    for slot = 1, GetContainerNumSlots(bag) do
+      local s = WoW.bags[bag][slot]
+      if s and not s.id then
+        local tex = WoW.items[it.id] and WoW.items[it.id].tex
+        WoW.bags[bag][slot] = { id = it.id, name = it.name, count = it.count or 1, tex = tex, unique = it.unique }
+        m.item, m.hasItem = nil, nil
+        if (m.cod or 0) > 0 then WoW.money = WoW.money - m.cod m.cod = 0 WoW.fire("PLAYER_MONEY") end
+        WoW.fire("BAG_UPDATE")
+        inboxUpdate()
+        return
+      end
+    end
+  end
+  errMsg(ERR_INV_FULL)
+end
+function DeleteInboxItem(i)
+  WoW.log("DeleteInboxItem", i)
+  if not WoW.mail[i] then return end
+  table.remove(WoW.mail, i)
+  inboxUpdate()
+end
+-- Returned mails are logged in WoW.returned (the sender would receive them).
+function ReturnInboxItem(i)
+  WoW.log("ReturnInboxItem", i)
+  local m = WoW.mail[i]
+  if not m then return end
+  table.insert(WoW.returned, m)
+  table.remove(WoW.mail, i)
+  inboxUpdate()
+end
+
+-- Send slot. WoW.sendSlot = nil | { item =, count =, bag =, slot = }, WoW.sendMoney in copper.
+-- ClickSendMailItemButton works like ClickAuctionSellItemButton: hand and slot swap.
+function ClickSendMailItemButton()
+  WoW.log("ClickSendMailItemButton")
+  local c, s = WoW.cursor, WoW.sendSlot
+  if c then
+    WoW.sendSlot = { item = c.item, count = c.count, bag = c.bag, slot = c.slot }
+    WoW.cursor = s and { item = s.item, count = s.count, bag = s.bag, slot = s.slot } or nil
+  elseif s then
+    WoW.cursor, WoW.sendSlot = { item = s.item, count = s.count, bag = s.bag, slot = s.slot }, nil
+  end
+end
+-- 1.12: name, texture, count, quality; nothing for an empty slot.
+function GetSendMailItem()
+  local s = WoW.sendSlot
+  if not s then return nil end
+  return s.item.name, s.item.tex or "tex", s.count, s.item.quality or 1
+end
+function SetSendMailMoney(c) WoW.log("SetSendMailMoney", c) WoW.sendMoney = c or 0 end
+function GetSendMailMoney() return WoW.sendMoney end
+function GetSendMailPrice() return 30 end
+-- SendMail(to, subject, body): on success the attachment leaves the bags (a split stack only reduces
+-- the source), postage and money are paid (the balance never goes below 0), the slot clears and
+-- MAIL_SEND_SUCCESS fires. A queued WoW.mailErrors entry (a string, usually an ERR_* global) is fired as
+-- UI_ERROR_MESSAGE instead and nothing changes. Mailing yourself gives ERR_MAIL_TO_SELF.
+function SendMail(to, subject, body)
+  WoW.log("SendMail", to, subject, body)
+  if table.getn(WoW.mailErrors) > 0 then return errMsg(table.remove(WoW.mailErrors, 1)) end
+  if string.lower(to or "") == string.lower(WoW.player) then return errMsg(ERR_MAIL_TO_SELF) end
+  local s, item = WoW.sendSlot, nil
+  if s then
+    item = { id = s.item.id, name = s.item.name, count = s.count }
+    if s.count < (s.item.count or 1) then s.item.count = s.item.count - s.count
+    else WoW.bags[s.bag][s.slot] = {} end
+    s.item.locked = nil
+  end
+  table.insert(WoW.sent, { to = to, subject = subject, body = body, money = WoW.sendMoney, item = item })
+  WoW.money = math.max(0, WoW.money - GetSendMailPrice() - WoW.sendMoney)
+  WoW.sendSlot, WoW.sendMoney = nil, 0
+  WoW.fire("PLAYER_MONEY")
+  if item then WoW.fire("BAG_UPDATE") end
+  WoW.fire("MAIL_SEND_SUCCESS")
+end
+-- The mailbox session. Blizzard's MAIL_SHOW handler shows MailFrame (our hook must wait a frame to hide it);
+-- CloseMail() ends the session and fires MAIL_CLOSED. MailFrame's OnHide calls CloseMail, so hiding it
+-- closes the mailbox: this is what the hook must dodge.
+function CloseMail() WoW.log("CloseMail") WoW.mailOpen = false WoW.fire("MAIL_CLOSED") end
+function OpenBackpack() WoW.log("OpenBackpack") end
+function IsAddOnLoaded(name) if WoW.addons[name] then return 1 end return nil end
+-- Test helper: the player walks up to a mailbox. MailFrame shows (Blizzard's handler), then MAIL_SHOW and one
+-- MAIL_INBOX_UPDATE fire to the addons.
+function WoW.openMailbox()
+  WoW.mailOpen = true
+  MailFrame:Show()
+  WoW.fire("MAIL_SHOW")
+  WoW.fire("MAIL_INBOX_UPDATE")
 end
 -- CalculateAuctionDeposit(runTime) is the client's figure for the item in the slot: here 15% of the
 -- vendor price per 2 hours, scaled by duration. On Turtle the server charges about 0.6x of it
@@ -824,6 +959,13 @@ AUCTION_EXPIRED_MAIL_SUBJECT = "Auction expired: %s"
 AUCTION_REMOVED_MAIL_SUBJECT = "Auction cancelled: %s"
 AUCTION_WON_MAIL_SUBJECT = "Auction won: %s"
 AUCTION_OUTBID_MAIL_SUBJECT = "Outbid on %s"
+ERR_INV_FULL = "Inventory is full."
+ERR_ITEM_MAX_COUNT = "You can't carry any more of those items."
+ERR_MAIL_TO_SELF = "You can't send mail to yourself."
+ERR_PLAYER_WRONG_FACTION = "Players of the opposing faction can't receive your mail."
+ERR_MAIL_TARGET_NOT_FOUND = "Player not found."
+ERR_MAIL_REACHED_CAP = "That player's mailbox is full."
+ERR_MAIL_DATABASE_ERROR = "Internal mail database error."
 ERR_AUCTION_LIMITED_DURATION_ITEM = "Items with a limited duration cannot be auctioned."
 ERR_AUCTION_REPAIR_ITEM = "You must repair that item first."
 ERR_AUCTION_USED_CHARGES = "Items with used charges cannot be auctioned."
@@ -837,6 +979,9 @@ AuctionFrame = newFrame("Frame", "AuctionFrame")
 AuctionFrame.shown = false
 -- Blizzard's own OnHide ends the auction session; this is what the swap must dodge.
 AuctionFrame:SetScript("OnHide", function() CloseAuctionHouse() end)
+MailFrame = newFrame("Frame", "MailFrame")
+MailFrame.shown = false
+MailFrame:SetScript("OnHide", function() CloseMail() end)
 AuctionFrameAuctions = newFrame("Frame", "AuctionFrameAuctions")
 UISpecialFrames = {}
 DEFAULT_CHAT_FRAME = { AddMessage = function(self, msg) WoW.log("CHAT", msg) end }

@@ -18,6 +18,7 @@ deals.lua
 sell.lua
 sales.lua
 mail.lua
+mailrules.lua
 db.lua
 items.lua
 inventory.lua

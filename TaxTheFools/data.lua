@@ -28,6 +28,7 @@ D.DEFAULTS = {
   settings = {
     debug = false,
     replaceBlizzardAH = true,
+    replaceBlizzardMail = true,
     minimap = true,
     minimapAngle = 200,
     scale = 1,
@@ -46,6 +47,7 @@ D.DEFAULTS = {
     bagClick = true,                       -- right-click a bag item at the AH: search (Browse) or select (Sell)
     sales = { days = 30, warnPct = 120, tooltip = true },
     recipes = { tooltip = true, skillAhead = 25 },
+    mail = { bankAlt = nil, rules = { crafted = true, tradeGoods = true, patterns = true, auctionable = false }, keep = {} },
   },
   items = {},
   realms = {},
