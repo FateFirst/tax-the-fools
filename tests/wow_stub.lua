@@ -208,6 +208,7 @@ function WoW.reset()
   WoW.shift = false
   WoW.cursorX, WoW.cursorY = 0, 0
   WoW.items = {}
+  WoW.equip = {}
   WoW.bags = {}
   WoW.merchantOpen = false
   WoW.merchant = {}
@@ -684,7 +685,19 @@ function WoW.openTradeSkill()
   TradeSkillFrame:Show()
   WoW.fire("TRADE_SKILL_SHOW")
 end
-function GetInventoryItemLink() return nil end
+-- Equipped bags: WoW.equip[inventorySlot] = { id =, name = }; the item's type/subtype come from WoW.items.
+-- ContainerIDToInventoryID(bag): bag 1..4 are inventory slots 20..23 (1.12 FrameXML, ContainerFrame.lua
+-- uses it as ContainerIDToInventoryID(id) for bag slots 1-4). GetItemInfo's 5th and 6th returns are
+-- type and subType ("Container" / "Bag", "Quiver", "Soul Bag", ...).
+function ContainerIDToInventoryID(bag)
+  if type(bag) ~= "number" then error("Usage: ContainerIDToInventoryID(bagID)", 2) end
+  return 19 + bag
+end
+function GetInventoryItemLink(unit, slot)
+  local it = WoW.equip and WoW.equip[slot]
+  if unit == "player" and it then return WoW.link(it.id, it.name) end
+  return nil
+end
 function GetInventoryItemCount() return 0 end
 
 STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"

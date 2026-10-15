@@ -108,10 +108,14 @@ function Auction.Post(bag, slot, stack, bid, buyout, minutes, key, allowBelowFlo
     if buyout < floor * stack then return refuse("That is below your floor. Tick Allow below floor to post it.") end
   end
   -- Get the stack into the sell slot, then check the deposit: the learned figure, or the client's.
+  local learned = Sell.Deposit(TaxTheFoolsDB.items, id, minutes, stack)
+  if learned and learned > GetMoney() then
+    return refuse("You can't afford the deposit of " .. U.money(learned, true) .. ".")
+  end
   clearSellSlot()
   PickupContainerItem(bag, slot)
   ClickAuctionSellItemButton()
-  local deposit = Sell.Deposit(TaxTheFoolsDB.items, id, minutes, stack) or CalculateAuctionDeposit(minutes)
+  local deposit = learned or CalculateAuctionDeposit(minutes)
   if deposit > GetMoney() then
     clearSellSlot()
     return refuse("You can't afford the deposit of " .. U.money(deposit, true) .. ".")
@@ -124,6 +128,18 @@ function Auction.Post(bag, slot, stack, bid, buyout, minutes, key, allowBelowFlo
   return true
 end
 
+-- True when bag can hold any item: the backpack, or a bag whose item is a plain "Bag". Quivers, ammo
+-- pouches and soul/herb/enchanting bags refuse other items. Unknown (an API or link missing) counts as general.
+local function generalBag(bag)
+  if bag == 0 then return true end
+  if not (GetInventoryItemLink and ContainerIDToInventoryID and GetItemInfo) then return true end
+  local link = GetInventoryItemLink("player", ContainerIDToInventoryID(bag))
+  if not link then return true end
+  local _, _, _, _, itemType, subType = GetItemInfo(link)
+  if not subType then return true end
+  return subType == "Bag" and (itemType == nil or itemType == "Container")
+end
+
 -- Split `size` units off the stack at (bag, slot) into an empty bag slot. No server reply
 -- and no lock: the new stack shows on the next BAG_UPDATE. Returns true, or nil and why.
 function Auction.Split(bag, slot, size)
@@ -133,11 +149,13 @@ function Auction.Split(bag, slot, size)
   if not have or not size or size < 1 or size >= have then return no("Nothing to split.") end
   local eb, es = nil, nil
   for b = 0, 4 do
-    for sl = 1, GetContainerNumSlots(b) do
-      if not eb and not GetContainerItemInfo(b, sl) then eb, es = b, sl end
+    if not eb and generalBag(b) then
+      for sl = 1, GetContainerNumSlots(b) do
+        if not eb and not GetContainerItemInfo(b, sl) then eb, es = b, sl end
+      end
     end
   end
-  if not eb then return no("No empty bag slot to split into") end
+  if not eb then return no("No empty slot in a normal bag to split into.") end
   ClearCursor()
   SplitContainerItem(bag, slot, size)
   PickupContainerItem(eb, es)
@@ -208,10 +226,10 @@ local function finish(ok, text)
   elseif b.kind == "post" then
     -- The deposit is what the server took: money before the post less money now.
     local deposit = b.before - GetMoney()
-    if deposit < 0 then deposit = 0 end
+    if deposit <= 0 then deposit = nil end
     Sell.Log(DB.Char(), { key = b.key, stack = b.count, bid = b.bid, buyout = b.buyout, minutes = b.minutes,
                           deposit = deposit }, time())
-    if deposit > 0 and b.id then Sell.LearnDeposit(TaxTheFoolsDB.items, b.id, b.minutes, deposit / b.count) end
+    if deposit and b.id then Sell.LearnDeposit(TaxTheFoolsDB.items, b.id, b.minutes, deposit / b.count) end
     Auction.Say("Posted " .. b.name .. " x" .. b.count .. " for " .. U.money(b.buyout, true) .. ".", "good")
   elseif b.kind == "cancel" then
     GetOwnerAuctionItems(0)

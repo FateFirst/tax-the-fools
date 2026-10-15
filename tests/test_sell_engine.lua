@@ -256,8 +256,8 @@ T.test("Split with no empty slot, or an impossible size, makes no call", functio
   WoW.bags[0] = { { id = 14047, name = "Runecloth", count = 20 }, { id = 2589, name = "Linen Cloth", count = 3 } }
   local ok, why = Auction.Split(0, 1, 5)
   T.eq(ok, nil)
-  T.eq(why, "No empty bag slot to split into")
-  T.ok(T.calledWith("No empty bag slot to split into"))
+  T.eq(why, "No empty slot in a normal bag to split into.")
+  T.ok(T.calledWith("No empty slot in a normal bag to split into."))
   T.eq(T.count("SplitContainerItem"), 0)
   stock()
   T.eq((Auction.Split(0, 1, 20)), nil, "the whole stack is not a split")
@@ -377,4 +377,49 @@ T.test("events, ticks and list updates never post, cancel, split or bid", functi
   frame()
   T.eq(T.count("StartAuction") + T.count("CancelAuction") + T.count("SplitContainerItem")
     + T.count("PlaceAuctionBid"), 0)
+end)
+
+-- Bag 1 is a quiver or soul bag with a free slot; the only other free slot (if any) is elsewhere.
+local function specialBag(subtype)
+  WoW.items[2101] = { name = "Quiver", type = "Container", subtype = subtype }
+  WoW.equip[20] = { id = 2101, name = "Quiver" }
+end
+
+T.test("Split skips quivers and soul bags", function()
+  stock()
+  WoW.bags[0] = { { id = 14047, name = "Runecloth", count = 20 } }
+  WoW.bags[1] = { {} }
+  for _, sub in ipairs({ "Quiver", "Ammo Pouch", "Soul Bag", "Herb Bag", "Enchanting Bag" }) do
+    WoW.calls = {}
+    specialBag(sub)
+    local ok, why = Auction.Split(0, 1, 5)
+    T.eq(ok, nil, sub)
+    T.eq(why, "No empty slot in a normal bag to split into.")
+    T.eq(T.count("SplitContainerItem"), 0, sub)
+  end
+  WoW.bags[2] = { {} }                                   -- a bag with no known type counts as normal
+  T.eq(Auction.Split(0, 1, 5), true)
+  T.ok(T.calledWith("PickupContainerItem 2 1"), "went past the quiver")
+  WoW.calls = {}
+  WoW.bags[0] = { { id = 14047, name = "Runecloth", count = 20 } }
+  WoW.items[2101].subtype = "Bag"
+  T.eq(Auction.Split(0, 1, 5), true)
+  T.ok(T.calledWith("PickupContainerItem 1 1"), "a plain Bag is general")
+end)
+
+T.test("a learned deposit that can't be paid refuses before any pickup", function()
+  stock() WoW.money = 719
+  Sell.LearnDeposit(TaxTheFoolsDB.items, 14047, 480, 36)   -- 720
+  T.eq(Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true), false)
+  T.eq(T.count("PickupContainerItem") + T.count("ClearCursor") + T.count("StartAuction"), 0)
+end)
+
+T.test("an unknown deposit (no money change at the reply) is logged as nil and not learned", function()
+  stock() WoW.money = 100000
+  Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  WoW.ah.postReply = "none"
+  Auction.OnMessage(ERR_AUCTION_STARTED)                 -- the reply, with the money unchanged
+  T.eq(Auction.busy, false)
+  T.eq(DB.Char().postings[1].deposit, nil)
+  T.eq(TaxTheFoolsDB.items[14047] and TaxTheFoolsDB.items[14047].dep, nil)
 end)
