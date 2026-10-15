@@ -64,18 +64,56 @@ function Mail.Deposit(key, p)
   return 0, false
 end
 
--- Reads every mail header and records each new auction mail. Identical mails (same subject, money and
--- expiry hour) share a key, so each key counts its mails in this read and records only those beyond the
--- number already recorded.
+-- True while an auction mail still holds what it was sent with: the gold of a sale or a refunded bid, the
+-- item of a win, expiry or cancel. Once collected it is the same result seen again, never a new one.
+function Mail.HasPayload(outcome, money, hasItem)
+  if outcome == "sold" or outcome == "outbid" then return (money or 0) > 0 end
+  return hasItem and true or false
+end
+
+-- How many mails Mail.Read has recorded under this mail's key (the adjacent hour too, near a boundary),
+-- and the key that holds that count.
+function Mail.Recorded(subject, money, daysLeft, now)
+  local key = Mail.Key(subject, money, daysLeft, now)
+  local seen = A.DB.Char().seenMail
+  if not seen then return 0, key end
+  local done = seenCount(seen, key)
+  local shift = adjacentShift(daysLeft, now)
+  if shift then
+    local adj = Mail.Key(subject, money, daysLeft, now, shift)
+    local other = seenCount(seen, adj)
+    if other > done then done, key = other, adj end
+  end
+  return done, key
+end
+
+-- A recorded mail has left the inbox (Collect all deleted it): one fewer under its key, so a later identical
+-- mail is counted as new. The entry goes at 0.
+function Mail.Forget(key)
+  if not key then return end
+  local seen = A.DB.Char().seenMail
+  local v = seen and seen[key]
+  if not v then return end
+  local n = seenCount(seen, key) - 1
+  if n <= 0 then
+    seen[key] = nil
+  else
+    seen[key] = { at = type(v) == "table" and v.at or v, n = n }
+  end
+end
+
+-- Reads every mail header and records each new auction mail that still holds its payload. Identical mails
+-- (same subject, money and expiry hour) share a key, so each key counts its mails in this read and records
+-- only those beyond the number already recorded.
 function Mail.Read()
   local char = A.DB.Char()
   local now = time()
   local n = GetInboxNumItems() or 0
   local order, groups = {}, {}
   for i = 1, n do
-    local _, _, _, subject, money, _, daysLeft = GetInboxHeaderInfo(i)
+    local _, _, _, subject, money, _, daysLeft, hasItem = GetInboxHeaderInfo(i)
     local outcome, name = Sales.Classify(subject)
-    if outcome then
+    if outcome and Mail.HasPayload(outcome, money, hasItem) then
       money = money or 0
       local key = Mail.Key(subject, money, daysLeft, now)
       local g = groups[key]

@@ -16,7 +16,7 @@ local function setup()
   WoW.items[100] = { name = "Linen Cloth", stack = 20 }
   WoW.items[200] = { name = "Bolt of Linen", stack = 20 }
   WoW.bags = { [0] = { {}, {}, {}, {} } }
-  WoW.money = 1000
+  WoW.money = 1000  TaxTheFoolsDB.items[100] = { n = "Linen Cloth" }   -- named, so Mail.Read records its auction mail
 end
 local function ah(money, item) return { sender = "Auction House", subject = "Auction successful: Linen Cloth", money = money, item = item } end
 local function linen(n) return { id = 100, name = "Linen Cloth", count = n or 5 } end
@@ -47,7 +47,7 @@ T.test("collect all takes money and items, deletes AH mail, keeps letters, skips
   T.eq(Mailbox.status.token, "good")
 end)
 
-T.test("an emptied player mail is never deleted, an emptied AH mail is, and no body is read", function()
+T.test("an emptied player mail is never deleted, an emptied AH mail is, and only the AH mail is read", function()
   setup()
   WoW.mail = { { sender = "Bob", subject = "two things", money = 5, item = linen(), body = "" },
                ah(0, linen()) }
@@ -55,7 +55,8 @@ T.test("an emptied player mail is never deleted, an emptied AH mail is, and no b
   T.eq(T.count("TakeInboxMoney"), 1) T.eq(T.count("TakeInboxItem"), 2)
   T.eq(table.getn(WoW.mail), 1)
   T.eq(WoW.mail[1].sender, "Bob")
-  T.eq(T.count("GetInboxText"), 0)
+  T.eq(T.count("GetInboxText"), 1, "the AH mail, just before its delete")
+  T.eq(T.count("GetInboxText 1"), 0, "never the player's mail")
 end)
 
 T.test("a duplicate MAIL_INBOX_UPDATE never causes a second take, and gold counts once", function()
@@ -101,7 +102,9 @@ T.test("a mail that vanishes mid-chain never gets the next mail deleted", functi
   T.eq(T.count("DeleteInboxItem"), 0)
   T.eq(table.getn(WoW.mail), 1)
   T.eq(WoW.mail[1].subject, "letter") T.eq(WoW.mail[1].item, nil, "its item was taken")
-  T.eq(Mailbox.collected, 0, "the vanished mail's gold is not counted")
+  -- a take after which the mail is gone counts as landed (a client that removes emptied mail looks the
+  -- same): its gold comes from the header read before the call
+  T.eq(Mailbox.collected, 70)
 end)
 
 T.test("an item skipped as unique does not count as collected", function()
@@ -258,6 +261,140 @@ T.test("a second action is refused while busy", function()
   Mailbox.Stop() pump()
 end)
 
+
+-- ---------- final review fixes: sales history stays right through a collect ----------
+
+local function known()
+  TaxTheFoolsDB.items[100] = { n = "Linen Cloth" }
+  WoW.now = WoW.now + 1800          -- mid-hour
+end
+local function salesOf(outcome)
+  local n, total = 0, 0
+  for _, e in ipairs(A.DB.Char().sales or {}) do
+    if not outcome or e.outcome == outcome then n = n + 1 total = total + (e.money or 0) end
+  end
+  return n, total
+end
+
+T.test("collect all with Mail.Tick running records each sold and outbid mail once, never a 0-gold copy (C1)", function()
+  setup() known()
+  WoW.mail = { ah(900), { sender = "Auction House", subject = "Outbid on Linen Cloth", money = 500 },
+               { sender = "Auction House", subject = "Auction expired: Linen Cloth", item = linen() } }
+  WoW.openMailbox()
+  frame()
+  T.eq(salesOf(), 3, "read on opening")
+  Mailbox.CollectAll() pump()
+  frame() frame()
+  T.eq(Mailbox.busy, false)
+  T.eq(table.getn(WoW.mail), 0, "all three collected and deleted")
+  local n, total = salesOf("sold")
+  T.eq(n, 1, "one sold") T.eq(total, 900)
+  n, total = salesOf("outbid")
+  T.eq(n, 1, "one outbid") T.eq(total, 500)
+  T.eq(salesOf("expired"), 1)
+  T.eq(salesOf(), 3, "no 0-gold duplicates")
+end)
+
+T.test("a delete forgets the mail's seenMail count, so a later identical sale is recorded (I1)", function()
+  setup() known()
+  local m = ah(900) m.daysLeft = 29.5
+  WoW.mail = { m }
+  local key = Mail.Key(m.subject, 900, 29.5, time())
+  Mailbox.CollectAll() pump()
+  T.eq(table.getn(WoW.mail), 0)
+  T.eq(salesOf("sold"), 1)
+  T.eq(A.DB.Char().seenMail[key], nil, "the entry is removed at 0")
+  local again = ah(900) again.daysLeft = 29.5
+  WoW.mail = { again }
+  WoW.fire("MAIL_INBOX_UPDATE") frame()
+  T.eq(salesOf("sold"), 2, "the second identical sale counts")
+end)
+
+T.test("Mail.Forget decrements a count and removes the entry at 0", function()
+  local c = A.DB.Char()
+  c.seenMail = { a = { at = 5, n = 2 }, b = 7 }
+  Mail.Forget("a") T.eq(c.seenMail.a.n, 1) T.eq(c.seenMail.a.at, 5)
+  Mail.Forget("a") T.eq(c.seenMail.a, nil)
+  Mail.Forget("b") T.eq(c.seenMail.b, nil, "old format counts as one")
+  Mail.Forget("none") Mail.Forget(nil)
+end)
+
+T.test("an AH sale whose item name isn't known yet is left untouched for later (I2)", function()
+  setup()
+  WoW.now = WoW.now + 1800
+  WoW.mail = { { sender = "Auction House", subject = "Auction successful: Mystery Thing", money = 900 },
+               { sender = "Auction House", subject = "Auction expired: Mystery Thing", item = linen() },
+               ah(0),
+               { sender = "Auction House", subject = "Auction won: Mystery Thing", item = linen() } }
+  Mailbox.CollectAll() pump()
+  T.eq(Mailbox.busy, false)
+  T.eq(table.getn(WoW.mail), 2, "the unrecorded sale and expiry stay")
+  T.eq(WoW.mail[1].money, 900, "no take") T.ok(WoW.mail[2].item, "no take")
+  T.eq(WoW.money, 1000)
+  T.eq(T.count("TakeInboxMoney"), 0)
+  T.eq(T.count("DeleteInboxItem"), 2, "the emptied sale and the won mail go")
+  T.ok(string.find(Mailbox.status.text, "left 2 for later", 1, true), Mailbox.status.text)
+  -- once the name is known, the next collect records and takes them
+  TaxTheFoolsDB.items[100] = { n = "Mystery Thing" }
+  Mailbox.CollectAll() pump()
+  T.eq(table.getn(WoW.mail), 0)
+  T.eq(WoW.money, 1900)
+  T.eq(salesOf("sold"), 1) T.eq(salesOf("expired"), 1)
+end)
+
+T.test("a client that drops emptied mail on its own: two identical AH mails both collect, gold once each (I3)", function()
+  setup()
+  WoW.mailAutoRemoveEmpty = true
+  WoW.mail = { ah(900), ah(900) }
+  Mailbox.CollectAll() pump()
+  T.eq(Mailbox.busy, false, "no stall")
+  T.eq(table.getn(WoW.mail), 0)
+  T.eq(WoW.money, 1000 + 1800)
+  T.eq(Mailbox.collected, 1800)
+  T.eq(T.count("DeleteInboxItem"), 0, "no delete for a mail that is already gone")
+  T.ok(T.calledWith("Collected 18s from 2 mails"), Mailbox.status.text)
+  -- items too
+  setup()
+  WoW.calls = {}
+  WoW.mail = { { sender = "Auction House", subject = "Auction expired: Linen Cloth", item = linen() },
+               { sender = "Auction House", subject = "Auction expired: Linen Cloth", item = linen() } }
+  TaxTheFoolsDB.items[100] = { n = "Linen Cloth" }
+  Mailbox.CollectAll() pump()
+  T.eq(Mailbox.busy, false)
+  T.eq(table.getn(WoW.mail), 0)
+  T.eq(WoW.bags[0][1].id, 100) T.eq(WoW.bags[0][2].id, 100)
+  T.ok(T.calledWith("from 2 mails"), Mailbox.status.text)
+end)
+
+T.test("CollectOne ends after its mail vanishes on its own", function()
+  setup()
+  WoW.mailAutoRemoveEmpty = true
+  WoW.mail = { ah(900), ah(900) }
+  Mailbox.CollectOne(1) pump()
+  T.eq(Mailbox.busy, false)
+  T.eq(table.getn(WoW.mail), 1, "the second mail is left")
+  T.eq(WoW.mail[1].money, 900)
+  T.eq(T.count("TakeInboxMoney"), 1)
+end)
+
+T.test("an AH mail is read just before it is deleted, in the same step (I4)", function()
+  setup()
+  WoW.mail = { ah(900), { sender = "Ann", subject = "hi", money = 5, body = "Dear" } }
+  Mailbox.CollectAll() pump()
+  T.eq(T.count("GetInboxText"), 1, "only the AH mail, never the letter")
+  local seq = {}
+  for _, c in ipairs(WoW.calls) do
+    if string.find(c, "GetInboxText", 1, true) or string.find(c, "DeleteInboxItem", 1, true) then table.insert(seq, c) end
+  end
+  T.eq(table.concat(seq, ","), "GetInboxText 1,DeleteInboxItem 1")
+  local gi, di
+  for i, c in ipairs(WoW.calls) do
+    if c == "GetInboxText 1" then gi = i end
+    if c == "DeleteInboxItem 1" then di = i end
+  end
+  T.ok(gi and di and di == gi + 1, "read immediately before the delete")
+end)
+
 -- ---------- send ----------
 
 local function stacks()
@@ -269,7 +406,7 @@ local function stacks()
 end
 local function att(slot, key, count) return { bag = 0, slot = slot, key = key, count = count } end
 
-T.test("send makes the call sequence per attachment, money on the first mail only", function()
+T.test("send makes the call sequence per attachment, money on the first mail and 0 on the rest", function()
   stacks()
   T.eq(Mailbox.Send("Bob", "", "note", 123, { att(1, "100:0", 20), att(2, "200:0", 3) }), true)
   T.eq(T.count("SendMail"), 0, "nothing before the first tick")
@@ -279,7 +416,8 @@ T.test("send makes the call sequence per attachment, money on the first mail onl
   T.eq(WoW.sent[1].to, "Bob") T.eq(WoW.sent[1].subject, "Linen Cloth (20)") T.eq(WoW.sent[1].body, "note")
   T.eq(WoW.sent[1].money, 123) T.eq(WoW.sent[1].item.count, 20)
   T.eq(WoW.sent[2].subject, "Bolt of Linen (3)") T.eq(WoW.sent[2].money, 0)
-  T.eq(T.count("SetSendMailMoney"), 1)
+  T.eq(T.count("SetSendMailMoney"), 2)
+  T.eq(T.count("SetSendMailMoney 123"), 1) T.eq(T.count("SetSendMailMoney 0"), 1)
   T.eq(T.count("PickupContainerItem 0 1"), 1) T.eq(T.count("PickupContainerItem 0 2"), 1)
   T.eq(T.count("ClickSendMailItemButton"), 2)
   T.ok(T.calledWith("Sent 2 of 2"), Mailbox.status.text)
@@ -292,7 +430,7 @@ T.test("send makes the call sequence per attachment, money on the first mail onl
     end
   end
   T.eq(table.concat(order, ","), "ClearCursor,PickupContainerItem,ClickSendMailItemButton,SetSendMailMoney,SendMail," ..
-       "ClearCursor,PickupContainerItem,ClickSendMailItemButton,SendMail")
+       "ClearCursor,PickupContainerItem,ClickSendMailItemButton,SetSendMailMoney,SendMail")
 end)
 
 T.test("a typed subject is used for every mail", function()
@@ -393,6 +531,25 @@ T.test("Stop ends a send after the current step", function()
   T.eq(Mailbox.busy, false)
 end)
 
+T.test("money from a failed send is never carried to the next send (I5)", function()
+  stacks()
+  table.insert(WoW.mailErrors, ERR_MAIL_TARGET_NOT_FOUND)
+  Mailbox.Send("Bobb", "", "", 5000, { att(1, "100:0", 20) }) pump()
+  T.eq(table.getn(WoW.sent), 0)
+  stacks()
+  Mailbox.Send("Bob", "", "", 0, { att(2, "200:0", 3) }) pump()
+  T.eq(table.getn(WoW.sent), 1)
+  T.eq(WoW.sent[1].money, 0, "no money left over from the failed send")
+end)
+
+T.test("a money-only send sets the money explicitly", function()
+  stacks()
+  WoW.sendMoney = 777
+  Mailbox.Send("Bob", "Gold", "", 300, {}) pump()
+  T.eq(WoW.sent[1].money, 300)
+  T.ok(T.calledWith("SetSendMailMoney 300"))
+end)
+
 -- ---------- the automation guard ----------
 
 T.test("opening the mailbox, update bursts, ticks and Mail.Read never call a mail action", function()
@@ -418,6 +575,9 @@ T.test("only a Mailbox action calls them", function()
   WoW.openMailbox()
   for _ = 1, 5 do frame() end
   T.eq(T.count("TakeInboxMoney"), 0)
+  T.eq(T.count("GetInboxText"), 0)
   Mailbox.CollectAll() pump()
   T.eq(T.count("TakeInboxMoney"), 1)
+  T.eq(T.count("GetInboxText"), 1, "read only by the click-started delete")
+  T.eq(T.count("DeleteInboxItem"), 1)
 end)

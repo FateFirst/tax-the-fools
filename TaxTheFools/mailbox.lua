@@ -57,7 +57,7 @@ local function header(i)
   local _, _, sender, subject, m, cod, daysLeft, hasItem, _, wasReturned, textCreated, _, isGM = GetInboxHeaderInfo(i)
   local h = { sender = sender, subject = subject, money = m or 0, cod = cod or 0, hasItem = hasItem and true or false,
               wasReturned = wasReturned, textCreated = textCreated, isGM = isGM }
-  h.sig = sigOf(h, daysLeft)
+  h.sig, h.daysLeft = sigOf(h, daysLeft), daysLeft
   return h
 end
 
@@ -72,8 +72,14 @@ local function release(text, token)
 end
 
 local function collectSummary(b)
-  if b.mails == 0 and b.gold == 0 then return "Nothing to collect" end
-  return "Collected " .. money(b.gold) .. " from " .. b.mails .. (b.mails == 1 and " mail" or " mails")
+  local text
+  if b.mails == 0 and b.gold == 0 then
+    text = "Nothing to collect"
+  else
+    text = "Collected " .. money(b.gold) .. " from " .. b.mails .. (b.mails == 1 and " mail" or " mails")
+  end
+  if (b.left or 0) > 0 then text = text .. ", left " .. b.left .. " for later (item name not known yet)" end
+  return text
 end
 
 -- Puts the attachment slot back in the bags after a failed send.
@@ -162,7 +168,8 @@ local function newCollect(start, single)
     if A.MailRules.Plan(header(i)) ~= "skip" then total = total + 1 end
   end
   return { kind = "collect", idx = start, single = single, waiting = false, evt = false, at = GetTime(),
-           gold = 0, mails = 0, cur = false, tries = 0, total = total, done = 0, counted = false }
+           gold = 0, mails = 0, cur = false, tries = 0, total = total, done = 0, counted = false,
+           key = false, looked = false, left = 0 }
 end
 
 local function progressText(b, what)
@@ -197,31 +204,57 @@ local function waitFor(b)
   b.waiting, b.evt, b.at = true, false, GetTime()
 end
 
+-- Forgets the mail at the index: whatever is there next is looked at afresh.
+local function nextMail(b)
+  b.cur, b.tries, b.counted, b.key, b.looked = false, 0, false, false, false
+end
+
+local function countDone(b)
+  b.done = b.done + 1
+  if Mailbox.progress then Mailbox.progress.done = b.done end
+end
+
 -- Moves past the mail at the index. counts: it was acted on.
 local function advance(b, counts)
-  if counts then
-    b.done = b.done + 1
-    if Mailbox.progress then Mailbox.progress.done = b.done end
-  end
+  if counts then countDone(b) end
   b.idx = b.idx + 1
-  b.cur, b.tries, b.counted = false, 0, false
+  nextMail(b)
   return b.single
 end
 
--- Did the call in b.cur land? Read from the header at the index. Returns "yes", "gone" or nil.
+-- Did the call in b.cur land? Read from the header at the index. Returns "yes", "vanished" (a take after
+-- which the mail left the inbox: the client removed it, or the list shifted under it) or nil. cur.n is the
+-- inbox count from before the call.
 local function landed(b)
   local cur = b.cur
   local n = GetInboxNumItems() or 0
-  if n < cur.idx then return "gone" end
-  local h = header(cur.idx)
-  if cur.action == "delete" then
-    if n < cur.n or h.sig ~= cur.sig then return "yes" end
-    return nil
-  end
-  if h.sig ~= cur.sig then return "gone" end
-  if cur.action == "money" and h.money <= 0 then return "yes", h end
-  if cur.action == "item" and not h.hasItem then return "yes", h end
+  local h = n >= cur.idx and header(cur.idx)
+  local gone = n < cur.n or not h or h.sig ~= cur.sig
+  if cur.action == "delete" then return gone and "yes" or nil end
+  if gone then return "vanished" end
+  if cur.action == "money" and h.money <= 0 then return "yes" end
+  if cur.action == "item" and not h.hasItem then return "yes" end
   return nil
+end
+
+-- First look at the mail at the index, before anything is taken from it. An auction result is collected
+-- only once Mail.Read has recorded it; its seenMail key is kept so a delete can forget it. A sale, expiry or
+-- cancel Mail.Read deferred (the item name isn't cached yet) is left for a later visit. Returns true when the
+-- mail is to be left alone.
+local function firstLook(b, h, plan)
+  b.looked, b.key = true, false
+  if plan == "skip" then return false end
+  local Mail = A.Mail
+  local outcome = A.Sales.Classify(h.subject)
+  if not outcome or not Mail.HasPayload(outcome, h.money, h.hasItem) then return false end
+  local n, key = Mail.Recorded(h.subject, h.money, h.daysLeft, time())
+  if n > 0 then
+    b.key = key
+    return false
+  end
+  if outcome == "won" or outcome == "outbid" then return false end
+  b.left = b.left + 1
+  return true
 end
 
 -- One tick of a collect chain: first settle the call we are waiting on, then make at most one new call.
@@ -234,25 +267,32 @@ local function collectStep(b, now)
       b.skipCur, b.waiting = false, false
       if advance(b, true) then return finish(b) end
     else
-      local how, h = landed(b)
+      local how = landed(b)
       if how then
         b.waiting = false
         if cur.action == "delete" then
           -- the later mails shifted down: the index stays
-          b.done = b.done + 1
-          if Mailbox.progress then Mailbox.progress.done = b.done end
-          b.cur, b.tries, b.counted = false, 0, false
+          A.Mail.Forget(b.key)
+          countDone(b)
+          nextMail(b)
           if b.single then return finish(b) end
         else
-          if how == "yes" and cur.action == "money" then
+          -- a take that vanished the mail still landed: its gold is the header's from before the call
+          if cur.action == "money" then
             b.gold = b.gold + cur.money
             Mailbox.collected = Mailbox.collected + cur.money
           end
-          if how == "yes" and not b.counted then
+          if not b.counted then
             b.counted = true
             b.mails = b.mails + 1
           end
           b.cur = false
+          if how == "vanished" then
+            -- no delete step for a mail that is already gone; the later mails shifted down
+            countDone(b)
+            nextMail(b)
+            if b.single then return finish(b) end
+          end
         end
       elseif now - b.at >= Mailbox.TIMEOUT then
         return finish(b, "No reply from the mailbox", "bad")
@@ -269,7 +309,11 @@ local function collectStep(b, now)
     -- whatever is at the index now is planned afresh; no plan outlives the mail it was made for
     local h = header(i)
     local plan = A.MailRules.Plan(h)
-    if plan == "skip" then
+    local leave = false
+    if not b.looked then leave = firstLook(b, h, plan) end
+    if leave then
+      if advance(b, false) then return finish(b) end
+    elseif plan == "skip" then
       if advance(b, b.counted) then return finish(b) end
     elseif holds(h) then
       if b.tries >= Mailbox.MAX_TRIES then
@@ -284,9 +328,10 @@ local function collectStep(b, now)
         return false
       end
     elseif plan == "take+delete" then
-      -- auction house mail with nothing left
+      -- auction house mail with nothing left: read first (marks it read, as TurtleMail does before deleting)
       b.cur = { idx = i, sig = h.sig, n = n, action = "delete" }
       waitFor(b)
+      GetInboxText(i)
       DeleteInboxItem(i)
       return false
     else
@@ -380,9 +425,12 @@ local function sendStep(b)
     end
     if not name then return finish(b) end
   end
+  -- every mail sets its money, so a failed send's money is never carried into this one
   if not b.moneySet then
     b.moneySet = true
-    if b.money > 0 then SetSendMailMoney(b.money) end
+    SetSendMailMoney(b.money)
+  else
+    SetSendMailMoney(0)
   end
   local subject = b.subject
   if subject == "" and name then subject = A.MailRules.Subject(name, a.count) end

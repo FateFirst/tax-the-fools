@@ -14,7 +14,7 @@ end
 local function setup()
   WoW.items[100] = { name = "Linen Cloth", stack = 20 }
   WoW.bags = { [0] = { {}, {}, {}, {} } }
-  WoW.money = 1000
+  WoW.money = 1000  TaxTheFoolsDB.items[100] = { n = "Linen Cloth" }   -- named, so Mail.Read records its auction mail
 end
 local function ah(subject, money, item, extra)
   local m = { sender = "Auction House", subject = subject, money = money or 0, item = item }

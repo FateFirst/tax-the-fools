@@ -249,6 +249,7 @@ function WoW.reset()
   WoW.mail, WoW.sent, WoW.returned, WoW.mailErrors, WoW.addons = {}, {}, {}, {}, {}
   WoW.sendSlot, WoW.sendMoney, WoW.mailOpen = nil, 0, false
   WoW.closingMail = false
+  WoW.mailAutoRemoveEmpty = false
   if MailFrame then MailFrame.shown = false MailFrame.scripts.OnHide = WoW.mailFrameOnHide end
   WoW.tooltips = {}
   WoW.trainer = {}
@@ -644,6 +645,15 @@ end
 -- WoW.inbox (alias of WoW.mail): { sender, subject, money, cod, item = { id, name, count, unique } or nil, isGM,
 -- returned, body, daysLeft, wasRead }. A take shifts later mails down, as the client's list does.
 local function inboxUpdate() WoW.fire("MAIL_INBOX_UPDATE") end
+-- WoW.mailAutoRemoveEmpty: the client drops a mail on its own once a take leaves it with no money, no item
+-- and no text (whether the 1.12 client does is unconfirmed; this switch lets tests cover both).
+local function autoRemove(i)
+  local m = WoW.mail[i]
+  if WoW.mailAutoRemoveEmpty and m and (m.money or 0) <= 0 and not m.item and not m.hasItem
+     and (m.body or "") == "" then
+    table.remove(WoW.mail, i)
+  end
+end
 local function errMsg(m) WoW.fire("UI_ERROR_MESSAGE", m) end
 -- 1.12: body, stationery, isTakeable, isInvoice. Reading marks the mail read.
 function GetInboxText(i)
@@ -661,6 +671,7 @@ function TakeInboxMoney(i)
   if not m or (m.money or 0) <= 0 then return end
   WoW.money = WoW.money + m.money
   m.money = 0
+  autoRemove(i)
   WoW.fire("PLAYER_MONEY")
   inboxUpdate()
 end
@@ -689,6 +700,7 @@ function TakeInboxItem(i)
         WoW.bags[bag][slot] = { id = it.id, name = it.name, count = it.count or 1, tex = tex, unique = it.unique }
         m.item, m.hasItem = nil, nil
         if (m.cod or 0) > 0 then WoW.money = WoW.money - m.cod m.cod = 0 WoW.fire("PLAYER_MONEY") end
+        autoRemove(i)
         WoW.fire("BAG_UPDATE")
         inboxUpdate()
         return

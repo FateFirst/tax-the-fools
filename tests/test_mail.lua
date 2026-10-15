@@ -29,8 +29,8 @@ end)
 
 T.test("a sold, expired and cancelled mail are recorded; won and outbid are kept for history", function()
   known()
-  WoW.mail = { sold(950), { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 20 },
-               { subject = "Auction cancelled: Linen Cloth", money = 0, daysLeft = 21 },
+  WoW.mail = { sold(950), { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 20, hasItem = 1 },
+               { subject = "Auction cancelled: Linen Cloth", money = 0, daysLeft = 21, hasItem = 1 },
                { subject = "Auction won: Linen Cloth", money = 0, daysLeft = 22, hasItem = 1 },
                { subject = "Outbid on Linen Cloth", money = 500, daysLeft = 23 },
                { subject = "Hello friend", money = 5, daysLeft = 24 } }
@@ -43,6 +43,30 @@ T.test("a sold, expired and cancelled mail are recorded; won and outbid are kept
   T.eq(out.sold.money, 950) T.eq(out.sold.key, "100:0") T.eq(out.sold.at, WoW.now)
   T.ok(out.expired and out.cancelled and out.won and out.outbid)
   noForbidden("reading")
+end)
+
+T.test("an AH mail is recorded only while it holds its payload; an emptied one never is", function()
+  known()
+  WoW.mail = { sold(0), { subject = "Outbid on Linen Cloth", money = 0, daysLeft = 23 },
+               { subject = "Auction won: Linen Cloth", money = 0, daysLeft = 22 },
+               { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 20 },
+               { subject = "Auction cancelled: Linen Cloth", money = 0, daysLeft = 21 } }
+  WoW.fire("MAIL_SHOW") frame()
+  T.eq(DB.Char().sales, nil, "nothing recorded")
+  T.eq(next(DB.Char().seenMail or {}), nil, "nothing marked seen")
+  WoW.mail = { sold(950), { subject = "Outbid on Linen Cloth", money = 500, daysLeft = 23 },
+               { subject = "Auction won: Linen Cloth", money = 0, daysLeft = 22, hasItem = 1 },
+               { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 20, hasItem = 1 },
+               { subject = "Auction cancelled: Linen Cloth", money = 0, daysLeft = 21, hasItem = 1 } }
+  WoW.fire("MAIL_INBOX_UPDATE") frame()
+  T.eq(table.getn(DB.Char().sales), 5)
+  -- the same mails once emptied (money taken, item taken) record nothing more
+  WoW.mail = { sold(0), { subject = "Outbid on Linen Cloth", money = 0, daysLeft = 23 },
+               { subject = "Auction won: Linen Cloth", money = 0, daysLeft = 22 },
+               { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 20 },
+               { subject = "Auction cancelled: Linen Cloth", money = 0, daysLeft = 21 } }
+  WoW.fire("MAIL_INBOX_UPDATE") frame()
+  T.eq(table.getn(DB.Char().sales), 5)
 end)
 
 T.test("a posting matched by a sold mail is consumed with qty and secs", function()
@@ -112,7 +136,7 @@ T.test("the dedup key is subject|money|arrival hour (time + daysLeft, constant w
   T.eq(DB.Char().seenMail[want].at, time()) T.eq(DB.Char().seenMail[want].n, 1)
 end)
 
-local function expired() return { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 20 } end
+local function expired() return { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 20, hasItem = 1 } end
 
 T.test("identical mails are each recorded: 5 expired and 3 sold, once, and a later identical one adds one (C1)", function()
   known()
@@ -129,7 +153,7 @@ T.test("identical mails are each recorded: 5 expired and 3 sold, once, and a lat
   -- a second visit (an hour on, daysLeft an hour lower) records nothing
   WoW.now = WoW.now + 3600
   WoW.mail = {}
-  for _ = 1, 5 do table.insert(WoW.mail, { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 20 - 1 / 24 }) end
+  for _ = 1, 5 do table.insert(WoW.mail, { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 20 - 1 / 24, hasItem = 1 }) end
   for _ = 1, 3 do table.insert(WoW.mail, sold(950, 29.5 - 1 / 24)) end
   WoW.fire("MAIL_INBOX_UPDATE") frame()
   T.eq(table.getn(c.sales), 8, "second visit")
@@ -166,7 +190,7 @@ T.test("an expiry within 5 s of an hour boundary does not count twice when the h
   local H = 3600
   local boundary = (math.floor(WoW.now / H) + 1000) * H
   WoW.now = boundary - 2 - 29 * 86400
-  WoW.mail = { { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 29 }, { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 29 } }
+  WoW.mail = { { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 29, hasItem = 1 }, { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 29, hasItem = 1 } }
   TaxTheFoolsDB.items[100] = { n = "Linen Cloth" }
   WoW.fire("MAIL_SHOW") frame()
   T.eq(table.getn(DB.Char().sales), 2, "recorded in hour h-1")
@@ -176,7 +200,7 @@ T.test("an expiry within 5 s of an hour boundary does not count twice when the h
   WoW.now = WoW.now - 4              -- and back again
   WoW.fire("MAIL_INBOX_UPDATE") frame()
   T.eq(table.getn(DB.Char().sales), 2, "still none")
-  table.insert(WoW.mail, { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 29 })
+  table.insert(WoW.mail, { subject = "Auction expired: Linen Cloth", money = 0, daysLeft = 29, hasItem = 1 })
   WoW.fire("MAIL_INBOX_UPDATE") frame()
   T.eq(table.getn(DB.Char().sales), 3, "a genuinely new one still counts")
 end)
@@ -203,7 +227,7 @@ end)
 
 T.test("a sale whose item name is not cached is not marked seen and is retried once it is (M1)", function()
   WoW.now = WoW.now + 1800
-  WoW.mail = { sold(950), { subject = "Auction won: Mystery", money = 0, daysLeft = 22 } }
+  WoW.mail = { sold(950), { subject = "Auction won: Mystery", money = 0, daysLeft = 22, hasItem = 1 } }
   WoW.fire("MAIL_SHOW") frame()
   local c = DB.Char()
   T.eq(table.getn(c.sales), 1, "only the won mail")
