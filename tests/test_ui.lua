@@ -2,6 +2,8 @@ local UI, Browse, AH, Scan, DB = TaxTheFools.UI, TaxTheFools.Browse, TaxTheFools
 
 local function openAH()
   UI.CreateAH()
+  -- The window outlives WoW.reset(): start on Browse, as a fresh open does.
+  if UI.ah.tabs.selected then UI.ah.tabs:Select("browse") end
   AH.switching = true
   UI.ah:Hide()
   AH.switching = false

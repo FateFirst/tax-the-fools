@@ -267,6 +267,8 @@ function Scan.Pause(reason)
   local job = Scan.job
   if not job then return end
   Scan.job = nil
+  -- A Find in flight would otherwise never hear back.
+  if job.locate then job.locate.onDone(nil, job.page, "paused") end
   if job.kind ~= "browse" then
     local saved = { kind = job.kind, queries = job.queries, qi = job.qi, page = job.page, day = job.day,
                     pagesDone = job.pagesDone, rows = {} }

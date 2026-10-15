@@ -179,6 +179,8 @@ end
 function DealsUI.UpdateBar()
   local p = DealsUI.frame
   if not p then return end
+  -- A Find that was cut off without telling us must not leave the button dead.
+  if p.searching and not Scan.Busy() then p.searching = false end
   local d = p.list.selected or nil
   local found = d and p.found and same(p.found.sig, Auction.Sig(d))
   if found then
@@ -229,7 +231,9 @@ end
 function DealsUI.Located(sig, index, page, err)
   local p = DealsUI.frame
   p.searching = false
-  if err then
+  if err == "paused" then
+    DealsUI.Say("Search interrupted. Press Find again.", "warn")
+  elseif err then
     DealsUI.Say("No reply from the auction house. Try again.", "bad")
   elseif index then
     p.found = { sig = sig, index = index, page = page }

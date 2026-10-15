@@ -3,6 +3,8 @@ local UI, AH, Scan, DB, Auction, Deals = A.UI, A.AH, A.Scan, A.DB, A.Auction, A.
 
 local function openAH()
   UI.CreateAH()
+  -- The window outlives WoW.reset(): start every test on Browse, as a fresh open does.
+  if UI.ah.tabs.selected then UI.ah.tabs:Select("browse") end
   AH.switching = true
   UI.ah:Hide()
   AH.switching = false
@@ -201,9 +203,44 @@ T.test("Find with nothing selected does nothing", function()
   T.eq(T.count("QueryAuctionItems"), 0)
 end)
 
--- The AH window outlives WoW.reset(): leave it on Browse, as test_ui.lua expects.
-T.test("leave the window on the Browse tab", function()
-  openAH()
-  UI.ah.tabs:Select("browse")
-  T.eq(UI.ah.tabs.selected, "browse")
+local function startFind()
+  seedPages()
+  local p = page()
+  p.list.selected = p.list.data[1]
+  A.DealsUI.UpdateBar()
+  WoW.runScript(p.findBtn, "OnClick")
+  T.ok(p.searching)
+  return p
+end
+
+local function interrupted(p)
+  T.eq(p.searching, false)
+  T.ok(string.find(p.status:GetText(), "Search interrupted. Press Find again.", 1, true), p.status:GetText())
+  T.eq(p.findBtn.enabled, true)
+  T.eq(p.findBtn.label:GetText(), "FIND")
+  T.eq(types(p), "market:11000,market:6000,vendor:100", "the deal is still listed")
+  T.eq(DB.Realm().snapshot.rows["14047:0"][1], "20|8000|0|Deal")
+  T.eq(T.count("PlaceAuctionBid"), 0)
+end
+
+T.test("a Find interrupted by Scan.Pause reports back and can be retried", function()
+  local p = startFind()
+  Scan.Pause("user")
+  interrupted(p)
+end)
+
+T.test("a Find interrupted by closing the auction house reports back", function()
+  local p = startFind()
+  AH.OnClosed()
+  interrupted(p)
+end)
+
+T.test("a stuck searching flag clears itself when no scan is running", function()
+  seedPages()
+  local p = page()
+  p.list.selected = p.list.data[1]
+  p.searching = true
+  A.DealsUI.UpdateBar()
+  T.eq(p.searching, false)
+  T.eq(p.findBtn.enabled, true)
 end)
