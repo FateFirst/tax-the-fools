@@ -79,5 +79,7 @@ end
 function AH.OnClosed()
   AH.open, AH.keepOpen, AH.pending = false, false, false
   TaxTheFools.Scan.Pause("closed")
+  -- ui_confirm.lua loads after this file: look it up at call time.
+  if TaxTheFools.Confirm then TaxTheFools.Confirm.Cancel() end
   if AH.window and AH.window:IsShown() then AH.window:Hide() end
 end

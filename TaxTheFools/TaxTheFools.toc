@@ -25,6 +25,7 @@ tradeskill.lua
 ui_window.lua
 ui_browse.lua
 ui_craft.lua
+ui_confirm.lua
 options.lua
 minimap.lua
 probe.lua
