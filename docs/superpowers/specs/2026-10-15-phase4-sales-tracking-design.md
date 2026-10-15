@@ -29,7 +29,7 @@ Parent spec: `docs/superpowers/specs/2026-10-14-tax-the-fools-design.md` (§7 un
 
   The probe showed the strings: "Auction successful: %s", "Auction expired: %s", "Auction cancelled: %s", "Auction won: %s" and "Outbid on %s". Escape the pattern's magic characters, then replace `%s` with `(.+)`. The result is `outcome, itemName` or nil.
 - **De-duplication:**
-  - Key: `subject .. "|" .. money .. "|" .. floor((time() + daysLeft*86400)/3600)` (the expiry hour, which stays the same across visits and relogs; `time() - daysLeft*86400` would drift by two hours per hour played). It is stored per character in `char.seenMail[key] = at`.
+  - Key: `subject .. "|" .. money .. "|" .. floor((time() + daysLeft*86400)/3600)` (the expiry hour, which stays the same across visits and relogs; `time() - daysLeft*86400` would drift by two hours per hour played). It is stored per character in `char.seenMail[key] = { at = time first recorded, n = mails recorded }`; identical mails share a key, so each read counts the occurrences of every key and records only those beyond `n` (an old bare-timestamp entry reads as `n = 1`). An expiry within 5 s of an hour boundary also checks the adjacent hour's key and records only the excess over the larger of the two counts. A sale, expiry or cancel whose item name does not resolve yet is not recorded or marked seen, so it is retried on the next visit.
   - A key already seen is skipped.
   - `seenMail` is pruned with sales (older than 120 days).
 - **Recording:** a new sold, expired or cancelled mail calls `Sales.Record(char, outcome, itemName, money, now)`. Won and outbid are recorded for the History tab but don't affect sell rates.
@@ -81,7 +81,7 @@ Parent spec: `docs/superpowers/specs/2026-10-14-tax-the-fools-design.md` (§7 un
 ## 6. Options
 
 - **Sales:** sell-rate window (7–90 days, default 30), price warning % (100–200, step 10, default 120) and the "Sells" tooltip line toggle.
-- **Deals:** the undersupplied switch, `underPct` (10–90, step 5) and `premiumPct` (100–150, step 5).
+- **Deals:** the undersupplied switch, `underPct` (10–90, step 5) and `premiumPct` (100–150, step 5). The two thresholds are Options-page only; the Deals rail has just the switch (more rows overflow the minimum window).
 - **General:** "Right-click bag items to search or sell" (default on).
 
 ## 7. Testing

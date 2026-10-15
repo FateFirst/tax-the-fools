@@ -77,7 +77,8 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
 - **Selling options.** Options > Selling: starting bid % (50 to 100), price floor % (50 to
   100), undercut (1c to 1g), and the default duration.
 - **Sales tracking.** Open a mailbox and the addon reads the headers of your auction mail
-  (sold, expired, cancelled, won, outbid) and records each one once, across visits and relogs.
+  (sold, expired, cancelled, won, outbid) and counts each mail once, across visits and relogs. Identical mails (several stacks expiring
+  together, or bought for the same price) are counted individually.
   It never opens a mail, so nothing is marked read or has its expiry shortened; collecting the
   items and gold is still TurtleMail's job.
 - **History tab.** One row per item with sales: Sold, Expired, Rate, Avg price, Avg time and

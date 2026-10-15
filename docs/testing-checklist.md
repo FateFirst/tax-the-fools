@@ -94,7 +94,7 @@ against a fake client; this proves the fake client was right.
 42. Select a recipe with a long name on the tradeskill window: the profit strip widens to
     fit the text (up to 600px), and narrows again for a short one.
 43. Options > Deals & buying lists the same switches, sliders and confidence dropdown as
-    the Deals rail. Change one in each place and check the other follows.
+    the Deals rail (except the two Undersupplied thresholds, which are Options-only). Change one in each place and check the other follows.
 44. Finish a full scan, open the Deals tab and press Find on a deal. Nothing is bought
     until you press the Buy button yourself.
 45. Find a deal, then Browse-search something else and return to Deals and press **Buy**:
@@ -166,3 +166,7 @@ against a fake client; this proves the fake client was right.
     is searched or selected; the click behaves as it does away from the AH.
 70. Options > General, "Right-click bag items to search or sell" off. Right-click a bag item on
     Browse: nothing is searched. Turn it back on.
+71. AH open on the Deals or Auctions tab: right-click a bag item. It behaves normally (it is
+    used or sold as it is away from the AH); nothing is searched or selected.
+72. Post several identical stacks of one item. When they expire, open the mailbox: History shows
+    each expiry (the Rate column and the counts include every one, not just one).
