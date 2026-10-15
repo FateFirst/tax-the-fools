@@ -443,8 +443,8 @@ local function snapRows(listings)
   return rows
 end
 
--- A full scan replaces the snapshot. A watchlist scan replaces the rows of every
--- item it saw, and empties the rows of a watched item it searched for and did
+-- A full scan replaces the snapshot. A partial scan (watch, mats, snipe) replaces the rows of every
+-- item it saw, and empties the rows of any item whose name it searched for and did
 -- not find: that item has sold out. A browse never comes here.
 function Scan.SaveSnapshot(job)
   local realm = DB.Realm()
@@ -460,10 +460,14 @@ function Scan.SaveSnapshot(job)
   end
   local asked = {}
   for _, q in ipairs(job.queries) do asked[q.name] = true end
-  for key in pairs(realm.watch) do
+  -- Every key whose item name this job asked for is replaced by what it found: a sold-out item
+  -- must not keep stale rows. Keys it never asked for stay as they were.
+  local stale = {}
+  for key in pairs(snap.rows) do
     local rec = I.Get(U.keyId(key))
-    if rec and rec.n and asked[rec.n] then snap.rows[key] = nil end
+    if rec and rec.n and asked[rec.n] then table.insert(stale, key) end
   end
+  for _, key in ipairs(stale) do snap.rows[key] = nil end
   for key, list in pairs(fresh) do snap.rows[key] = list end
 end
 

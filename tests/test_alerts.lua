@@ -137,3 +137,117 @@ T.test("alerts never buy, bid, post or cancel", function()
   T.ok(not T.calledWith("StartAuction"))
   T.ok(not T.calledWith("CancelAuction"))
 end)
+
+local function runScan()
+  for _ = 1, 60 do
+    WoW.clock = WoW.clock + 0.5
+    Scan.Tick(WoW.clock)
+    if WoW.ah.pending then WoW.ahRespond() Scan.OnListUpdate(WoW.clock) end
+    if not Scan.job then return end
+  end
+end
+
+T.test("the Quick scan menu hides on choosing, on a scan starting, on AH hide and on an outside click", function()
+  UI.CreateAH()
+  UI.ah:Show()
+  UI.ToggleQuickMenu()
+  T.ok(UI.quickMenu:IsShown()) T.ok(UI.quickMenu.catcher:IsShown())
+  WoW.runScript(UI.quickMenu.catcher, "OnClick")
+  T.eq(UI.quickMenu:IsShown(), false) T.eq(UI.quickMenu.catcher:IsShown(), false)
+  UI.ToggleQuickMenu()
+  T.ok(Scan.Start("full", { { name = "" } }, WoW.clock))
+  T.eq(UI.quickMenu:IsShown(), false, "scan started elsewhere")
+  Scan.ResetState()
+  UI.ToggleQuickMenu()
+  T.ok(UI.quickMenu:IsShown())
+  UI.ah:Hide()
+  T.eq(UI.quickMenu:IsShown(), false, "AH hidden")
+end)
+
+local function snapOf(rows) DB.Realm().snapshot = { at = 1, day = 20375, rows = rows } end
+
+T.test("mats and snipe scans clear a sold-out item's snapshot rows and keep unrelated keys", function()
+  I.Remember(4306, "Silk Cloth") I.Remember(14047, "Runecloth") I.Remember(2589, "Linen Cloth")
+  DB.Realm().snipe = { ["4306:0"] = { max = 1, name = "Silk Cloth" } }
+  snapOf({ ["4306:0"] = { "1|100||A" }, ["2589:0"] = { "1|50||B" } })
+  T.ok(Scan.StartSnipe(WoW.clock))      -- nothing for sale: Silk Cloth sold out
+  runScan()
+  T.eq(DB.Realm().snapshot.rows["4306:0"], nil)
+  T.eq(table.getn(DB.Realm().snapshot.rows["2589:0"]), 1)
+  DB.Realm().chars.Tailor = { professions = { Tailoring = { recipes = { Bolt = { item = "1:0",
+    reagents = { { item = "14047:0", name = "Runecloth", count = 1 } } } } } } }
+  snapOf({ ["14047:0"] = { "1|100||A" }, ["2589:0"] = { "1|50||B" } })
+  T.ok(Scan.StartMats(WoW.clock))
+  runScan()
+  DB.Realm().chars.Tailor = nil
+  T.eq(DB.Realm().snapshot.rows["14047:0"], nil)
+  T.eq(table.getn(DB.Realm().snapshot.rows["2589:0"]), 1)
+end)
+
+local function multiPage()
+  I.Remember(14047, "Runecloth")
+  for i = 1, 120 do
+    table.insert(WoW.ah.listings, { id = 14047, name = "Runecloth", count = 1, buyout = 100 + i, owner = "S" .. math.mod(i, 7) })
+  end
+end
+
+T.test("alerts build their context once per scan job and never re-alert across pages", function()
+  multiPage()
+  DB.Realm().snipe = { ["14047:0"] = { max = 100000, name = "Runecloth" } }
+  Al.ResetState()
+  local built = 0
+  local real = Al.BuildContext
+  Al.BuildContext = function() built = built + 1 return real() end
+  local fn = function(rows) Al.OnRows(rows) end
+  Scan.OnRows(fn)
+  T.ok(Scan.Browse("Rune", 0, WoW.clock))
+  runScan()
+  T.ok(Scan.StartFull(WoW.clock))
+  runScan()
+  Al.BuildContext = real
+  Scan.rowListeners[table.getn(Scan.rowListeners)] = function() end
+  T.eq(built, 2, "one browse job, one full job (3 pages)")
+  T.eq(T.count("Snipe: Runecloth x1"), 120, "each listing once even though the full scan saw them again")
+end)
+
+T.test("alerts.minProfit below deals.minProfit still alerts", function()
+  I.Remember(14047, "Runecloth")
+  DB.S().deals.minProfit = 1000000
+  local market = { ["14047:0"] = { v = 1000, conf = 1 } }
+  local rows = { { key = "14047:0", qty = 20, buyout = 8000, unit = 400, owner = "Bob" } }
+  local out = Al.Check(rows, ctxWith(market), { on = true, minProfit = 100, sound = false, snipe = true }, 1)
+  T.eq(table.getn(out), 1)
+  DB.S().deals.minProfit = 5000
+end)
+
+T.test("a resumed scan does not re-fire the pages it saved", function()
+  multiPage()
+  DB.Realm().snipe = { ["14047:0"] = { max = 100000, name = "Runecloth" } }
+  Al.ResetState()
+  local fired = 0
+  Scan.OnRows(function(rows) fired = fired + table.getn(rows) end)
+  T.ok(Scan.Start("snipe", { { name = "Runecloth" } }, WoW.clock))
+  for _ = 1, 4 do
+    WoW.clock = WoW.clock + 0.5
+    Scan.Tick(WoW.clock)
+    if WoW.ah.pending then WoW.ahRespond() Scan.OnListUpdate(WoW.clock) end
+    if Scan.job and Scan.job.pagesDone >= 1 then break end
+  end
+  local before = fired
+  Scan.Pause("user")
+  T.ok(Scan.Resume(WoW.clock))
+  T.eq(fired, before, "resume replays saved rows silently")
+  Scan.Pause("user")
+  Scan.Discard()
+  Scan.rowListeners[table.getn(Scan.rowListeners)] = function() end
+end)
+
+T.test("Core wires Alerts to scanned pages", function()
+  A.Core.Init()
+  multiPage()
+  DB.Realm().snipe = { ["14047:0"] = { max = 100000, name = "Runecloth" } }
+  Al.ResetState()
+  T.ok(Scan.Browse("Rune", 0, WoW.clock))
+  runScan()
+  T.ok(T.count("Snipe: Runecloth x1") >= 50)
+end)

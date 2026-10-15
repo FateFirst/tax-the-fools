@@ -107,6 +107,15 @@ function UI.ToggleQuickMenu()
     menu:Hide()
     menu.items = {}
     UI.quickMenu = menu
+    -- A clear full-screen button behind the menu: a click anywhere else closes it.
+    local catcher = CreateFrame("Button", nil, UIParent)
+    catcher:SetFrameStrata("FULLSCREEN")
+    catcher:SetAllPoints(UIParent)
+    catcher:SetScript("OnClick", function() menu:Hide() end)
+    catcher:Hide()
+    menu.catcher = catcher
+    menu:SetScript("OnShow", function() catcher:Show() end)
+    menu:SetScript("OnHide", function() catcher:Hide() end)
     local kinds = { "watch", "mats", "snipe" }
     local function choose(kind) menu:Hide() UI.StartScan(kind) end
     for i = 1, 3 do
@@ -168,6 +177,7 @@ function UI.CreateAH()
     if not f.tabs.selected then f.tabs:Select("browse") end
   end)
   f:SetScript("OnHide", function()
+    if UI.quickMenu then UI.quickMenu:Hide() end
     if TaxTheFools.Browse then TaxTheFools.Browse.SetBack(false) end
     AH.OnWindowHidden()
   end)
@@ -178,7 +188,10 @@ function UI.CreateAH()
   end
   UI.ah = f
   AH.window = f
-  Scan.OnChange(function() UI.RefreshStatus() end)
+  Scan.OnChange(function()
+    if UI.quickMenu and Scan.Busy() then UI.quickMenu:Hide() end
+    UI.RefreshStatus()
+  end)
   Auction.OnChange(function() UI.RefreshStatus() end)
   return f
 end

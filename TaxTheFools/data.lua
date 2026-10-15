@@ -59,4 +59,4 @@ D.DEFAULTS = {
 
 D.CHAR_DEFAULTS = { windows = {} }
 
-D.REALM_DEFAULTS = { history = {}, market = {}, scan = {}, chars = {}, watch = {} }
+D.REALM_DEFAULTS = { history = {}, market = {}, scan = {}, chars = {}, watch = {}, snipe = {} }

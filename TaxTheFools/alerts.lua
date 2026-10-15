@@ -7,7 +7,7 @@ TaxTheFools.Alerts = Alerts
 -- nothing here buys, bids, posts or cancels.
 Alerts.SOUND_GAP = 5
 
-function Alerts.ResetState() Alerts.seen, Alerts.soundAt = {}, -1000 end
+function Alerts.ResetState() Alerts.seen, Alerts.soundAt, Alerts.ctx, Alerts.ctxJob = {}, -1000, nil, nil end
 
 -- listings: { key, unit, qty, owner, buyout }. ctx is built once per call by the caller or here.
 -- s = DB.S().alerts. Returns the list of alerts raised: { kind = "snipe"|"deal", key, count, buyout, ... }.
@@ -16,7 +16,10 @@ function Alerts.Check(listings, ctx, s, now)
   if not s or not s.on then return out end
   local me = DB.charName
   local snipeList = DB.Realm().snipe or {}
-  local dealSettings = DB.S().deals
+  -- Alerts have their own minimum profit; deals.minProfit must not hide an alert.
+  local dealSettings = {}
+  for k, v in pairs(DB.S().deals) do dealSettings[k] = v end
+  dealSettings.minProfit = s.minProfit or 0
   for _, l in ipairs(listings) do
     local count, buyout = l.qty or 1, l.buyout or 0
     if buyout > 0 and not (me and l.owner and l.owner == me) then
@@ -58,9 +61,16 @@ function Alerts.Check(listings, ctx, s, now)
   return out
 end
 
--- Scan.OnRows listener: one context per page, and only when there is something that could alert.
+function Alerts.BuildContext() return TaxTheFools.TradeSkill.Context() end
+
+-- Scan.OnRows listener. The context (holdings, recipe index) is built once per scan job and reused
+-- for every page; a new job builds a fresh one.
 function Alerts.OnRows(rows)
   local s = DB.S().alerts
   if not s or not s.on or table.getn(rows) == 0 then return end
-  Alerts.Check(rows, TaxTheFools.TradeSkill.Context(), s, GetTime())
+  local job = TaxTheFools.Scan.job
+  if not Alerts.ctx or Alerts.ctxJob ~= job then
+    Alerts.ctx, Alerts.ctxJob = Alerts.BuildContext(), job
+  end
+  Alerts.Check(rows, Alerts.ctx, s, GetTime())
 end
