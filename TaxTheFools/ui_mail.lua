@@ -33,7 +33,7 @@ end
 MailUI.COLUMNS = {
   { label = "Item", width = 36, fmt = function(r) if r.hasItem then return "Item", "gold" end return "" end },
   { label = "From", width = 90, sort = "sender", fmt = function(r) return r.sender or "?" end },
-  { label = "Subject", width = 130, sort = "subject", fmt = function(r) return r.subject or "" end },
+  { label = "Subject", width = 130, sort = "subject", fmt = function(r) return MailUI.ShortSubject(r.subject) end },
   { label = "Money", width = 76, align = "RIGHT", sort = "money", fmt = function(r) return money(r.money) end },
   { label = "COD", width = 62, align = "RIGHT", sort = "cod",
     fmt = function(r) if r.cod and r.cod > 0 then return U.money(r.cod), "warn" end return "-", "dim" end },
@@ -41,6 +41,13 @@ MailUI.COLUMNS = {
     fmt = function(r) return A.UI.Approx((r.daysLeft or 0) * 86400) end },
   { label = "Tag", width = 62, sort = "tag", fmt = function(r) return r.tag or "", "dim" end },
 }
+
+-- An auction mail's subject shows just the item: the Tag column already says what happened to it.
+function MailUI.ShortSubject(subject)
+  local outcome, item = Sales.Classify(subject)
+  if outcome and item then return item end
+  return subject or ""
+end
 
 -- The tag of a mail: an auction outcome from its subject, or "Returned".
 function MailUI.Tag(subject, wasReturned)
