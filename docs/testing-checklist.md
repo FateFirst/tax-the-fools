@@ -4,7 +4,7 @@ Run this after every install, on the real client. The tests prove the logic
 against a fake client; this proves the fake client was right.
 
 ## Load
-1. Log in on the bank character. Chat shows `TTF: v0.5.0 loaded`.
+1. Log in on the bank character. Chat shows `TTF: v0.6.0 loaded`.
 2. `/ttf probe`. The window opens with text selected. Press Ctrl+C and paste it
    into `tools/probe-<date>.txt` in this repo. Check:
    - every `fn` line says `yes`, except possibly `GetInboxInvoiceInfo`, `CalculateAuctionDeposit` (spec §13 Q2)
@@ -170,3 +170,40 @@ against a fake client; this proves the fake client was right.
     used or sold as it is away from the AH); nothing is searched or selected.
 72. Post several identical stacks of one item. When they expire, open the mailbox: History shows
     each expiry (the Rate column and the counts include every one, not just one).
+
+## Recipes and payback (phase 5a)
+The trainer and vendor windows are only read. Nothing is bought from them; buy as you normally would.
+73. Open Crafting (`/ttf craft`) and press **Not learned**. The rows show Recipe, Skill, Get, Profit,
+    Payback and Sells, sorted by payback with "never" and "-" at the bottom.
+74. With **Learnable soon** ticked (the default), every row's skill is at most your rank plus the
+    skill-ahead setting. Untick it: recipes needing more skill appear. Tick it again.
+75. Select a row. The detail pane lists where to get it, the pattern name, the materials and
+    "Pays back after N crafts at +X each".
+76. Press **Learned**. The usual recipe list comes back, with the same rows and profit figures as
+    before this release.
+77. Visit a Tailoring trainer, close it without buying, then press **Not learned**. Trainer
+    recipes show a gold cost in Get, not "trainer ?".
+78. Visit a pattern vendor, close it without buying. Its patterns show a vendor cost in Get, or
+    "vendor (limited)" when the vendor's stock is limited.
+79. Hover a pattern in the auction house (Browse) and in your bags. The tooltip has a line:
+    "Pays back in N crafts (+X each)", "Learned by Name", or "No profit per craft". No line
+    appears when no price is known. Options > Crafting, "Pattern payback tooltip line" off:
+    the line goes. Turn it back on.
+80. Hover a pattern that is not in the Not learned list yet. Reopen Not learned: it now
+    appears there, with its reagents as materials.
+81. Deals tab, switch on **Recipe** on the left rail. Select a Recipe deal (its detail reads
+    "Pays back in N crafts for Name"), press **Find**, and the button becomes **Buy <price>**.
+    Press it once: one purchase per click, and nothing else is bought.
+82. Options > Deals, "Pays back within" 1 (then back to 10). The Recipe deals list changes to
+    match: fewer deals at 1, more at 50.
+83. Resize the Tax the Fools window to its smallest size. The Deals rail shows all its switches,
+    and none is cut off or overlaps another.
+84. Options > Deals has Materials and Minimum confidence, and the rail no longer does. Change
+    Minimum confidence and check the Deals list follows it.
+85. Options > Crafting, "Learnable soon: skill ahead" at 0: Not learned lists only recipes at or
+    under your rank. Set it back to 25.
+86. Hover the pattern Green Woolen Bag once, so it is cached. Then `/ttf probe`. Every trainer
+    function line reads `yes`: GetNumTrainerServices, GetTrainerServiceInfo,
+    GetTrainerServiceCost and GetTrainerServiceSkillReq. Below them are the tooltip lines for
+    Pattern: Green Woolen Bag (item 4292), including "Requires Tailoring (n)" and "Teaches you
+    how to make ...". Copy them into `tools/probe-<date>.txt`.

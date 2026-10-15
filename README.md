@@ -3,12 +3,13 @@
 Auction house price history, deal finding and crafting profit for the Ravencraft
 server (Turtle WoW 1.18.1 client, WoW 1.12, Lua 5.0).
 
-This release (0.5.0): the auction window, scanning, price history, tooltips, crafting
+This release (0.6.0): the auction window, scanning, price history, tooltips, crafting
 profit for every recipe your characters know, buying, selling, and sales tracking from
-auction house mail. The **Deals** tab finds below-market, below-vendor, cheap-materials and
-undersupplied listings; **Browse** buys and bids on the selected row; **Sell** and **Auctions**
-post and cancel your own auctions; **History** shows what has sold. Next is phase 5: a recipe
-database and a mailbox tab. See
+auction house mail. The **Deals** tab finds below-market, below-vendor, cheap-materials,
+undersupplied and recipe listings; **Browse** buys and bids on the selected row; **Sell** and
+**Auctions** post and cancel your own auctions; **History** shows what has sold; **Crafting**
+shows the recipes each character could still learn, with what they cost and how fast they pay
+back. Next is phase 5b: a mailbox tab that sends items to your alts. See
 `docs/superpowers/specs/2026-10-14-tax-the-fools-design.md` for the overall design.
 
 ## Install
@@ -40,6 +41,20 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
   never guesses.
 - **Vendor and bank.** Visiting a vendor teaches the addon its buy prices (thread,
   dye); opening your bank records what is in it, so "have" counts bags and bank.
+- **Recipe database.** The addon ships every Tailoring recipe, including the Turtle-only
+  ones, from LibCrafts-1.0 by refaim (MIT; see `TaxTheFools/licenses/LibCrafts-1.0.txt`).
+  Your own captures correct it: recipes your characters know, trainer windows, vendor windows
+  and pattern tooltips. `make recipes` regenerates the built-in data.
+- **Not learned.** On the Crafting page, press **Not learned** to list the recipes a character
+  does not know yet: where to get each one (AH, vendor, trainer, drop or quest), its cost,
+  profit per craft, payback in crafts, and how often it sells. **Learnable soon** (on by
+  default) keeps those within your skill-ahead setting. **Learned** returns the usual list.
+- **Payback.** A pattern's tooltip gets a line such as "Pays back in 4 crafts (+1g 20s each)",
+  or who can learn it. Options > Crafting turns the line off. The addon never buys from a
+  trainer or vendor; you do that in the game.
+- **Recipe deals.** The Deals tab's *Recipe* type lists patterns on the auction house that one
+  of your characters could learn and that pay back within 10 crafts (changeable in Options >
+  Deals). Find and Buy work as they do for any deal.
 - **Buying from Browse.** Select a row. **Buy** buys out that listing at its price;
   **Bid** places the next bid. Each is one click. Each is disabled, with a tooltip saying
   why, when it doesn't apply: no buyout, your own auction, can't afford, already the high
@@ -52,8 +67,8 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
   - *Undersupplied*: an item you hold that sells well (at least half of its recent
     auctions) and is scarce on the auction house now. It is a sell suggestion, never a
     buy: its button reads **Sell** and opens the Sell tab with that item selected.
-  Use the left rail to switch each type on or off, set the thresholds, the minimum profit
-  and the minimum confidence. Select a deal and press **Find**: the addon pages through
+  Use the left rail to switch each type on or off; Options > Deals sets the thresholds, the
+  minimum profit and the minimum confidence. Select a deal and press **Find**: the addon pages through
   the auction house until it finds that listing, and the button becomes **Buy <price>**.
   If the listing has gone, the status bar says `Gone` and the deal is removed. Find is refused while a
   full scan or watchlist scan is running: pause it first.
@@ -97,7 +112,8 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
 
 Nothing is ever bought, bid on, posted, cancelled, crafted or sold without your
 click. The only things that run by themselves are a scan turning pages and reading the
-headers of auction mail. Phase 5 (a recipe database and a mailbox tab) is next.
+headers of auction mail. Phase 5a (the recipe database and payback) is done. Phase 5b (a
+mailbox tab that sends items to your alts) is next.
 
 ## Commands
 
@@ -116,8 +132,10 @@ headers of auction mail. Phase 5 (a recipe database and a mailbox tab) is next.
     make test      builds Lua 5.0.3 once, lints, runs the tests against a fake client
     make media     regenerates the textures
     make fonts     re-downloads the bundled fonts
+    make recipes   regenerates the built-in Tailoring recipe data from LibCrafts-1.0
 
 Run `docs/testing-checklist.md` in game after every install.
 
 Fonts: Rajdhani and Inter, SIL Open Font License (`TaxTheFools/media/fonts/OFL-*.txt`).
 The look follows Aegis Pathfinder; no code is taken from it.
+Recipe data: LibCrafts-1.0 by refaim, MIT (https://github.com/refaim/LibCrafts-1.0).
