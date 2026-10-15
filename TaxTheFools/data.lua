@@ -42,6 +42,7 @@ D.DEFAULTS = {
               minConfidence = 0.4 },
     buy = { confirmAbove = 50000 },        -- copper; 0 never asks
     sell = { bidPct = 90, floorPct = 80, undercut = 1, duration = 480 },
+    bagClick = true,                       -- right-click a bag item at the AH: search (Browse) or select (Sell)
   },
   items = {},
   realms = {},

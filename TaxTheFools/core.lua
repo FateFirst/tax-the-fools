@@ -28,6 +28,7 @@ function Core.Init()
   A.Tooltip.Hook()
   A.UI.CreateAH()
   A.Minimap.Create()
+  A.BagClick.Install()
   DB.StartPrune()
   Core.pruned = false
   Core.Safe("selling log", A.Sell.Prune, DB.Char(), time())

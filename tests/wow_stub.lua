@@ -86,6 +86,9 @@ local function newFrame(kind, name, parent)
   end
   f.GetName = function(self) return self.name end
   f.GetParent = function(self) return self.parent or nil end
+  -- 1.12 frames carry a numeric ID: a bag's container frame holds the bag number, its item buttons the slot.
+  f.SetID = function(self, id) self.id = id end
+  f.GetID = function(self) return rawget(self, "id") or 0 end
   f.RegisterEvent = function(self, e) self.events[e] = true end
   f.UnregisterEvent = function(self, e) self.events[e] = nil end
   f.SetScript = function(self, s, fn) self.scripts[s] = fn end
@@ -207,7 +210,7 @@ function WoW.reset()
   WoW.now = 20375 * 86400 + 43200       -- time(): midday UTC on day 20375 (2025-10-14)
   WoW.realm, WoW.player, WoW.faction, WoW.class = "Medivh", "Bankalt", "Horde", "WARRIOR"
   WoW.money = 0
-  WoW.shift = false
+  WoW.shift, WoW.ctrl, WoW.alt = false, false, false
   WoW.cursorX, WoW.cursorY = 0, 0
   WoW.items = {}
   WoW.equip = {}
@@ -380,6 +383,9 @@ function UnitClass(u) return WoW.class, WoW.class end
 function UnitFactionGroup(u) return WoW.faction, WoW.faction end
 function GetMoney() return WoW.money end
 function IsShiftKeyDown() if WoW.shift then return 1 end return nil end
+-- 1.12 returns 1 or nil, like IsShiftKeyDown.
+function IsControlKeyDown() if WoW.ctrl then return 1 end return nil end
+function IsAltKeyDown() if WoW.alt then return 1 end return nil end
 function GetCursorPosition() return WoW.cursorX, WoW.cursorY end
 function GetBuildInfo() return "1.12.1", "5875", "Sep 19 2006" end
 function ReloadUI() WoW.log("ReloadUI") end
@@ -423,6 +429,30 @@ function GetContainerItemInfo(bag, slot)
 end
 -- Selling at a merchant is a right-click on a bag item, which is this call.
 function UseContainerItem(bag, slot) WoW.log("UseContainerItem", bag, slot) end
+-- FrameXML (ContainerFrame.lua, 1.12): the bag item buttons' OnClick runs ContainerFrameItemButton_OnClick(arg1)
+-- with `this` the item button (its parent frame's ID is the bag, its own ID the slot). This original only logs
+-- what the game would do with the click.
+function ContainerFrameItemButton_OnClick(button, ignoreModifiers)
+  local b = this
+  WoW.log("ContainerFrameItemButton_OnClick", button, b:GetParent():GetID(), b:GetID())
+end
+-- A bag item button as the client builds it, and a click on it through the global the OnClick script calls.
+function WoW.bagButton(bag, slot)
+  local container = CreateFrame("Frame", nil, nil)
+  container:SetID(bag)
+  local b = CreateFrame("Button", nil, container)
+  b:SetID(slot)
+  b:SetScript("OnClick", function() ContainerFrameItemButton_OnClick(arg1) end)
+  return b
+end
+-- Looked up at click time, as the XML script does: the global may have been wrapped since the button was made.
+function WoW.clickBag(b, mouse)
+  local fn = getglobal("ContainerFrameItemButton_OnClick")
+  local oldThis, oldArg = this, arg1
+  this, arg1 = b, mouse
+  fn(mouse)
+  this, arg1 = oldThis, oldArg
+end
 -- Merchant: WoW.merchant[i] = { id=, name=, price=, quantity=, numAvailable=, noLink= }.
 -- price is for the whole lot of `quantity` units; numAvailable -1 means unlimited stock.
 function GetMerchantNumItems() return table.getn(WoW.merchant) end
