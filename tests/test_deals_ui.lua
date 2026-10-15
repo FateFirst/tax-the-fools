@@ -55,7 +55,7 @@ local function types(p)
 end
 
 T.test("Deals is the first tab and registered as a builder", function()
-  T.eq(UI.TABS[1].key, "deals") T.eq(UI.TABS[2].key, "browse") T.eq(UI.TABS[3].key, "craft")
+  T.eq(UI.TABS[1].key, "deals") T.eq(UI.TABS[2].key, "browse") T.eq(UI.TABS[3].key, "sell") T.eq(UI.TABS[4].key, "auctions") T.eq(UI.TABS[5].key, "craft")
   T.ok(UI.builders.deals)
 end)
 

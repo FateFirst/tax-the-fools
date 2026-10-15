@@ -4,8 +4,17 @@ local U, Th, W, DB, Scan, AH, Auction = TaxTheFools.Util, TaxTheFools.Theme, Tax
 local UI = { pages = {}, builders = {}, ah = nil }
 TaxTheFools.UI = UI
 
--- Later phases add Sell, Auctions and History here.
-UI.TABS = { { key = "deals", label = "Deals" }, { key = "browse", label = "Browse" }, { key = "craft", label = "Crafting" } }
+-- A tab with no registered builder is left out of the strip until it exists.
+UI.TABS = { { key = "deals", label = "Deals" }, { key = "browse", label = "Browse" }, { key = "sell", label = "Sell" },
+            { key = "auctions", label = "Auctions" }, { key = "craft", label = "Crafting" } }
+
+function UI.VisibleTabs()
+  local out = {}
+  for _, t in ipairs(UI.TABS) do
+    if UI.builders[t.key] then table.insert(out, t) end
+  end
+  return out
+end
 
 local SEP = "  -  "
 
@@ -101,7 +110,7 @@ function UI.CreateAH()
   f.blizzard = W.Button(f.header, "Blizzard UI", 96, 20, function() AH.ShowBlizzard() end)
   f.blizzard:SetPoint("RIGHT", f.gold, "LEFT", -12, 0)
   W.Tip(f.blizzard, "Blizzard UI", "Switch to the standard auction window. Its Tax the Fools button brings you back.")
-  f.tabs = W.TabStrip(f, UI.TABS, function(key) UI.ShowPage(key) end)
+  f.tabs = W.TabStrip(f, UI.VisibleTabs(), function(key) UI.ShowPage(key) end)
   f.tabs:SetPoint("TOPLEFT", f.header, "BOTTOMLEFT", 0, -1)
   f.tabs:SetPoint("TOPRIGHT", f.header, "BOTTOMRIGHT", 0, -1)
   f.status = UI.CreateStatusStrip(f)
@@ -130,6 +139,7 @@ end
 
 function UI.ShowPage(key)
   local f = UI.ah
+  if not UI.pages[key] and not UI.builders[key] then return false end
   for _, page in pairs(UI.pages) do page:Hide() end
   local page = UI.pages[key]
   if not page then

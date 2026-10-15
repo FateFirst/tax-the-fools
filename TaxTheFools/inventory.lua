@@ -29,6 +29,7 @@ end
 -- visible. ui_craft.lua loads after this file: look it up at call time.
 function Inv.Changed()
   if TaxTheFools.CraftUI then TaxTheFools.CraftUI.RefreshAll() end
+  if TaxTheFools.SellUI then TaxTheFools.SellUI.OnBags() end
 end
 
 function Inv.ScanBags()

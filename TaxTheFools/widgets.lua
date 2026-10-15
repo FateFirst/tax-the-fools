@@ -250,6 +250,50 @@ function W.EditBox(parent, width, onEnter)
   return e
 end
 
+-- Gold, silver and copper boxes standing for one copper amount. onChange(copper) runs on every
+-- edit the user makes; SetValue (copper or nil to blank) never calls it. GetValue is nil when blank.
+function W.MoneyInput(parent, onChange)
+  local f = CreateFrame("Frame", nil, parent)
+  f:SetHeight(22)
+  f.updating = false
+  local parts = { { "gold", 54, "g" }, { "silver", 34, "s" }, { "copper", 34, "c" } }
+  local x = 0
+  for _, d in ipairs(parts) do
+    local e = W.EditBox(f, d[2], nil)
+    e:SetNumeric(true)
+    e:SetMaxLetters(d[1] == "gold" and 7 or 2)
+    e:SetPoint("LEFT", f, "LEFT", x, 0)
+    e:SetScript("OnTextChanged", function()
+      if not f.updating and onChange then onChange(f:GetValue()) end
+    end)
+    f[d[1]] = e
+    local t = Th.Text(f, "body", 11, "dim")
+    t:SetPoint("LEFT", e, "RIGHT", 2, 0)
+    t:SetText(d[3])
+    x = x + d[2] + 14
+  end
+  f:SetWidth(x)
+  f.GetValue = function(self)
+    local g, s, c = self.gold:GetText(), self.silver:GetText(), self.copper:GetText()
+    if g == "" and s == "" and c == "" then return nil end
+    return (tonumber(g) or 0) * 10000 + (tonumber(s) or 0) * 100 + (tonumber(c) or 0)
+  end
+  f.SetValue = function(self, v)
+    self.updating = true
+    if v == nil then
+      self.gold:SetText("") self.silver:SetText("") self.copper:SetText("")
+    else
+      v = math.floor(v + 0.5)
+      local g = math.floor(v / 10000)
+      self.gold:SetText(g > 0 and tostring(g) or "")
+      self.silver:SetText(tostring(math.floor(math.mod(v, 10000) / 100)))
+      self.copper:SetText(tostring(math.mod(v, 100)))
+    end
+    self.updating = false
+  end
+  return f
+end
+
 function W.Progress(parent, height)
   local f = CreateFrame("Frame", nil, parent)
   f:SetHeight(height or 8)
