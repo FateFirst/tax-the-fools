@@ -144,7 +144,7 @@ function Mailbox.OnError(msg)
   if not b or type(msg) ~= "string" then return end
   if b.kind == "collect" then
     if ERR_INV_FULL and msg == ERR_INV_FULL then b.fail = "Bags full"
-    elseif ERR_ITEM_MAX_COUNT and msg == ERR_ITEM_MAX_COUNT then b.skipCur = true end
+    elseif ERR_ITEM_MAX_COUNT and msg == ERR_ITEM_MAX_COUNT and b.waiting then b.skipCur = true end
   else
     for _, name in ipairs(Mailbox.SEND_ERRORS) do
       local text = getglobal(name)
@@ -279,6 +279,7 @@ local function collectStep(b, now)
         setStatus(progressText(b, "Collecting"), "text")
         b.cur = { idx = i, sig = h.sig, n = n, money = h.money, action = h.money > 0 and "money" or "item" }
         waitFor(b)
+        b.skipCur = false   -- a unique-item error from before this take must not skip this mail
         if h.money > 0 then TakeInboxMoney(i) else TakeInboxItem(i) end
         return false
       end
