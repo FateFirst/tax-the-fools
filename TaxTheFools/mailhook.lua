@@ -1,12 +1,12 @@
 TaxTheFools = TaxTheFools or {}
 local DB, U = TaxTheFools.DB, TaxTheFools.Util
-local MailHook = { open = false, keepOpen = false, pending = false, hooked = false, switching = false,
-                   noticed = false, window = nil }
+local MailHook = { open = false, keepOpen = false, pending = false, switching = false,
+                   noticed = false, wrap = nil, window = nil }
 TaxTheFools.MailHook = MailHook
 
 function MailHook.ResetState()
   MailHook.open, MailHook.keepOpen, MailHook.pending = false, false, false
-  MailHook.switching, MailHook.hooked, MailHook.noticed = false, false, false
+  MailHook.switching, MailHook.noticed = false, false
 end
 
 -- Replacing is on and TurtleMail isn't loaded: the one test for "our mailbox is in charge".
@@ -22,13 +22,18 @@ end
 
 -- MailFrame's OnHide calls CloseMail(): wrapped to do nothing while our window holds the mailbox open.
 function MailHook.Hook()
-  if MailHook.hooked or not MailFrame then return end
-  MailHook.hooked = true
-  local orig = MailFrame:GetScript("OnHide")
-  MailFrame:SetScript("OnHide", function()
-    if MailHook.keepOpen then return end
-    if orig then orig() end
-  end)
+  if not MailFrame then return end
+  local cur = MailFrame:GetScript("OnHide")
+  -- idempotent: our wrapper is recognised, so it is never wrapped twice
+  if not (MailHook.wrap and cur == MailHook.wrap) then
+    local orig = cur
+    MailHook.wrap = function()
+      if MailHook.keepOpen then return end
+      if orig then orig() end
+    end
+    MailFrame:SetScript("OnHide", MailHook.wrap)
+  end
+  if getglobal("TaxTheFoolsMailBackButton") then return end
   local b = CreateFrame("Button", "TaxTheFoolsMailBackButton", MailFrame, "UIPanelButtonTemplate")
   b:SetWidth(110)
   b:SetHeight(20)
@@ -46,7 +51,7 @@ function MailHook.OnShow()
     end
     return
   end
-  if DB.S().replaceBlizzardMail then
+  if DB.S().replaceBlizzardMail and MailHook.window then
     MailHook.pending = true
   else
     MailHook.Hook()
@@ -58,16 +63,17 @@ end
 function MailHook.Tick()
   if not MailHook.pending then return end
   MailHook.pending = false
-  if not MailFrame then return end
+  if not MailFrame or not MailHook.window then return end
   MailHook.Hook()
   MailHook.ShowOurs()
 end
 
 function MailHook.ShowOurs()
+  if not MailHook.window then return end
   MailHook.Hook()
   MailHook.keepOpen = true
-  if MailFrame and MailFrame:IsShown() then MailFrame:Hide() end
-  if MailHook.window then MailHook.window:Show() end
+  if MailFrame and MailFrame:IsShown() then HideUIPanel(MailFrame) end
+  MailHook.window:Show()
   if not (IsBagOpen and IsBagOpen(0)) then OpenBackpack() end
 end
 
@@ -78,7 +84,7 @@ function MailHook.ShowBlizzard()
   if MailHook.window then MailHook.window:Hide() end
   MailHook.switching = false
   MailHook.keepOpen = false
-  if MailFrame then MailFrame:Show() end
+  if MailFrame then ShowUIPanel(MailFrame) end
 end
 
 -- Our window's OnHide: closing it ends the visit, unless we are only switching windows.

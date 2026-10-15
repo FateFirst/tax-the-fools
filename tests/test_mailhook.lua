@@ -68,7 +68,9 @@ T.test("MAIL_CLOSED hides our window and resets without calling CloseMail again"
   local old = MH.window
   MH.window = fakeWindow()
   open()
+  WoW.calls = {}
   WoW.fire("MAIL_CLOSED")
+  T.ok(not T.calledWith("CloseMail"), "no second CloseMail")
   T.eq(MH.window:IsShown(), false)
   T.eq(MH.open, false)
   T.eq(MH.keepOpen, false)
@@ -84,6 +86,42 @@ T.test("with replacing off nothing is swapped, Blizzard's window stays, and the 
   T.eq(MH.window:IsShown(), false)
   T.ok(not MH.Enabled())
   MH.window = old
+end)
+
+T.test("without our window yet, the mailbox stays visible (Blizzard's)", function()
+  local old = MH.window
+  MH.window = nil
+  open()
+  T.ok(MailFrame:IsShown())
+  MH.ShowOurs()
+  T.ok(MailFrame:IsShown())
+  MH.window = old
+end)
+
+T.test("the back button shows ours, and keepOpen makes MailFrame's OnHide skip CloseMail", function()
+  local old = MH.window
+  MH.window = fakeWindow()
+  open()
+  local b = getglobal("TaxTheFoolsMailBackButton")
+  T.ok(b, "back button exists")
+  MH.ShowBlizzard()
+  T.ok(MailFrame:IsShown())
+  b.scripts.OnClick()
+  T.eq(MailFrame:IsShown(), false) T.ok(MH.window:IsShown())
+  WoW.calls = {}
+  MailFrame.scripts.OnHide()      -- keepOpen is set while ours is up
+  T.ok(not T.calledWith("CloseMail"))
+  MH.keepOpen = false
+  MailFrame.scripts.OnHide()
+  T.ok(T.calledWith("CloseMail"))
+  MH.window = old
+end)
+
+T.test("Hook is idempotent: a second call does not double-wrap", function()
+  MH.Hook()
+  local w = MailFrame:GetScript("OnHide")
+  MH.Hook()
+  T.ok(MailFrame:GetScript("OnHide") == w)
 end)
 
 T.test("with TurtleMail loaded nothing is replaced and the notice prints once", function()
