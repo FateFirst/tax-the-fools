@@ -30,6 +30,7 @@ function Core.Init()
   A.Minimap.Create()
   DB.StartPrune()
   Core.pruned = false
+  A.Sell.Prune(DB.Char(), time())
   A.Inventory.bagsDirty = true      -- count the bags once at login, whichever event comes first
   Core.ready = true
   local prev = TaxTheFoolsDB.version

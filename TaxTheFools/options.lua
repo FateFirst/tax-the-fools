@@ -19,7 +19,6 @@ end
 -- page's rail, so a change in one shows in the other the next time it paints.
 local function money(v) return U.money(v) end
 
--- Phase 3b adds the Selling page.
 Opt.CATEGORIES = {
   { key = "general", label = "General", rows = {
     { kind = "switch", key = "replaceBlizzardAH", label = "Replace the Blizzard auction window",
@@ -57,6 +56,16 @@ Opt.CATEGORIES = {
     { kind = "slider", path = { "buy", "confirmAbove" }, label = "Confirm buys at or above", min = 0, max = 500000,
       step = 10000,
       fmt = function(v) return v == 0 and "never" or money(v) end },
+  } },
+  { key = "selling", label = "Selling", rows = {
+    { kind = "slider", path = { "sell", "bidPct" }, label = "Starting bid, % of buyout", min = 50, max = 100, step = 5,
+      fmt = function(v) return v .. "%" end },
+    { kind = "slider", path = { "sell", "floorPct" }, label = "Price floor, % of market value", min = 50, max = 100,
+      step = 5, fmt = function(v) return v .. "%" end },
+    { kind = "slider", path = { "sell", "undercut" }, label = "Undercut by", min = 1, max = 10000, step = 1,
+      fmt = money },
+    { kind = "dropdown", path = { "sell", "duration" }, label = "Default duration", options = {
+      { value = 120, label = "6h" }, { value = 480, label = "24h" }, { value = 1440, label = "72h" } } },
   } },
   { key = "tooltip", label = "Tooltip", rows = {
     { kind = "switch", path = { "tooltip", "market" }, label = "Market value" },

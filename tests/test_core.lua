@@ -227,3 +227,89 @@ T.test("after login, retention runs and market values are refreshed", function()
   for _ = 1, 3 do WoW.runScript(TaxTheFoolsCore, "OnUpdate") end
   T.eq(DB.Realm().market["14047:0"].v, 400)
 end)
+
+T.test("login prunes posting-log entries older than the retention", function()
+  local char = DB.Char()
+  char.postings = { { key = "14047:0", at = WoW.now - 40 * 86400 }, { key = "14047:0", at = WoW.now - 86400 } }
+  Core.Init()
+  T.eq(table.getn(char.postings), 1)
+  T.eq(char.postings[1].at, WoW.now - 86400)
+end)
+
+T.test("selling and auctions: nothing posts, cancels, splits or bids without a click; each click does it once", function()
+  local SellUI = A.SellUI
+  WoW.items[14047] = { name = "Runecloth", stack = 20, quality = 1, tex = "rune" }
+  WoW.bags[0] = { { id = 14047, name = "Runecloth", count = 20, vendor = 100 }, {}, {}, {} }
+  WoW.bags[1], WoW.bags[2], WoW.bags[3], WoW.bags[4] = nil, nil, nil, nil
+  WoW.money = 1000000
+  DB.Realm().market["14047:0"] = { v = 1000, conf = 0.8 }
+  table.insert(WoW.ah.listings, { id = 14047, name = "Runecloth", count = 10, buyout = 9000, minBid = 1, owner = "Rival" })
+  table.insert(WoW.ah.listings, { id = 14047, name = "Runecloth", count = 20, buyout = 4000, minBid = 3600, owner = WoW.player })
+  local function pump()
+    for _ = 1, 40 do
+      WoW.clock = WoW.clock + 0.5
+      WoW.runScript(TaxTheFoolsCore, "OnUpdate")
+      if WoW.ah.pending then WoW.ahRespond() end
+    end
+  end
+  local function quiet(why)
+    for _, name in ipairs({ "StartAuction", "CancelAuction", "SplitContainerItem", "PlaceAuctionBid" }) do
+      T.eq(T.count(name), 0, why .. ": " .. name)
+    end
+  end
+  AuctionFrame:Show()
+  WoW.fire("AUCTION_HOUSE_SHOW")
+  WoW.runScript(TaxTheFoolsCore, "OnUpdate")
+  UI.ah:Show()
+  UI.ah.tabs:Select("sell")
+  local p = UI.pages.sell
+  p.list:SetHeight(200)
+  p:Refresh()
+  for _, c in ipairs(p.cells) do
+    if c.item and c.item.name == "Runecloth" then WoW.runScript(c, "OnClick") end
+  end
+  pump()
+  quiet("Sell open, select, competition search")
+  UI.ah.tabs:Select("auctions")
+  local a = UI.pages.auctions
+  a.list:SetHeight(300)
+  a:Refresh()
+  WoW.ownerRespond()
+  pump()
+  quiet("Auctions open and owner list")
+  UI.ah.tabs:Select("sell")
+  p:Refresh()
+  WoW.runScript(p.postBtn, "OnClick")
+  T.eq(T.count("StartAuction"), 1, "one Post click")
+  T.eq(T.count("CancelAuction"), 0)
+  T.eq(T.count("PlaceAuctionBid"), 0)
+  WoW.postRespond()
+  pump()
+  T.eq(T.count("StartAuction"), 1, "nothing posts after the reply")
+  UI.ah.tabs:Select("auctions")
+  a:Refresh()
+  WoW.ownerRespond()
+  WoW.runScript(a.list.rows[1], "OnClick")
+  WoW.runScript(a.cancelBtn, "OnClick")
+  T.eq(T.count("CancelAuction"), 1, "one Cancel click")
+  T.eq(T.count("PlaceAuctionBid"), 0, "cancelling is not a bid")
+  -- one Split click
+  WoW.calls = {}
+  WoW.bags[0] = { { id = 14047, name = "Runecloth", count = 20, vendor = 100 }, {}, {}, {} }
+  UI.ah.tabs:Select("sell")
+  p:Refresh()
+  for _, c in ipairs(p.cells) do
+    if c.item and c.item.name == "Runecloth" then WoW.runScript(c, "OnClick") end
+  end
+  pump()
+  p.sizeBox:SetText("5") WoW.runScript(p.sizeBox, "OnTextChanged")
+  quiet("sizing a stack")
+  WoW.runScript(p.postBtn, "OnClick")
+  T.eq(T.count("SplitContainerItem"), 1, "one Split click")
+  T.eq(T.count("StartAuction"), 0, "splitting does not post")
+  pump()
+  T.eq(T.count("SplitContainerItem"), 1)
+  T.eq(T.count("StartAuction"), 0)
+  UI.ah.tabs:Select("browse")
+  UI.pages.auctions, UI.pages.sell = nil, nil     -- later files build them afresh (test_sell_ui assumes Auctions is unbuilt)
+end)
