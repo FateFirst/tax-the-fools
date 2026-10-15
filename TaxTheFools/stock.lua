@@ -77,12 +77,16 @@ function Stock.Rows(chars, market, statsByKey, trendFn, items)
   end
   for cname, c in pairs(chars or {}) do
     for key, n in pairs(c.bags or {}) do
-      local e, pc = slot(key, cname)
-      e.bags, pc.bags = e.bags + n, pc.bags + n
+      if n > 0 then
+        local e, pc = slot(key, cname)
+        e.bags, pc.bags = e.bags + n, pc.bags + n
+      end
     end
     for key, n in pairs(c.bank or {}) do
-      local e, pc = slot(key, cname)
-      e.bank, pc.bank = e.bank + n, pc.bank + n
+      if n > 0 then
+        local e, pc = slot(key, cname)
+        e.bank, pc.bank = e.bank + n, pc.bank + n
+      end
     end
     for _, p in ipairs(c.postings or {}) do
       if p.key and not p.done then

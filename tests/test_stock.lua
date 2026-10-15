@@ -93,3 +93,8 @@ T.test("Total counts keys and units, and only valued rows add value", function()
   T.eq(t.items, 3) T.eq(t.units, 45) T.eq(t.value, 38 * 50 + 3 * 400)
   local z = St.Total({}) T.eq(z.items, 0) T.eq(z.units, 0) T.eq(z.value, 0)
 end)
+
+T.test("a zero count in bags or bank makes no row", function()
+  local rows = TaxTheFools.Stock.Rows({ A = { bags = { ["1:0"] = 0 }, bank = { ["2:0"] = 0 } } }, {}, {}, nil, {})
+  T.eq(table.getn(rows), 0)
+end)
