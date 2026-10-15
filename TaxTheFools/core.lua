@@ -140,6 +140,7 @@ Core.HELP = {
   "/ttf watch <item name> - add an item to the watchlist scan",
   "/ttf unwatch <item name> - take it off",
   "/ttf watchlist - list watched items",
+  "/ttf snipe <item name> <price> - buy-below price each, e.g. /ttf snipe Silk Cloth 20s; alone it shows the list",
   "/ttf status - what is stored and when the last full scan ran",
   "/ttf show - bring back the Tax the Fools auction window",
   "/ttf probe - dump what this client supports, to copy out",
@@ -173,6 +174,45 @@ function Core.WatchList()
   U.msg("Watching " .. table.getn(names) .. ": " .. table.concat(names, ", "))
 end
 
+-- /ttf snipe <name> <price> adds an item; alone it opens the Deals Snipe list, or prints it with no auction house.
+function Core.Snipe(rest)
+  local realm = DB.Realm()
+  if rest == "" then
+    if A.AH.open and A.UI.ah then
+      A.AH.ShowOurs()
+      A.UI.ah.tabs:Select("deals")
+      A.DealsUI.SetView("snipe")
+      return
+    end
+    local names = {}
+    for key, e in pairs(realm.snipe or {}) do
+      local rec = TaxTheFoolsDB.items[U.keyId(key)]
+      table.insert(names, ((rec and rec.n) or e.name or key) .. " at " .. U.money(e.max or 0, true) .. " each")
+    end
+    table.sort(names)
+    if table.getn(names) == 0 then
+      U.msg("The snipe list is empty. /ttf snipe <item name> <price> adds an item.")
+      return
+    end
+    U.msg("Sniping " .. table.getn(names) .. ":")
+    for _, line in ipairs(names) do U.msg("  " .. line) end
+    return
+  end
+  local name, copper = A.Snipe.Parse(rest)
+  if not name then
+    U.msg("usage: /ttf snipe <item name> <price each>, e.g. /ttf snipe Silk Cloth 20s")
+    return
+  end
+  local id = A.Items.FindByName(name)
+  if not id then
+    U.msg("Item not known yet: search for it once first")
+    return
+  end
+  realm.snipe = realm.snipe or {}
+  local e = A.Snipe.Set(realm.snipe, U.key(id), A.Items.Name(id), copper, time())
+  U.msg("Sniping " .. A.Items.Name(id) .. " at " .. U.money(e.max, true) .. " each or less")
+end
+
 function Core.Status()
   U.msg(DB.SizeText())
   local last = DB.Realm().scan.lastFull
@@ -190,6 +230,7 @@ function Core.Command(msg)
   elseif cmd == "watch" then Core.Watch(rest, true)
   elseif cmd == "unwatch" then Core.Watch(rest, false)
   elseif cmd == "watchlist" then Core.WatchList()
+  elseif cmd == "snipe" then Core.Snipe(rest)
   elseif cmd == "status" then Core.Status()
   elseif cmd == "show" then
     if A.AH.open then A.AH.ShowOurs() else U.msg("Talk to an auctioneer first.") end

@@ -339,3 +339,38 @@ T.test("selling and auctions: nothing posts, cancels, splits or bids without a c
   A.MailUI.win.tabs:Select("inbox")
   UI.ah.tabs:Select("browse")
 end)
+
+T.test("/ttf snipe adds an item, keeps the higher max, and explains failures", function()
+  DB.Realm().snipe = {}
+  A.Items.Remember(4306, "Silk Cloth")
+  ttf("snipe silk cloth 20s")
+  T.eq(DB.Realm().snipe["4306:0"].max, 2000)
+  T.ok(T.calledWith("Sniping Silk Cloth at 20s each or less"))
+  ttf("snipe Silk Cloth 1g 5s")
+  T.eq(DB.Realm().snipe["4306:0"].max, 10500)
+  ttf("snipe Silk Cloth 5s")
+  T.eq(DB.Realm().snipe["4306:0"].max, 10500, "a lower price keeps the higher max")
+  ttf("snipe Felcloth 20s")
+  T.ok(T.calledWith("Item not known yet: search for it once first"))
+  T.eq(DB.Realm().snipe["14000:0"], nil)
+  ttf("snipe Silk Cloth")
+  T.ok(T.calledWith("usage: /ttf snipe"))
+end)
+
+T.test("/ttf snipe alone prints the list without the auction house, else opens the Deals Snipe list", function()
+  DB.Realm().snipe = {}
+  A.Items.Remember(4306, "Silk Cloth")
+  A.Snipe.Set(DB.Realm().snipe, "4306:0", "Silk Cloth", 2000, 1)
+  A.AH.open = false
+  ttf("snipe")
+  T.ok(T.calledWith("Silk Cloth at 20s each"))
+  UI.CreateAH()
+  A.AH.open = true
+  ttf("snipe")
+  T.eq(A.DealsUI.frame.view, "snipe")
+  T.ok(A.DealsUI.frame.slist:IsShown())
+  T.eq(UI.ah.tabs.selected, "deals")
+  A.DealsUI.SetView("deals")
+  A.AH.open = false
+  DB.Realm().snipe = {}
+end)

@@ -42,6 +42,7 @@ local function page()
   openAH()
   UI.ah.tabs:Select("deals")
   local p = UI.pages.deals
+  p.view = "deals"
   p.found, p.searching = false, false      -- the page outlives WoW.reset() between tests
   p.list:SetHeight(300)
   p:Refresh()
@@ -494,8 +495,77 @@ T.test("the Deals rail fits the body at the minimum window height", function()
   local available = 380 - 30 - 29 - 38 - 8 - 22
   local used = 0
   used = used + p.marketSw:GetHeight() + 2 + p.vendorSw:GetHeight() + 2 + p.matsSw:GetHeight() + 2
-  used = used + p.underSw:GetHeight() + 2 + p.recipeSw:GetHeight() + 14
+  used = used + p.underSw:GetHeight() + 2 + p.recipeSw:GetHeight() + 2 + p.snipeSw:GetHeight() + 14
   used = used + p.belowSl:GetHeight() + 8 + p.profitSl:GetHeight()
   T.ok(used <= available, used .. " > " .. available)
   T.eq(rawget(p, "matSl"), nil) T.eq(rawget(p, "confDD"), nil)
+end)
+
+local function snipeSeed()
+  seed()
+  DB.Realm().snipe = {}
+  A.Snipe.Set(DB.Realm().snipe, "14047:0", "Runecloth", 700, 1)
+  page()
+end
+
+T.test("the Deals view merges snipe matches as Snipe, one Find to Buy, never a bid until Buy", function()
+  snipeSeed()
+  local p = page()
+  local found
+  for _, d in ipairs(p.list.data) do if d.type == "snipe" then found = d end end
+  T.ok(found, types(p))
+  T.eq(found.typeLabel, "Snipe") T.eq(found.count, 1) T.eq(found.buyout, 600)
+  -- 600 for 1 is already a market deal: the listing shows once, under Market.
+  local n = 0
+  for _, d in ipairs(p.list.data) do if d.key == "14047:0" and d.count == 1 and d.buyout == 600 then n = n + 1 end end
+  T.eq(n, 1)
+  T.eq(found.max, 700)
+  -- a listing that is only a snipe match
+  A.Snipe.Set(DB.Realm().snipe, "14047:0", "Runecloth", 650, 1)
+  DB.Realm().snapshot.rows["14047:0"] = { "20|8000|0|Deal", "1|650|0|Cheap" }
+  DB.S().deals.market = false
+  WoW.money = 1000000
+  table.insert(WoW.ah.listings, { id = 14047, name = "Runecloth", count = 1, buyout = 650, owner = "Cheap" })
+  p:Refresh()
+  local d
+  for _, x in ipairs(p.list.data) do if x.type == "snipe" then d = x end end
+  T.ok(d, types(p))
+  p.list.selected = d
+  A.DealsUI.UpdateBar()
+  T.eq(p.findBtn.label:GetText(), "FIND")
+  WoW.runScript(p.findBtn, "OnClick")
+  answer()
+  T.eq(T.count("PlaceAuctionBid"), 0, "finding never buys")
+  WoW.runScript(p.findBtn, "OnClick")
+  T.eq(T.count("PlaceAuctionBid"), 1)
+  DB.S().deals.market = true
+  DB.S().deals.snipe = false
+  p:Refresh()
+  for _, x in ipairs(p.list.data) do T.ok(x.type ~= "snipe") end
+  DB.S().deals.snipe = true
+end)
+
+T.test("the Snipe list view lists items, edits the max, removes and shows the empty state", function()
+  snipeSeed()
+  local p = page()
+  A.DealsUI.SetView("snipe")
+  T.ok(p.slist:IsShown()) T.ok(not p.list:IsShown())
+  T.eq(table.getn(p.slist.data), 1)
+  local r = p.slist.data[1]
+  T.eq(r.name, "Runecloth") T.eq(r.max, 700) T.eq(r.market, 1000) T.eq(r.listed, 400)
+  T.eq(p.slist.columns[2].fmt(r), A.Util.money(700))
+  p.slist.selected = r
+  A.DealsUI.SnipeSelected(r)
+  T.eq(p.maxInput:GetValue(), 700)
+  p.maxInput:SetValue(300)
+  p.maxInput.gold:SetText("") p.maxInput.silver:SetText("5") p.maxInput.copper:SetText("0")
+  WoW.runScript(p.maxInput.copper, "OnTextChanged")
+  T.eq(DB.Realm().snipe["14047:0"].max, 500, "sets the exact value, lower than before")
+  A.DealsUI.SnipeRemove()
+  T.eq(DB.Realm().snipe["14047:0"], nil)
+  T.eq(table.getn(p.slist.data), 0)
+  T.ok(p.sempty:IsShown())
+  T.ok(string.find(p.sempty:GetText(), "Your snipe list is empty.", 1, true))
+  A.DealsUI.SetView("deals")
+  T.ok(p.list:IsShown()) T.ok(not p.slist:IsShown())
 end)

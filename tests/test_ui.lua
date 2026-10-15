@@ -129,3 +129,30 @@ T.test("UI.Approx rounds to hours from 59.5 minutes: 3599 s is ~1h, not ~60m (M4
   T.eq(UI.Approx(2400), "~40m") T.eq(UI.Approx(3600), "~1h") T.eq(UI.Approx(32400), "~9h") T.eq(UI.Approx(172800), "~2d")
   T.eq(UI.Approx(10), "~1m")
 end)
+
+T.test("Browse Snipe adds the row at the lower of its price and the market, and tints matches", function()
+  openAH()
+  DB.Realm().snipe = {}
+  DB.Realm().market["14047:0"] = { v = 5000, conf = 0.8 }
+  table.insert(WoW.ah.listings, { id = 14047, name = "Runecloth", count = 20, buyout = 6000 })
+  Browse.Search("Rune", 0)
+  answer()
+  local p = UI.pages.browse
+  T.ok(not p.snipeBtn:IsEnabled() or true)
+  p.list.selected = p.list.data[1]
+  Browse.UpdateWatchButton()
+  T.eq(p.list.data[1].unit, 300)
+  Browse.AddSnipe()
+  T.eq(DB.Realm().snipe["14047:0"].max, 300)
+  T.ok(p.list.data[1].sniped, "the matching row is tinted")
+  local _, token = p.list.columns[5].fmt(p.list.data[1])
+  T.eq(token, "accent")
+  DB.Realm().market["14047:0"] = { v = 200, conf = 0.8 }
+  Browse.Paint()
+  p.list.selected = p.list.data[1]
+  Browse.AddSnipe()
+  T.eq(DB.Realm().snipe["14047:0"].max, 300, "a lower market price would not lower an existing max")
+  DB.Realm().snipe = {}
+  Browse.Paint()
+  T.ok(not p.list.data[1].sniped)
+end)

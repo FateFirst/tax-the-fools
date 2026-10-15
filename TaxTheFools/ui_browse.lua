@@ -116,7 +116,10 @@ Browse.COLUMNS = {
   { label = "Qty", width = 36, align = "RIGHT", sort = "count", desc = true, fmt = function(r) return tostring(r.count) end },
   { label = "Bid", width = 80, flex = 1, align = "RIGHT", sort = "bidNow", fmt = function(r) return money(r.bidNow) end },
   { label = "Buyout", width = 80, flex = 1, align = "RIGHT", sort = "buy", fmt = function(r) return money(r.buy) end },
-  { label = "Each", width = 76, flex = 1, align = "RIGHT", sort = "unit", fmt = function(r) return money(r.unit) end },
+  -- A listing that matches the snipe list is tinted with the accent colour (the quality colour on the name
+  -- would hide a tint there).
+  { label = "Each", width = 76, flex = 1, align = "RIGHT", sort = "unit",
+    fmt = function(r) return money(r.unit), r.sniped and "accent" or nil end },
   { label = "Market", width = 76, flex = 1, align = "RIGHT", sort = "market", fmt = function(r) return money(r.market) end },
   { label = "%", width = 40, align = "RIGHT", sort = "pct",
     fmt = function(r) return r.pct and (r.pct .. "%") or "-", Browse.PctToken(r.pct) end },
@@ -128,8 +131,9 @@ Browse.COLUMNS = {
   { label = "Seller", width = 64, flex = 1, sort = "owner", fmt = function(r) return r.owner or "?" end },
 }
 
-function Browse.Decorate(rows, market, history, today)
+function Browse.Decorate(rows, market, history, today, snipe)
   for _, r in ipairs(rows) do
+    r.sniped = (snipe and r.unit and r.key and not Auction.Own(r) and TaxTheFools.Snipe.Match(snipe, r.key, r.unit)) or nil
     local m = market[r.key]
     r.market = m and m.v or nil
     r.pct = nil
@@ -145,7 +149,7 @@ end
 
 -- The price chart sits bottom-left, beside the Buy / Bid buttons, and the list gives up its height.
 Browse.CHART_H, Browse.CHART_MIN_W, Browse.CHART_MIN_PAGE_H = 44, 160, 220
-Browse.CHART_RIGHT = 278   -- Buy (140) + Bid (120) + gaps
+Browse.CHART_RIGHT = 364   -- Buy (140) + Bid (120) + Snipe (80) + gaps
 
 function Browse.Build(parent)
   local p = CreateFrame("Frame", nil, parent)
@@ -179,6 +183,10 @@ function Browse.Build(parent)
   p.buyBtn:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
   p.bidBtn = W.Button(p, "Bid", 120, 24, function() Browse.Bid() end)
   p.bidBtn:SetPoint("RIGHT", p.buyBtn, "LEFT", -6, 0)
+  -- Snipe sits in the action bar: the top row has no room for it beside Watch, "< Crafting" and "Next material".
+  p.snipeBtn = W.Button(p, "Snipe", 80, 24, function() Browse.AddSnipe() end)
+  p.snipeBtn:SetPoint("RIGHT", p.bidBtn, "LEFT", -6, 0)
+  W.Tip(p.snipeBtn, "Snipe list", "Add this item to your snipe list, at this price each or the market price if lower.")
   p.chart = W.Chart(p, 200, Browse.CHART_H)
   p.chart:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 0, 0)
   p.chart:Hide()
@@ -195,7 +203,7 @@ end
 function Browse.Paint()
   local p = Browse.frame
   if not p then return end
-  p.list:SetData(Browse.Decorate(Scan.lastRows, DB.Realm().market, DB.Realm().history, U.day()))
+  p.list:SetData(Browse.Decorate(Scan.lastRows, DB.Realm().market, DB.Realm().history, U.day(), DB.Realm().snipe))
   local pages = math.max(1, math.ceil(Scan.lastTotal / 50))
   p.pageText:SetText("Page " .. (Scan.lastPage + 1) .. " of " .. pages .. ", " .. Scan.lastTotal .. " found")
   Browse.UpdateWatchButton()
@@ -217,6 +225,7 @@ function Browse.UpdateWatchButton()
   local sel = p.list.selected
   p.watchBtn:SetEnabled(sel and true or false)
   p.watchBtn:SetLabel((sel and DB.Realm().watch[sel.key]) and "Unwatch" or "Watch")
+  p.snipeBtn:SetEnabled(sel and sel.unit and sel.unit > 0 and true or false)
 end
 
 -- Why Buy / Bid is unavailable for row r, or nil when it is available.
@@ -300,6 +309,26 @@ function Browse.ToggleWatch()
   local watch = DB.Realm().watch
   if watch[item.key] then watch[item.key] = nil else watch[item.key] = true end
   Browse.UpdateWatchButton()
+end
+
+-- Adds the selected row's item to the snipe list: at its price each, or the market price when that is lower.
+function Browse.AddSnipe()
+  local p = Browse.frame
+  local item = p and p.list.selected
+  if not item or not item.unit or item.unit <= 0 then
+    U.msg("Select an item first.")
+    return false
+  end
+  local max = item.unit
+  if item.market and item.market > 0 and item.market < max then max = item.market end
+  max = math.floor(max)
+  local realm = DB.Realm()
+  realm.snipe = realm.snipe or {}
+  TaxTheFools.Snipe.Set(realm.snipe, item.key, item.name or item.key, max, time())
+  Browse.Decorate(p.list.data, realm.market, realm.history, U.day(), realm.snipe)
+  p.list:Paint()
+  U.msg("Sniping " .. (item.name or item.key) .. " at " .. U.money(realm.snipe[item.key].max, true) .. " each or less")
+  return true
 end
 
 -- A hyperlink rather than SetAuctionItem: a scan may have replaced the

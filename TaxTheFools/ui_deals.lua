@@ -7,7 +7,8 @@ TaxTheFools.DealsUI = DealsUI
 
 DealsUI.RAIL = 150
 DealsUI.STALE_DAYS = 2
-DealsUI.TYPE = { market = "Market", vendor = "Vendor", mats = "Mats", under = "Under", recipe = "Recipe" }
+DealsUI.TYPE = { market = "Market", vendor = "Vendor", mats = "Mats", under = "Under", recipe = "Recipe", snipe = "Snipe" }
+DealsUI.EMPTY_SNIPE = "Your snipe list is empty. Add items with the Snipe button on Browse, Snipe these on the Crafting shopping list, or /ttf snipe <item> <price>."
 DealsUI.CONFIDENCE = { { value = 0, label = "Low" }, { value = 0.4, label = "Medium" }, { value = 0.7, label = "High" } }
 
 local function money(v)
@@ -29,6 +30,19 @@ DealsUI.COLUMNS = {
   { label = "Type", width = 56, sort = "typeLabel", fmt = function(r) return r.typeLabel end },
 }
 
+-- The Snipe list view's columns: Item, the max each (edited below the list), the market value and the
+-- cheapest unit price in the last snapshot.
+DealsUI.SNIPE_COLUMNS = {
+  { label = "Item", width = 190, flex = 1, sort = "name", fmt = function(r) return U.quality(r.quality) .. r.name .. "|r" end },
+  { label = "Max each", width = 90, align = "RIGHT", sort = "max", fmt = function(r) return U.money(r.max) end },
+  { label = "Market", width = 90, align = "RIGHT", sort = "market", fmt = function(r) return money(r.market) end },
+  { label = "Listed now", width = 90, align = "RIGHT", sort = "listed",
+    fmt = function(r)
+      if not r.listed then return "-", "dim" end
+      return U.money(r.listed), (r.listed <= r.max) and "good" or "text"
+    end },
+}
+
 -- The banner for a snapshot taken `age` days ago (nil: there is none).
 function DealsUI.BannerText(age)
   if not age then return "No scan yet. Run a full scan.", "warn" end
@@ -37,6 +51,27 @@ function DealsUI.BannerText(age)
   end
   if age <= 0 then return "Deals from a scan today", "dim" end
   return "Deals from a scan " .. age .. " day ago", "dim"
+end
+
+-- The snipe list as list rows: one per item, with the cheapest unit price in the snapshot ("Listed now").
+function DealsUI.SnipeRows(list, snap, market)
+  local out = {}
+  for key, e in pairs(list or {}) do
+    local rec = TaxTheFoolsDB.items[U.keyId(key)]
+    local listed
+    for _, row in ipairs((snap and snap.rows and snap.rows[key]) or {}) do
+      local count, buyout = Scan.ParseSnapRow(row)
+      if count and count > 0 and buyout and buyout > 0 then
+        local unit = buyout / count
+        if not listed or unit < listed then listed = unit end
+      end
+    end
+    local m = market and market[key]
+    table.insert(out, { key = key, name = (rec and rec.n) or e.name or ("Item #" .. (U.keyId(key) or "?")),
+      quality = rec and rec.q, max = e.max or 0, market = m and m.v or nil, listed = listed and math.floor(listed) or nil })
+  end
+  table.sort(out, function(a, b) return a.name < b.name end)
+  return out
 end
 
 function DealsUI.Decorate(deals)
@@ -63,6 +98,7 @@ function DealsUI.RowTip(row, d)
     GameTooltip:AddLine(DealsUI.RecipeText(d), 0.78, 0.78, 0.74, 1)
     GameTooltip:AddLine(d.crafter .. " can learn it.", 0.78, 0.78, 0.74, 1)
   end
+  if d.type == "snipe" then GameTooltip:AddLine("Snipe: max " .. U.money(d.max, true) .. " each", 0.78, 0.78, 0.74, 1) end
   if d.type == "market" and d.depositUnknown then GameTooltip:AddLine("Deposit unknown: profit may be a little lower.", 0.78, 0.78, 0.74, 1) end
   GameTooltip:Show()
 end
@@ -108,8 +144,10 @@ function DealsUI.BuildRail(p)
   p.underSw:SetPoint("TOPLEFT", p.matsSw, "BOTTOMLEFT", 0, -2)
   p.recipeSw = sw(p, "Recipe", "recipe", "Patterns on the auction house that pay back quickly for a character who can learn them.")
   p.recipeSw:SetPoint("TOPLEFT", p.underSw, "BOTTOMLEFT", 0, -2)
+  p.snipeSw = sw(p, "Snipe", "snipe", "Listings at or under the maximum on your snipe list. Buy them with Find, then Buy.")
+  p.snipeSw:SetPoint("TOPLEFT", p.recipeSw, "BOTTOMLEFT", 0, -2)
   p.belowSl = slider(p, "Below market", "belowMarketPct", 50, 95, 5, pct)
-  p.belowSl:SetPoint("TOPLEFT", p.recipeSw, "BOTTOMLEFT", 0, -14)
+  p.belowSl:SetPoint("TOPLEFT", p.snipeSw, "BOTTOMLEFT", 0, -14)
   p.profitSl = slider(p, "Minimum profit", "minProfit", 0, 100000, 1000, function(v) return U.money(v) end)
   p.profitSl:SetPoint("TOPLEFT", p.belowSl, "BOTTOMLEFT", 0, -8)
   -- matPct, minConfidence, underPct, premiumPct and paybackCrafts are Options-page settings only: more rail
@@ -120,14 +158,39 @@ function DealsUI.Build(parent)
   local p = CreateFrame("Frame", nil, parent)
   p.found, p.searching = false, false
   DealsUI.BuildRail(p)
+  p.view = "deals"
+  p.dealsBtn = W.Button(p, "Deals", 60, 22, function() DealsUI.SetView("deals") end)
+  p.dealsBtn:SetPoint("TOPLEFT", p, "TOPLEFT", DealsUI.RAIL + 12, 0)
+  p.snipeBtn = W.Button(p, "Snipe list", 80, 22, function() DealsUI.SetView("snipe") end)
+  p.snipeBtn:SetPoint("LEFT", p.dealsBtn, "RIGHT", 2, 0)
   p.banner = Th.Text(p, "body", 12, "dim")
-  p.banner:SetPoint("TOPLEFT", p, "TOPLEFT", DealsUI.RAIL + 12, -2)
+  p.banner:SetPoint("LEFT", p.snipeBtn, "RIGHT", 12, 0)
   p.banner:SetPoint("RIGHT", p, "RIGHT", 0, 0)
   p.banner:SetJustifyH("LEFT")
   p.list = L.New(p, DealsUI.COLUMNS, 18, function(item) DealsUI.Selected(item) end)
-  p.list:SetPoint("TOPLEFT", p, "TOPLEFT", DealsUI.RAIL + 12, -22)
+  p.list:SetPoint("TOPLEFT", p, "TOPLEFT", DealsUI.RAIL + 12, -28)
   p.list:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 32)
   p.list.onEnter = function(row, item) DealsUI.RowTip(row, item) end
+  -- The Snipe list view: its own list, an editable max for the selected row and Remove.
+  p.slist = L.New(p, DealsUI.SNIPE_COLUMNS, 18, function(item) DealsUI.SnipeSelected(item) end)
+  p.slist:SetPoint("TOPLEFT", p, "TOPLEFT", DealsUI.RAIL + 12, -28)
+  p.slist:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 32)
+  p.slist.sortCol, p.slist.sortDesc = DealsUI.SNIPE_COLUMNS[1], false
+  p.slist:Hide()
+  p.sempty = Th.Text(p, "body", 13, "dim")
+  p.sempty:SetPoint("CENTER", p.slist, "CENTER", 0, 0)
+  p.sempty:SetWidth(360)
+  p.sempty:SetText(DealsUI.EMPTY_SNIPE)
+  p.sempty:Hide()
+  p.removeBtn = W.Button(p, "Remove", 90, 24, function() DealsUI.SnipeRemove() end)
+  p.removeBtn:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
+  W.Tip(p.removeBtn, "Remove", "Take the selected item off your snipe list.")
+  p.maxLabel = Th.Text(p, "body", 12, "dim")
+  p.maxLabel:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", DealsUI.RAIL + 12, 6)
+  p.maxLabel:SetText("Max each")
+  p.maxInput = W.MoneyInput(p, function(v) DealsUI.SnipeEdit(v) end)
+  p.maxInput:SetPoint("LEFT", p.maxLabel, "RIGHT", 8, 0)
+  p.removeBtn:Hide() p.maxLabel:Hide() p.maxInput:Hide()
   -- The action bar: Find pages through a search (a scan); only Buy spends, one click each.
   p.findBtn = W.Button(p, "Find", 160, 24, function() DealsUI.Click() end, "accent")
   p.findBtn:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
@@ -136,7 +199,7 @@ function DealsUI.Build(parent)
   p.status:SetPoint("RIGHT", p.findBtn, "LEFT", -8, 0)
   p.status:SetJustifyH("LEFT")
   p.Refresh = function(self) DealsUI.Paint() end
-  p.Layout = function(self) self.list:Paint() end
+  p.Layout = function(self) self.list:Paint() self.slist:Paint() end
   DealsUI.frame = p
   Scan.OnChange(function() if p:IsVisible() then DealsUI.Paint() end end)
   Auction.OnChange(function() DealsUI.UpdateBar() end)
@@ -151,22 +214,86 @@ function DealsUI.Say(text, token)
   Th.Color(p.status, token or "dim")
 end
 
+function DealsUI.SetView(view)
+  local p = DealsUI.frame
+  if not p then return end
+  p.view = (view == "snipe") and "snipe" or "deals"
+  DealsUI.Paint()
+end
+
+function DealsUI.SnipeSelected(item)
+  local p = DealsUI.frame
+  p.maxInput:SetValue(item and item.max or nil)
+  p.removeBtn:SetEnabled(item and true or false)
+end
+
+-- The Max each box was edited: sets the exact value (not the keep-higher rule of Snipe.Set).
+function DealsUI.SnipeEdit(v)
+  local p = DealsUI.frame
+  local sel = p and p.slist.selected
+  if not sel or not v or v <= 0 then return false end
+  if not TaxTheFools.Snipe.SetMax(DB.Realm().snipe, sel.key, v) then return false end
+  sel.max = v
+  p.slist:Paint()
+  return true
+end
+
+function DealsUI.SnipeRemove()
+  local p = DealsUI.frame
+  local sel = p and p.slist.selected
+  if not sel then return false end
+  TaxTheFools.Snipe.Remove(DB.Realm().snipe, sel.key)
+  DealsUI.Paint()
+  return true
+end
+
+-- Paints the Snipe list view, keeping the selected row when it is still listed.
+function DealsUI.PaintSnipe()
+  local p = DealsUI.frame
+  local realm = DB.Realm()
+  local keep = p.slist.selected and p.slist.selected.key
+  local rows = DealsUI.SnipeRows(realm.snipe, realm.snapshot, realm.market)
+  p.slist:SetData(rows)
+  for _, r in ipairs(p.slist.data) do
+    if r.key == keep then p.slist.selected = r end
+  end
+  p.slist:Paint()
+  local n = table.getn(rows)
+  p.banner:SetText(n == 1 and "1 item on your snipe list" or (n .. " items on your snipe list"))
+  Th.Color(p.banner, "dim")
+  if n == 0 then p.sempty:Show() else p.sempty:Hide() end
+  DealsUI.SnipeSelected(p.slist.selected or nil)
+end
+
 -- Recomputed from the snapshot on show, on any rail change and on Scan.OnChange.
 -- The selected deal stays selected when it is still a deal.
 function DealsUI.Paint()
   local p = DealsUI.frame
   if not p then return end
   local snap = DB.Realm().snapshot
+  Th.Color(p.dealsBtn.label, p.view == "deals" and "gold" or "white")
+  Th.Color(p.snipeBtn.label, p.view == "snipe" and "gold" or "white")
+  if p.view == "snipe" then
+    p.rail:Hide() p.list:Hide() p.findBtn:Hide() p.status:Hide()
+    p.slist:Show() p.removeBtn:Show() p.maxLabel:Show() p.maxInput:Show()
+    DealsUI.PaintSnipe()
+    return
+  end
+  p.rail:Show() p.list:Show() p.findBtn:Show() p.status:Show()
+  p.slist:Hide() p.sempty:Hide() p.removeBtn:Hide() p.maxLabel:Hide() p.maxInput:Hide()
   local text, token = DealsUI.BannerText(Scan.SnapshotAge(U.day(time())))
   p.banner:SetText(text)
   Th.Color(p.banner, token)
-  for _, c in ipairs({ p.marketSw, p.vendorSw, p.matsSw, p.underSw, p.recipeSw, p.belowSl, p.profitSl }) do c:Refresh() end
+  for _, c in ipairs({ p.marketSw, p.vendorSw, p.matsSw, p.underSw, p.recipeSw, p.snipeSw, p.belowSl, p.profitSl }) do c:Refresh() end
   local keep = p.list.selected and Auction.Sig(p.list.selected)
   local ctx = TS.Context()
   local deals = Deals.Find(snap, ctx, DB.S().deals, DB.charName)
   for _, u in ipairs(Deals.FindUnder(snap, ctx, DB.S().deals, DealsUI.UnderSource(ctx))) do table.insert(deals, u) end
   -- A pattern that is already a market or vendor deal is listed once, under that type.
   Deals.MergeOnce(deals, Deals.FindRecipes(snap, ctx, DB.S().deals, DB.charName, DealsUI.RecipeSource()))
+  if DB.S().deals.snipe then
+    Deals.MergeOnce(deals, Deals.FindSnipes(snap, DB.Realm().snipe, DB.charName))
+  end
   table.sort(deals, function(a, b)
     if a.profit ~= b.profit then return a.profit > b.profit end
     if a.key ~= b.key then return a.key < b.key end
