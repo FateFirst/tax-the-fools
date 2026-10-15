@@ -138,9 +138,12 @@ T.test("Browse Snipe adds the row at the lower of its price and the market, and 
   Browse.Search("Rune", 0)
   answer()
   local p = UI.pages.browse
-  T.ok(not p.snipeBtn:IsEnabled() or true)
+  p.list.selected = false
+  Browse.UpdateWatchButton()
+  T.eq(p.snipeBtn.enabled, false, "nothing selected: Snipe is off")
   p.list.selected = p.list.data[1]
   Browse.UpdateWatchButton()
+  T.eq(p.snipeBtn.enabled, true, "a row with a price: Snipe is on")
   T.eq(p.list.data[1].unit, 300)
   Browse.AddSnipe()
   T.eq(DB.Realm().snipe["14047:0"].max, 300)
