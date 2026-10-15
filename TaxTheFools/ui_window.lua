@@ -149,6 +149,7 @@ function UI.ShowPage(key)
   end
   page:Show()
   if type(page.Refresh) == "function" then page:Refresh() end
+  return true
 end
 
 function UI.RefreshGold()

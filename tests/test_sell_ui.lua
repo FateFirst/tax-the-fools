@@ -194,6 +194,10 @@ T.test("deposit, after-cut and the post button read from the chosen stack and du
   pick(p, "Runecloth")
   p.sizeBox:SetText("10") WoW.runScript(p.sizeBox, "OnTextChanged")
   T.ok(string.find(p.depositText:GetText(), "approx", 1, true))
+  local est = A.Craft.Deposit(100, 20, 10, 480, 1)
+  T.eq(est, 150)
+  T.eq(p.depositText:GetText(), "Deposit approx " .. A.Util.money(est, true))
+  T.eq(UI.ShowPage("sell"), true)
   -- learned deposit wins
   A.Sell.LearnDeposit(TaxTheFoolsDB.items, 14047, 480, 4)
   p:Refresh()

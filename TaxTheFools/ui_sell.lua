@@ -318,7 +318,7 @@ function SellUI.Deposit()
   local learned = Sell.Deposit(TaxTheFoolsDB.items, item.id, p.minutes, p.stackSize)
   if learned then return learned, false end
   local v = I.Vendor(item.id)
-  if v then return math.floor(v * p.stackSize * 0.15 * p.minutes / 120), true end
+  if v then return TaxTheFools.Craft.Deposit(v, item.maxStack, p.stackSize, p.minutes, 1), true end
   return nil, true
 end
 
