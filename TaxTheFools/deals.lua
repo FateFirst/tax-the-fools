@@ -128,6 +128,48 @@ function Deals.Find(snapshot, ctx, s, me)
   return out
 end
 
+-- ---------- snipe list (phase 7 spec section 3) ----------
+-- Pure. list = { [key] = { max = copper each } }. Every listing that is not yours, has a buyout and
+-- costs at most max each is a deal; profit = (max - unit) x count.
+function Deals.FindSnipes(snapshot, list, me)
+  local out = {}
+  if not snapshot or not snapshot.rows or not list then return out end
+  for key, e in pairs(list) do
+    for _, row in ipairs(snapshot.rows[key] or {}) do
+      local count, buyout, _, owner = TaxTheFools.Scan.ParseSnapRow(row)
+      if count and count > 0 and buyout and buyout > 0 and not (me and owner and owner == me) then
+        local unit = buyout / count
+        if e.max and unit <= e.max then
+          table.insert(out, { type = "snipe", key = key, count = count, buyout = buyout, unit = unit,
+                              max = e.max, owner = owner, profit = (e.max - unit) * count })
+        end
+      end
+    end
+  end
+  table.sort(out, function(a, b)
+    if a.profit ~= b.profit then return a.profit > b.profit end
+    if a.key ~= b.key then return a.key < b.key end
+    return a.buyout < b.buyout
+  end)
+  return out
+end
+
+local function dealSig(d) return d.key .. "|" .. (d.count or 0) .. "|" .. (d.buyout or 0) .. "|" .. (d.owner or "") end
+
+-- Pure. Appends the deals of extra whose (key, count, buyout, owner) primary does not already have, so a
+-- listing is shown once, under the type in primary. Changes and returns primary.
+function Deals.MergeOnce(primary, extra)
+  local listed = {}
+  for _, d in ipairs(primary) do listed[dealSig(d)] = true end
+  for _, d in ipairs(extra or {}) do
+    local sig = dealSig(d)
+    if not listed[sig] then
+      table.insert(primary, d)
+    end
+  end
+  return primary
+end
+
 -- ---------- undersupplied (phase 4 spec section 4) ----------
 -- Pure: inp = { stats = { rate, n }, count = listings today, median = median listing count over
 -- the last 30 days, held, market, lowest = lowest unit price listed now }.
