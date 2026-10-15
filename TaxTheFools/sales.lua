@@ -120,35 +120,70 @@ function Sales.Record(char, outcome, itemName, money, now, items, depositFn)
   return e
 end
 
+-- The running totals of one key: { r = result table, unitSum, secsSum, secsN }.
+local function newAcc()
+  return { r = { sold = 0, expired = 0, cancelled = 0, n = 0, nKnown = 0, income = 0 }, unitSum = 0, secsSum = 0, secsN = 0 }
+end
+
+local function add(acc, e)
+  local r = acc.r
+  r[e.outcome] = r[e.outcome] + 1
+  if e.outcome == "sold" then
+    r.income = r.income + (e.money or 0)
+    if e.qty and e.unit then
+      r.nKnown = r.nKnown + 1
+      acc.unitSum = acc.unitSum + e.unit
+      if e.secs then acc.secsSum = acc.secsSum + e.secs acc.secsN = acc.secsN + 1 end
+    end
+  end
+end
+
+local function finish(acc)
+  local r = acc.r
+  local total = r.sold + r.expired + r.cancelled
+  r.n = total
+  if total > 0 then r.rate = r.sold / total end
+  if r.nKnown > 0 then r.avgUnit = acc.unitSum / r.nKnown end
+  if acc.secsN > 0 then r.avgSecs = acc.secsSum / acc.secsN end
+  return r
+end
+
+local function counts(e, cutoff)
+  return e.at >= cutoff and (e.outcome == "sold" or e.outcome == "expired" or e.outcome == "cancelled")
+end
+
 -- Totals for an item across chars (any table of character records) over the last `days` days.
 -- { sold, expired, cancelled, rate, n, avgUnit, avgSecs, income }
 -- n = sold + expired + cancelled (the rate denominator); nKnown = sold mails whose quantity is known,
 -- the sample avgUnit and avgSecs average over.
 function Sales.Stats(chars, key, days, now)
-  local r = { sold = 0, expired = 0, cancelled = 0, n = 0, nKnown = 0, income = 0 }
+  local acc = newAcc()
   local cutoff = now - days * 86400
-  local unitSum, secsSum, secsN = 0, 0, 0
   for _, char in pairs(chars or {}) do
     for _, e in ipairs(char.sales or {}) do
-      if e.key == key and e.at >= cutoff and (e.outcome == "sold" or e.outcome == "expired" or e.outcome == "cancelled") then
-        r[e.outcome] = r[e.outcome] + 1
-        if e.outcome == "sold" then
-          r.income = r.income + (e.money or 0)
-          if e.qty and e.unit then
-            r.nKnown = r.nKnown + 1
-            unitSum = unitSum + e.unit
-            if e.secs then secsSum = secsSum + e.secs secsN = secsN + 1 end
-          end
-        end
+      if e.key == key and counts(e, cutoff) then add(acc, e) end
+    end
+  end
+  return finish(acc)
+end
+
+-- Sales.Stats for every key at once, in one pass over the sales: { [key] = stats }. Keys with no
+-- sold, expired or cancelled result in the window are absent.
+function Sales.StatsAll(chars, days, now)
+  local accs = {}
+  local cutoff = now - days * 86400
+  for _, char in pairs(chars or {}) do
+    for _, e in ipairs(char.sales or {}) do
+      if e.key and counts(e, cutoff) then
+        local acc = accs[e.key]
+        if not acc then acc = newAcc() accs[e.key] = acc end
+        add(acc, e)
       end
     end
   end
-  local total = r.sold + r.expired + r.cancelled
-  r.n = total
-  if total > 0 then r.rate = r.sold / total end
-  if r.nKnown > 0 then r.avgUnit = unitSum / r.nKnown end
-  if secsN > 0 then r.avgSecs = secsSum / secsN end
-  return r
+  local out = {}
+  for key, acc in pairs(accs) do out[key] = finish(acc) end
+  return out
 end
 
 -- Adds a posting for each of your current auctions (owner rows { key, count, buyout, minBid }) that has

@@ -38,23 +38,19 @@ end
 -- One row per item with results in the window, plus the overall totals.
 function HistoryUI.Compute(who, days, now)
   local chars = HistoryUI.Chars(who)
-  local seen, keys = {}, {}
-  for _, c in pairs(chars) do
-    for _, e in ipairs(c.sales or {}) do
-      if e.key and not seen[e.key] then seen[e.key] = true table.insert(keys, e.key) end
-    end
-  end
+  local all = Sales.StatsAll(chars, days, now)
+  local keys = {}
+  for key in pairs(all) do table.insert(keys, key) end
+  table.sort(keys)
   local rows = {}
   local tot = { sold = 0, n = 0, income = 0 }
   for _, key in ipairs(keys) do
-    local s = Sales.Stats(chars, key, days, now)
-    if s.n > 0 then
-      local id = U.keyId(key)
-      local rec = I.Get(id)
-      s.key, s.name, s.quality = key, I.Name(id), rec and rec.q
-      table.insert(rows, s)
-      tot.sold, tot.n, tot.income = tot.sold + s.sold, tot.n + s.n, tot.income + s.income
-    end
+    local s = all[key]
+    local id = U.keyId(key)
+    local rec = I.Get(id)
+    s.key, s.name, s.quality = key, I.Name(id), rec and rec.q
+    table.insert(rows, s)
+    tot.sold, tot.n, tot.income = tot.sold + s.sold, tot.n + s.n, tot.income + s.income
   end
   if tot.n > 0 then tot.rate = tot.sold / tot.n end
   return rows, tot

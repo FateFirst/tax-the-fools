@@ -180,6 +180,36 @@ T.test("stats across two characters: rate, averages and income", function()
   T.eq(S.Stats({ Alt = a, Main = b }, K1, 30, 1001 * DAY).sold, 3)
 end)
 
+T.test("StatsAll gives the same stats as Stats for every key, in one pass (M3)", function()
+  local a = { sales = {
+    { key = K1, outcome = "sold", money = 950, qty = 20, unit = 50, secs = 3600, at = 1000 * DAY },
+    { key = K1, outcome = "expired", money = 0, at = 1000 * DAY },
+    { key = K2, outcome = "sold", money = 99, qty = 1, unit = 99, secs = 1, at = 1000 * DAY },
+    { key = K2, outcome = "cancelled", money = 0, at = 1000 * DAY },
+    { key = nil, outcome = "sold", money = 5, at = 1000 * DAY } } }
+  local b = { sales = {
+    { key = K1, outcome = "sold", money = 400, qty = 10, unit = 40, secs = 7200, at = 995 * DAY },
+    { key = K1, outcome = "sold", money = 123, at = 995 * DAY },
+    { key = K1, outcome = "won", money = 0, at = 995 * DAY },
+    { key = "300:0", outcome = "won", money = 0, at = 995 * DAY },
+    { key = K1, outcome = "sold", money = 777, qty = 5, unit = 1, secs = 1, at = 900 * DAY } } }
+  for _, days in ipairs({ 3, 30 }) do
+    local all = S.StatsAll({ a, b }, days, 1001 * DAY)
+    for _, key in ipairs({ K1, K2 }) do
+      local one = S.Stats({ a, b }, key, days, 1001 * DAY)
+      if one.n > 0 then
+        for _, f in ipairs({ "sold", "expired", "cancelled", "n", "nKnown", "income", "rate", "avgUnit", "avgSecs" }) do
+          T.eq(all[key][f], one[f], key .. " " .. f .. " over " .. days .. " days")
+        end
+      else
+        T.eq(all[key], nil, "a key with no results in the window is absent")
+      end
+    end
+    T.eq(all["300:0"], nil, "won only: absent")
+  end
+  T.eq(S.StatsAll({}, 30, 1).x, nil)
+end)
+
 T.test("reconcile adds a posting for an auction with none open, and only that", function()
   local c = { postings = { post(K1, 20, 1000, 100) } }
   local rows = { { key = K1, count = 20, buyout = 1000, minBid = 900 }, { key = K2, count = 5, buyout = 90, minBid = 80 } }

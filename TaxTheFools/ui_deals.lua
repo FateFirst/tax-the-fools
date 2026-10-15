@@ -178,9 +178,10 @@ end
 -- Holdings, sell-rate stats over the Sales window and the median listing count per key.
 function DealsUI.UnderSource(ctx)
   local realm, now, today = DB.Realm(), time(), U.day(time())
+  local all = TaxTheFools.Sales.StatsAll(realm.chars, DB.S().sales.days, now)     -- one pass, not one per held key
   return {
     held = ctx.held,
-    stats = function(key) return TaxTheFools.Sales.Stats(realm.chars, key, DB.S().sales.days, now) end,
+    stats = function(key) return all[key] end,
     median = function(key)
       local m = Price.Market(realm.history[key], today)
       return m and m.n
