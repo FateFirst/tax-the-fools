@@ -38,6 +38,8 @@ D.DEFAULTS = {
     browseFeedsHistory = true,
     tooltip = { market = true, low = true, vendor = true },
     craft = { autoWatch = true, staleDays = 7 },
+    deals = { market = true, vendor = true, mats = true, belowMarketPct = 70, minProfit = 5000, matPct = 85,
+              minConfidence = 0.4 },
     buy = { confirmAbove = 50000 },        -- copper; 0 never asks
   },
   items = {},

@@ -293,3 +293,55 @@ T.test("a stalled browse is dropped with a message instead of sitting there", fu
   T.eq(T.count("Search got no reply from the auction house. Try again."), 1, "player told once")
   T.ok(Scan.StartFull(t), "scans are not blocked afterwards")
 end)
+
+-- ---------- Scan.Locate: page through an exact-name search until a listing is found ----------
+
+local function locateSig(i) return { key = "14047:0", count = 20, buyout = 8000 + i, owner = "S" .. math.mod(i, 7) } end
+
+T.test("Locate pages through the search and reports the index and page of the match", function()
+  WoW.reset()
+  fill(120)
+  local got
+  T.ok(Scan.Locate("Runecloth", locateSig(75), function(index, page) got = { index, page } end))
+  T.ok(Scan.Busy())
+  pump()
+  T.ok(got, "onDone ran")
+  T.eq(got[1], 25) T.eq(got[2], 1)
+  T.eq(Scan.Busy(), false)
+  T.eq(T.count("QueryAuctionItems"), 2, "stopped at the page that held it")
+end)
+
+T.test("Locate reports nil when the results run out without a match", function()
+  WoW.reset()
+  fill(120)
+  local calls, got = 0, "unset"
+  Scan.Locate("Runecloth", { key = "14047:0", count = 20, buyout = 1, owner = "S1" },
+    function(index, page) calls = calls + 1 got = index end)
+  pump()
+  T.eq(calls, 1) T.eq(got, nil)
+  T.eq(T.count("QueryAuctionItems"), 3)
+  T.eq(Scan.Busy(), false)
+end)
+
+T.test("Locate is refused while a scan runs and does not disturb it", function()
+  WoW.reset()
+  fill(120)
+  Scan.StartFull(WoW.clock)
+  local ok, why = Scan.Locate("Runecloth", locateSig(1), function() end)
+  T.eq(ok, false) T.eq(why, "busy")
+  T.eq(Scan.job.kind, "full")
+end)
+
+T.test("Locate that gets no reply says so instead of claiming the listing is gone", function()
+  WoW.reset()
+  fill(10)
+  local err, called = nil, false
+  Scan.Locate("Runecloth", locateSig(3), function(index, page, e) called, err = true, e end)
+  for i = 1, 400 do
+    WoW.clock = WoW.clock + 0.5
+    Scan.Tick(WoW.clock)
+    WoW.ah.pending = false
+    if not Scan.job then break end
+  end
+  T.ok(called) T.eq(err, "noreply")
+end)

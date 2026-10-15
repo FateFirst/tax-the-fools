@@ -60,6 +60,30 @@ function Scan.Browse(name, page, now)
   return Scan.Start("browse", { { name = name or "", page = page or 0 } }, now)
 end
 
+-- Pages through an exact-name search until a listing matching sig = { key, count,
+-- buyout, owner } turns up, as an ordinary browse job: pacing, retries and the busy
+-- lock all apply. Paging is a scan, never a buy. onDone(index, page) runs once, with
+-- the row index on the page the list now shows (0-based page), or nil when the
+-- results ran out; onDone(nil, page, "noreply") when the server stopped answering.
+function Scan.Locate(name, sig, onDone, now)
+  local ok, why = Scan.Browse(name, 0, now or GetTime())
+  if not ok then return false, why end
+  Scan.job.locate = { sig = sig, onDone = onDone }
+  return true
+end
+
+-- Index of the row that is the listing sig describes, or nil. The owner is only
+-- compared when both sides know it.
+local function findRow(rows, sig)
+  for _, r in ipairs(rows) do
+    if r.key == sig.key and r.count == sig.count and r.buyout == sig.buyout
+       and (not r.owner or not sig.owner or r.owner == sig.owner) then
+      return r.index
+    end
+  end
+  return nil
+end
+
 local function send(job, now)
   local q = job.queries[job.qi]
   QueryAuctionItems(q.name or "", "", "", nil, nil, nil, job.page, nil, nil)
@@ -140,6 +164,20 @@ function Scan.Accept(now, force)
   job.totalPages = math.ceil(total / D.PAGE_SIZE)
   if job.kind == "browse" then
     Scan.lastRows, Scan.lastTotal, Scan.lastPage = rows, total, job.page
+    local loc = job.locate
+    if loc then
+      local index = findRow(rows, loc.sig)
+      if not index and batch > 0 and (job.page + 1) * D.PAGE_SIZE < total then
+        job.page = job.page + 1
+        job.state = "wait"
+        changed()
+        return
+      end
+      local page = job.page
+      Scan.Finish(now)
+      loc.onDone(index, page)
+      return
+    end
     return Scan.Finish(now)
   end
   if batch == 0 or (job.page + 1) * D.PAGE_SIZE >= total then
@@ -171,6 +209,7 @@ function Scan.Tick(now)
             -- Nothing to resume and no strip button for it: drop it so searches work again.
             Scan.job = nil
             U.msg("Search got no reply from the auction house. Try again.")
+            if job.locate then job.locate.onDone(nil, job.page, "noreply") end
           else
             job.state, job.reason = "stalled", "server not responding"
           end

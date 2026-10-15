@@ -25,6 +25,7 @@ tooltip.lua
 tradeskill.lua
 ui_window.lua
 ui_browse.lua
+ui_deals.lua
 ui_craft.lua
 ui_confirm.lua
 options.lua

@@ -4,8 +4,8 @@ local U, Th, W, DB, Scan, AH, Auction = TaxTheFools.Util, TaxTheFools.Theme, Tax
 local UI = { pages = {}, builders = {}, ah = nil }
 TaxTheFools.UI = UI
 
--- Later phases add Deals, Sell, Auctions and History here.
-UI.TABS = { { key = "browse", label = "Browse" }, { key = "craft", label = "Crafting" } }
+-- Later phases add Sell, Auctions and History here.
+UI.TABS = { { key = "deals", label = "Deals" }, { key = "browse", label = "Browse" }, { key = "craft", label = "Crafting" } }
 
 local SEP = "  -  "
 
