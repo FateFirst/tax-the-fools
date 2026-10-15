@@ -437,21 +437,29 @@ function SellUI.Update()
       or "Post one stack at the prices above."))
 end
 
--- The price chart goes under the sales line, above the Post row, and hides when that gap is too small.
-SellUI.CHART_TOP, SellUI.CHART_BOTTOM, SellUI.CHART_MIN_H, SellUI.CHART_MIN_W = 366, 34, 40, 160
+-- The price chart takes the bottom of the competition list's space: the list gets shorter by the chart's
+-- height and gap, and the chart sits under it, above the pricing fields. Nothing else moves. It hides
+-- when the list would be left with fewer than three rows.
+SellUI.LIST_H, SellUI.LIST_Y, SellUI.CHART_H, SellUI.CHART_GAP, SellUI.LIST_MIN_ROWS = 122, 22, 40, 8, 3
 
 function SellUI.UpdateChart()
   local p = SellUI.frame
   if not p or not p.chart then return end
   local it = p.sel
-  local h = p:GetHeight() - SellUI.CHART_TOP - SellUI.CHART_BOTTOM
-  if not it or h < SellUI.CHART_MIN_H or SellUI.PW < SellUI.CHART_MIN_W then
+  local short = SellUI.LIST_H - SellUI.CHART_H - SellUI.CHART_GAP
+  local rows = math.floor((short - 20) / p.list.rowHeight)
+  if not it or rows < SellUI.LIST_MIN_ROWS then
     p.chart:Hide()
+    if p.chartOn then p.list:SetHeight(SellUI.LIST_H) p.list:Paint() p.chartOn = false end
     return
   end
   local realm = DB.Realm()
   local m = realm.market[it.key]
-  p.chart:SetSize(SellUI.PW, h)
+  p.list:SetHeight(short)
+  p.chartOn = true
+  p.chart:ClearAllPoints()
+  p.chart:SetPoint("TOPLEFT", p, "TOPLEFT", SellUI.RX, -(SellUI.LIST_Y + short + SellUI.CHART_GAP))
+  p.chart:SetSize(SellUI.PW, SellUI.CHART_H)
   p.chart:SetSeries(TaxTheFools.Price.Series(realm.history[it.key], U.day(), 30), m and m.v or nil)
   p.chart:Show()
 end
@@ -558,7 +566,7 @@ function SellUI.Build(parent)
   p.list = L.New(p, SellUI.COLUMNS, 18, nil)
   p.list:SetPoint("TOPLEFT", p, "TOPLEFT", RX, -22)
   p.list:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, -22)
-  p.list:SetHeight(122)
+  p.list:SetHeight(SellUI.LIST_H)
   label(p, "Buyout each", nil, RX, -158)
   p.buyoutIn = W.MoneyInput(p, function(v) if not p.updating then SellUI.BuyoutEdited(v) end end)
   p.buyoutIn:SetPoint("TOPLEFT", p, "TOPLEFT", RX + 96, -154)
@@ -603,8 +611,8 @@ function SellUI.Build(parent)
   p.warnText:SetJustifyH("LEFT")
   p.salesText = Th.Text(p, "body", 11, "dim")
   p.salesText:SetPoint("TOPLEFT", p, "TOPLEFT", RX, -346)
-  p.chart = W.Chart(p, SellUI.PW, SellUI.CHART_MIN_H)
-  p.chart:SetPoint("TOPLEFT", p, "TOPLEFT", RX, -SellUI.CHART_TOP)
+  p.chartOn = false
+  p.chart = W.Chart(p, SellUI.PW, SellUI.CHART_H)
   p.chart:Hide()
   p.allowSw = W.Switch(p, "Allow below floor", function() return p.allowBelow end,
     function(v) p.allowBelow = v and true or false SellUI.Update() end,
