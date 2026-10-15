@@ -96,17 +96,37 @@ T.test("net is the buyout less the 5% cut and the deposit", function()
 end)
 
 T.test("auctionable rejects soulbound, quest and conjured items", function()
-  local keep = { _G.ITEM_SOULBOUND, _G.ITEM_BIND_QUEST, _G.ITEM_CONJURED }
-  _G.ITEM_SOULBOUND, _G.ITEM_BIND_QUEST, _G.ITEM_CONJURED = "Soulbound", "Quest Item", "Conjured Item"
+  local keep = { getglobal("ITEM_SOULBOUND"), getglobal("ITEM_BIND_QUEST"), getglobal("ITEM_CONJURED") }
+  setglobal("ITEM_SOULBOUND", "Soulbound") setglobal("ITEM_BIND_QUEST", "Quest Item") setglobal("ITEM_CONJURED", "Conjured Item")
   T.ok(S.Auctionable({ "Linen Cloth", "Vendor sells" }))
   T.ok(not S.Auctionable({ "Sword", "Soulbound" }), "soulbound")
   T.ok(not S.Auctionable({ "Letter", "Quest Item" }), "quest")
   T.ok(not S.Auctionable({ "Conjured Water", "Conjured Item" }), "conjured")
   T.ok(S.Auctionable({}), "no lines")
   -- a check whose global is missing is skipped.
-  _G.ITEM_SOULBOUND = nil
+  setglobal("ITEM_SOULBOUND", nil)
   T.ok(S.Auctionable({ "Sword", "Soulbound" }), "no global, no check")
-  _G.ITEM_SOULBOUND, _G.ITEM_BIND_QUEST, _G.ITEM_CONJURED = keep[1], keep[2], keep[3]
+  setglobal("ITEM_SOULBOUND", keep[1]) setglobal("ITEM_BIND_QUEST", keep[2]) setglobal("ITEM_CONJURED", keep[3])
+end)
+
+-- Vanilla 1.12 has no global _G (Lua 5.0 itself defines one, which the real client does not expose).
+T.test("the fake client has no global _G, as 1.12 has none", function()
+  T.eq(rawget(getfenv(0), "_G"), nil)
+end)
+
+T.test("Auctionable and TipLines work with no global _G (Review C1)", function()
+  local saved = rawget(getfenv(0), "_G")
+  rawset(getfenv(0), "_G", nil)
+  setglobal("ITEM_SOULBOUND", "Soulbound")
+  local ok1, a = pcall(S.Auctionable, { "Sword", "Soulbound" })
+  WoW.bags[0] = { { id = 14047, name = "Runecloth", count = 1 } }
+  local ok2, lines = pcall(S.TipLines, 0, 1)
+  setglobal("ITEM_SOULBOUND", nil)
+  rawset(getfenv(0), "_G", saved)
+  T.ok(ok1, "Auctionable raised: " .. tostring(a))
+  T.eq(a, false)
+  T.ok(ok2, "TipLines raised: " .. tostring(lines))
+  T.eq(type(lines), "table")
 end)
 
 local DAY = 86400

@@ -65,7 +65,7 @@ end
 -- Each check runs only where the client defines its global.
 function Sell.Auctionable(lines)
   for _, name in ipairs({ "ITEM_SOULBOUND", "ITEM_BIND_QUEST", "ITEM_CONJURED" }) do
-    local text = _G[name]
+    local text = getglobal(name)
     if text then
       for _, l in ipairs(lines or {}) do
         if l and string.find(l, text, 1, true) then return false end
@@ -82,7 +82,7 @@ function Sell.TipLines(bag, slot)
   local lines = {}
   local name = tip:GetName()
   for i = 1, tip:NumLines() do
-    local fs = name and _G[name .. "TextLeft" .. i]
+    local fs = name and getglobal(name .. "TextLeft" .. i)
     local text = fs and fs.GetText and fs:GetText()
     if text then table.insert(lines, text) end
   end

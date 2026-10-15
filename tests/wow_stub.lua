@@ -8,7 +8,9 @@
 --   * Show/Hide fire OnShow/OnHide only when visibility actually changes, as
 --     the real client does. The auction window swap depends on exactly that.
 WoW = { frames = {}, allFrames = {} }
-_G = getfenv(0)
+-- The client's global environment, kept for the stub's own use. Lua 5.0 defines a global _G, which
+-- Vanilla 1.12 does not (addons use getglobal / getfenv(0)): it is removed again at the end of this file.
+local G = getfenv(0)
 
 local function noop() end
 local meta = { __index = function(t, k) return noop end }
@@ -141,7 +143,7 @@ local function newFrame(kind, name, parent)
   table.insert(WoW.allFrames, f)
   if name then
     WoW.frames[name] = f
-    _G[name] = f
+    G[name] = f
   end
   return f
 end
@@ -381,8 +383,8 @@ function IsShiftKeyDown() if WoW.shift then return 1 end return nil end
 function GetCursorPosition() return WoW.cursorX, WoW.cursorY end
 function GetBuildInfo() return "1.12.1", "5875", "Sep 19 2006" end
 function ReloadUI() WoW.log("ReloadUI") end
-function getglobal(n) return _G[n] end
-function setglobal(n, v) _G[n] = v end
+function getglobal(n) return G[n] end
+function setglobal(n, v) G[n] = v end
 function PlaySound() end
 function GetItemInfo(id)
   if type(id) == "string" then
@@ -761,3 +763,5 @@ function T.count(fragment)
   for _, c in ipairs(WoW.calls) do if string.find(c, fragment, 1, true) then n = n + 1 end end
   return n
 end
+
+_G = nil          -- 1.12 has no global _G: addon code must use getglobal / getfenv(0)

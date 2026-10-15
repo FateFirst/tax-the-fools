@@ -10,6 +10,14 @@ for f in TaxTheFools/*.lua tests/*.lua; do
     echo "lint: 5.1-only construct in $f"
     status=1
   fi
+  case "$f" in
+    TaxTheFools/*)
+      # Vanilla 1.12 has no global _G; use getglobal / getfenv(0).
+      if grep -nE '(^|[^a-zA-Z0-9_.])_G([^a-zA-Z0-9_]|$)' "$f"; then
+        echo "lint: _G does not exist on 1.12 in $f"
+        status=1
+      fi ;;
+  esac
   if ! "$LUAC" -p "$f"; then
     echo "lint: luac failed on $f"
     status=1

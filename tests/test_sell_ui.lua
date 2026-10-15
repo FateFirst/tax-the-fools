@@ -92,14 +92,15 @@ end)
 T.test("the grid combines slots, sorts by name and shows only auctionable items", function()
   seed({ { id = 14047, name = "Runecloth", count = 10, vendor = 100 }, { id = 2589, name = "Linen Cloth", count = 5 },
          { id = 14047, name = "Runecloth", count = 7, vendor = 100 }, { id = 4306, name = "Silk Cloth", count = 3 } })
-  local keep, tip, soul = Sell.TipLines, nil, _G.ITEM_SOULBOUND
-  _G.ITEM_SOULBOUND = "Soulbound"
+  local keep, tip, soul = Sell.TipLines, nil, getglobal("ITEM_SOULBOUND")
+  setglobal("ITEM_SOULBOUND", "Soulbound")
   Sell.TipLines = function(bag, slot)
     if bag == 0 and slot == 4 then return { "Silk Cloth", "Soulbound" } end
     return { "x" }
   end
   local p = page()
-  Sell.TipLines, _G.ITEM_SOULBOUND = keep, soul
+  Sell.TipLines = keep
+  setglobal("ITEM_SOULBOUND", soul)
   T.eq(table.getn(p.items), 2)
   T.eq(p.items[1].name, "Linen Cloth") T.eq(p.items[1].total, 5)
   T.eq(p.items[2].name, "Runecloth") T.eq(p.items[2].total, 17)
