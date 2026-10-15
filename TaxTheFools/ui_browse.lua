@@ -109,6 +109,7 @@ end
 function Browse.WhyNot(kind, r)
   if not r then return "Select a listing first." end
   if Auction.busy then return "Waiting for the auction house to answer." end
+  if Scan.Busy() and Scan.job.kind ~= "browse" then return "A scan is using the auction house." end
   if Auction.Own(r) then return "That is your own auction." end
   if kind == "buy" then
     if not r.buy then return "This listing has no buyout." end

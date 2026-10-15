@@ -167,3 +167,17 @@ T.test("the bar follows the selection and Auction changes", function()
   T.eq(p.buyBtn.enabled, false)
   T.eq(label(p.buyBtn), string.upper("Buy"))
 end)
+
+T.test("Buy and Bid are disabled while a full or watch scan runs, with the reason", function()
+  WoW.money = 1000000
+  local p = select1({ { id = 14047, name = "Runecloth", count = 20, buyout = 12000, minBid = 4500, owner = "Sel" } })
+  T.ok(p.buyBtn.enabled)
+  local sel = p.list.selected
+  T.ok(Scan.StartFull(WoW.clock))
+  p.list.selected = sel
+  Browse.UpdateBar()
+  T.eq(p.buyBtn.enabled, false) T.eq(p.bidBtn.enabled, false)
+  T.ok(string.find(p.buyBtn.tip.body, "A scan is using the auction house.", 1, true), p.buyBtn.tip.body)
+  T.ok(string.find(p.bidBtn.tip.body, "A scan is using the auction house.", 1, true), p.bidBtn.tip.body)
+  Scan.job = nil
+end)
