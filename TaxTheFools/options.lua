@@ -24,7 +24,7 @@ Opt.CATEGORIES = {
     { kind = "switch", key = "replaceBlizzardAH", label = "Replace the Blizzard auction window",
       hint = "Takes effect next time you open the auction house. The Blizzard UI button switches back any time." },
     { kind = "switch", key = "minimap", label = "Minimap button", after = function() TaxTheFools.Minimap.Refresh() end,
-      hint = "Shows the Tax the Fools button on the minimap. Left-click opens the auction window, right-click opens these options. Drag it to move it round the minimap." },
+      hint = "Shows the Tax the Fools button on the minimap. Left-click opens the crafting profit window, right-click opens these options. Drag it to move it round the minimap." },
     { kind = "slider", key = "scale", label = "Window scale", min = 0.8, max = 1.5, step = 0.05, fmt = pct,
       after = function() W.ApplyScale() end,
       hint = "Sizes every Tax the Fools window. 100% is normal; higher makes the windows and their text bigger. Default 100%." },
@@ -73,7 +73,7 @@ Opt.CATEGORIES = {
       options = TaxTheFools.DealsUI.CONFIDENCE,
       hint = "How well the market value must be backed by scan history before a Below market deal is trusted. High needs plenty of recent scans; Low accepts thin data. Default Medium." },
     { kind = "switch", path = { "deals", "recipe" }, label = "Recipe",
-      hint = "Patterns on the auction house that pay back quickly for a character who can learn them." },
+      hint = "Patterns on the auction house that pay back quickly for a character who can learn them. Only single-pattern listings count, and the minimum profit applies too." },
     { kind = "slider", path = { "deals", "paybackCrafts" }, label = "Pays back within", min = 1, max = 50, step = 1,
       fmt = function(v) return v == 1 and "1 craft" or (v .. " crafts") end,
       hint = "A pattern is a deal when the profit from this many crafts covers its price. Lower finds fewer, quicker-paying patterns. Default 10 crafts." },
@@ -125,7 +125,7 @@ Opt.CATEGORIES = {
     { kind = "switch", path = { "tooltip", "vendor" }, label = "Vendor price",
       hint = "Adds what a vendor pays for the item to item tooltips." },
     { kind = "switch", path = { "trend", "tooltip" }, label = "Price trend line",
-      hint = "Adds a line to item tooltips showing whether the price over the last 7 days is rising, falling or steady. Needs about two weeks of scans." },
+      hint = "Adds a line to item tooltips comparing the median price of the last 7 days with the 7 days before: rising, falling, or steady when within 5%. Needs about two weeks of scans." },
   } },
   { key = "appearance", label = "Appearance", rows = {
     { kind = "dropdown", key = "theme", label = "Theme", options = themes(), after = function(v) Th.Apply(v) end,
@@ -272,6 +272,7 @@ function Opt.Control(parent, row)
           f:Refresh()
         end
       end)
+      W.HoverTip(b, row.label, row.hint)
       f.lines[i] = b
     end
     f.Refresh = function(self)
@@ -317,6 +318,11 @@ Opt.VIEW_H = 338     -- the page's height in the 400 high window, until the clie
 Opt.WHEEL_STEP = 30
 Opt.BAR = 10         -- the scrollbar's width
 
+function Opt.Wheel(p, frame)
+  frame:EnableMouseWheel(true)
+  frame:SetScript("OnMouseWheel", function() Opt.ScrollTo(p, p.scroll - arg1 * Opt.WHEEL_STEP) end)
+end
+
 -- The page is a frame holding a ScrollFrame, whose scroll child holds the controls, and a thin
 -- scrollbar that shows only when the controls are taller than the view.
 function Opt.Page(f, cat)
@@ -352,7 +358,7 @@ function Opt.Page(f, cat)
   bar:Hide()
   p.bar = bar
   p.sf:EnableMouseWheel(true)
-  p.sf:SetScript("OnMouseWheel", function() Opt.ScrollTo(p, p.scroll - arg1 * Opt.WHEEL_STEP) end)
+  Opt.Wheel(p, p.sf)
   local y = 0
   for _, row in ipairs(cat.rows) do
     local c = Opt.Control(p.child, row)
@@ -360,6 +366,14 @@ function Opt.Page(f, cat)
     y = y + c:GetHeight() + 10
     table.insert(p.controls, c)
   end
+  -- Every control forwards the wheel to the page, so it scrolls with the cursor anywhere on it.
+  for _, c in ipairs(p.controls) do
+    Opt.Wheel(p, c)
+    if type(c.slider) == "table" then Opt.Wheel(p, c.slider) end
+    if type(c.dd) == "table" then Opt.Wheel(p, c.dd) end
+    if type(c.lines) == "table" then for _, b in ipairs(c.lines) do Opt.Wheel(p, b) end end
+  end
+  Opt.Wheel(p, bar)
   p.contentH = math.max(1, y - 10)
   p.child:SetHeight(p.contentH)
   -- Guarded: should this client not know the handler, Select's Fit still sizes the page.
@@ -371,6 +385,12 @@ end
 function Opt.ScrollTo(p, v)
   if v > p.range then v = p.range end
   if v < 0 then v = 0 end
+  if v ~= p.scroll then
+    -- an open dropdown menu floats on UIParent and would be left behind
+    for _, c in ipairs(p.controls) do
+      if type(c.dd) == "table" then c.dd.menu:Hide() end
+    end
+  end
   p.scroll = v
   p.sf:SetVerticalScroll(v)
   p.updating = true
