@@ -135,7 +135,10 @@ local function generalBag(bag)
   if not (GetInventoryItemLink and ContainerIDToInventoryID and GetItemInfo) then return true end
   local link = GetInventoryItemLink("player", ContainerIDToInventoryID(bag))
   if not link then return true end
-  local _, _, _, _, itemType, subType = GetItemInfo(link)
+  -- 1.12's GetItemInfo takes an id or an "item:..." string, not a coloured hyperlink.
+  local id = U.parseLink(link)
+  if not id then return true end
+  local _, _, _, _, itemType, subType = GetItemInfo(id)
   if not subType then return true end
   return subType == "Bag" and (itemType == nil or itemType == "Container")
 end

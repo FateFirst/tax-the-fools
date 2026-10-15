@@ -386,6 +386,8 @@ function setglobal(n, v) _G[n] = v end
 function PlaySound() end
 function GetItemInfo(id)
   if type(id) == "string" then
+    -- 1.12 takes an id or "item:..." itemString; a full coloured hyperlink finds nothing.
+    if string.find(id, "|H", 1, true) then return nil end
     local _, _, n = string.find(id, "item:(%d+)")
     id = tonumber(n)
   end
