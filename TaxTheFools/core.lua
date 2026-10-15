@@ -68,6 +68,7 @@ function Core.OnEvent(e)
     Core.Safe("auction", A.Auction.Changed)
   elseif e == "AUCTION_OWNED_LIST_UPDATE" then Core.Safe("auctions", A.AuctionsUI.Read)
   elseif e == "MAIL_SHOW" or e == "MAIL_INBOX_UPDATE" then Core.Safe("mail", A.Mail.OnEvent, e)
+  elseif e == "TRAINER_SHOW" or e == "TRAINER_UPDATE" then Core.Safe("trainer", A.RecipesLearn.OnTrainer)
   elseif e == "CHAT_MSG_SYSTEM" or e == "UI_ERROR_MESSAGE" then
     Core.Safe("auction", A.Auction.OnMessage, arg1)
     if e == "CHAT_MSG_SYSTEM" then Core.Safe("mail note", A.Mail.OnMessage, arg1) end
@@ -93,6 +94,7 @@ function Core.Update(now)
   Core.Safe("inventory", A.Inventory.Tick, now)
   Core.Safe("tradeskill", A.TradeSkill.Tick, now)
   Core.Safe("mail", A.Mail.Tick)
+  Core.Safe("trainer", A.RecipesLearn.Tick)
   if not Core.pruned then Core.Safe("prune", Core.PruneTick) end
   if now - Core.uiAt >= 0.25 then
     Core.uiAt = now
@@ -179,7 +181,7 @@ for _, e in ipairs({ "VARIABLES_LOADED", "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CL
                      "MERCHANT_SHOW", "PLAYER_MONEY", "BAG_UPDATE", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
                      "PLAYERBANKSLOTS_CHANGED", "PLAYER_ENTERING_WORLD", "TRADE_SKILL_SHOW", "TRADE_SKILL_UPDATE",
                      "TRADE_SKILL_CLOSE", "CHAT_MSG_SYSTEM", "UI_ERROR_MESSAGE", "AUCTION_OWNED_LIST_UPDATE",
-                     "MAIL_SHOW", "MAIL_INBOX_UPDATE" }) do
+                     "MAIL_SHOW", "MAIL_INBOX_UPDATE", "TRAINER_SHOW", "TRAINER_UPDATE" }) do
   frame:RegisterEvent(e)
 end
 frame:SetScript("OnEvent", function() Core.OnEvent(event) end)

@@ -13,6 +13,7 @@ stats.lua
 price.lua
 craft.lua
 recipes.lua
+recipes_learn.lua
 deals.lua
 sell.lua
 sales.lua

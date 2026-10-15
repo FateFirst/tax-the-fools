@@ -253,7 +253,8 @@ T.test("selling and auctions: nothing posts, cancels, splits or bids without a c
   end
   local function quiet(why)
     for _, name in ipairs({ "StartAuction", "CancelAuction", "SplitContainerItem", "PlaceAuctionBid", "GetInboxText",
-                            "GetInboxInvoiceInfo", "TakeInboxMoney", "TakeInboxItem", "DeleteInboxItem", "ReturnInboxItem" }) do
+                            "GetInboxInvoiceInfo", "TakeInboxMoney", "TakeInboxItem", "DeleteInboxItem", "ReturnInboxItem",
+                            "BuyTrainerService", "SetTrainerServiceTypeFilter", "BuyMerchantItem" }) do
       T.eq(T.count(name), 0, why .. ": " .. name)
     end
   end

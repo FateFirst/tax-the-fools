@@ -12,6 +12,7 @@ Probe.FUNCTIONS = {
   "GetInboxHeaderInfo", "GetInboxInvoiceInfo", "GetInboxItem", "TakeInboxMoney",
   "GetTradeSkillInfo", "GetTradeSkillNumMade", "GetTradeSkillReagentInfo", "GetTradeSkillReagentItemLink",
   "GetTradeSkillItemLink", "GetMerchantItemLink", "GetItemInfo",
+  "GetNumTrainerServices", "GetTrainerServiceInfo", "GetTrainerServiceCost", "GetTrainerServiceSkillReq",
 }
 Probe.VARS = {
   "TURTLE_WOW_VERSION", "SUPERWOW_VERSION", "AUCTION_SOLD_MAIL_SUBJECT", "AUCTION_EXPIRED_MAIL_SUBJECT",
@@ -50,6 +51,19 @@ function Probe.Lines()
   if f then
     local per = (f.pages > 0) and (f.secs / f.pages) or 0
     add(string.format("last scan: %s, %d pages, %d listings, %.0fs, %.2fs/page", f.kind, f.pages, f.listings, f.secs, per))
+  end
+  -- A pattern's tooltip as the client words it, so Recipes.ParseTip can be checked against it.
+  if GetItemInfo(4292) then
+    local tip = TaxTheFools.Util.scanTip()
+    tip:ClearLines()
+    tip:SetHyperlink("item:4292:0:0:0")
+    add("scan tooltip item:4292 (" .. tostring(tip:NumLines()) .. " lines)")
+    for i = 1, tip:NumLines() do
+      local fs = getglobal("TaxTheFoolsScanTipTextLeft" .. i)
+      add("  " .. i .. ": " .. tostring(fs and fs:GetText()))
+    end
+  else
+    add("item:4292 not cached: see a Pattern: Green Woolen Bag, then probe again")
   end
   return out
 end

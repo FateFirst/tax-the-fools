@@ -127,11 +127,21 @@ local function newFrame(kind, name, parent)
   f.GetThumbTexture = function(self) return self.thumb end
   -- Tooltips
   f.lines = {}
-  f.AddLine = function(self, l) table.insert(self.lines, { l }) end
-  f.AddDoubleLine = function(self, l, r) table.insert(self.lines, { l, r }) end
+  -- GameTooltipTemplate (1.12): line i's left text is the global <name>TextLeft<i>, a FontString.
+  -- Kept in step with f.lines here so addons can read it with getglobal(name .. "TextLeft" .. i).
+  local function syncLines(self)
+    if not self.name then return end
+    for i, l in ipairs(self.lines) do
+      local fs = G[self.name .. "TextLeft" .. i]
+      if not fs then fs = newFontString() G[self.name .. "TextLeft" .. i] = fs end
+      fs:SetText(l[1])
+    end
+  end
+  f.AddLine = function(self, l) table.insert(self.lines, { l }) syncLines(self) end
+  f.AddDoubleLine = function(self, l, r) table.insert(self.lines, { l, r }) syncLines(self) end
   f.NumLines = function(self) return table.getn(self.lines) end
   if kind == "GameTooltip" then
-    f.SetText = function(self, t) self.lines = { { t } } end
+    f.SetText = function(self, t) self.lines = { { t } } syncLines(self) end
     f.ClearLines = function(self) self.lines = {} end
     -- With a merchant open the client prices bag items through this script,
     -- passing the whole stack's sell price in arg1.
@@ -141,7 +151,14 @@ local function newFrame(kind, name, parent)
       if it and WoW.merchantOpen and it.vendor then runScript(self, "OnTooltipAddMoney", it.vendor * (it.count or 1)) end
       return "orig-bag"
     end
-    f.SetHyperlink = function(self, link) self.lines = {} WoW.log("SetHyperlink", self.name, link) end
+    -- Tests put an item's tooltip text in WoW.tooltips[id] = { "line 1", "line 2", ... }.
+    f.SetHyperlink = function(self, link)
+      self.lines = {}
+      WoW.log("SetHyperlink", self.name, link)
+      local _, _, n = string.find(link or "", "item:(%d+)")
+      for _, t in ipairs((n and WoW.tooltips[tonumber(n)]) or {}) do table.insert(self.lines, { t }) end
+      syncLines(self)
+    end
   end
   table.insert(WoW.allFrames, f)
   if name then
@@ -218,6 +235,8 @@ function WoW.reset()
   WoW.merchantOpen = false
   WoW.merchant = {}
   WoW.mail = {}
+  WoW.tooltips = {}
+  WoW.trainer = {}
   WoW.bankOpen = false
   WoW.tradeskill = { name = "Tailoring", rank = 0, maxRank = 0, selected = 0, rows = {} }
   WoW.rejectFonts = false
@@ -493,6 +512,24 @@ function GetMerchantItemLink(i)
   return nil
 end
 function BuyMerchantItem(i, n) WoW.log("BuyMerchantItem", i, n) end
+
+-- Trainer window, as Blizzard's 1.12 TrainerFrame uses it (wowwiki API pages):
+-- GetNumTrainerServices() -> n; GetTrainerServiceInfo(i) -> name, rank (subtext), category
+-- ("available", "unavailable", "used" or "header"); GetTrainerServiceCost(i) -> moneyCost;
+-- GetTrainerServiceSkillReq(i) -> skillName, skillRank (nil when the service has no skill requirement).
+-- Tests put rows in WoW.trainer = { { name=, rank=, category=, cost=, skill=, skillRank= } }.
+-- Events: TRAINER_SHOW, TRAINER_UPDATE. BuyTrainerService and SetTrainerServiceTypeFilter
+-- change the window or the character, so they only log: no addon code may call them.
+function GetNumTrainerServices() return table.getn(WoW.trainer) end
+function GetTrainerServiceInfo(i)
+  local r = WoW.trainer[i]
+  if not r then return nil end
+  return r.name, r.rank or "", r.category or "available"
+end
+function GetTrainerServiceCost(i) local r = WoW.trainer[i] return r and (r.cost or 0) end
+function GetTrainerServiceSkillReq(i) local r = WoW.trainer[i] if r then return r.skill, r.skillRank end end
+function BuyTrainerService(i) WoW.log("BuyTrainerService", i) end
+function SetTrainerServiceTypeFilter(kind, on) WoW.log("SetTrainerServiceTypeFilter", kind, on) end
 
 -- ---------- posting, splitting and cancelling ----------
 -- Cursor and sell slot. Source: Blizzard 1.12 AuctionFrame.lua and aux-addon (notes-aux.md section 4),
