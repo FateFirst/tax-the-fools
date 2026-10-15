@@ -34,6 +34,15 @@ function Tip.Lines(key, count, now)
       table.insert(lines, { "Sells", math.floor(st.rate * 100 + 0.5) .. "% (" .. st.n .. ")" })
     end
   end
+  local ts = DB.S().trend
+  if ts and ts.tooltip then
+    local t = P.Trend(DB.Realm().history[key], U.day(now))
+    if t then
+      local token = (t.dir == "rising") and "good" or ((t.dir == "falling") and "bad" or "dim")
+      local sign = (t.pct > 0) and "+" or ""
+      table.insert(lines, { "Trend 7d", Th.Code(token) .. sign .. t.pct .. "% " .. t.dir .. "|r" })
+    end
+  end
   local rs = DB.S().recipes
   if rs and rs.tooltip then
     local ok, text = pcall(Tip.RecipeLine, key)

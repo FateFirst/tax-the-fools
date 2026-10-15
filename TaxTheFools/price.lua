@@ -99,6 +99,41 @@ function P.Market(entry, today)
            seen = seen, n = S.median(ns) }
 end
 
+-- Trend: median daily p25 of days 0-6 against days 7-13, each side needing 3 days.
+-- Returns { pct (rounded percent), dir, recent, prior } or nil.
+local function sideMedian(entry, today, from, to)
+  local vals = {}
+  for day, row in pairs(entry.days or {}) do
+    local age = today - day
+    if age >= from and age <= to and row.p25 then table.insert(vals, row.p25) end
+  end
+  if table.getn(vals) < 3 then return nil end
+  return S.median(vals)
+end
+
+function P.Trend(entry, today)
+  if not entry then return nil end
+  local recent = sideMedian(entry, today, 0, 6)
+  local prior = sideMedian(entry, today, 7, 13)
+  if not recent or not prior or prior <= 0 then return nil end
+  local ratio = (recent - prior) / prior
+  local dir = "steady"
+  if ratio >= 0.05 then dir = "rising" elseif ratio <= -0.05 then dir = "falling" end
+  return { pct = round(ratio * 100), dir = dir, recent = recent, prior = prior }
+end
+
+-- The p25 of each day in the last `days` days, oldest first, gaps left out.
+function P.Series(entry, today, days)
+  local out = {}
+  if not entry then return out end
+  for day, row in pairs(entry.days or {}) do
+    local age = today - day
+    if age >= 0 and age < days and row.p25 then table.insert(out, { day = day, p25 = row.p25 }) end
+  end
+  table.sort(out, function(a, b) return a.day < b.day end)
+  return out
+end
+
 local function monthOf(day) return tonumber(date("!%Y%m", day * 86400)) end
 
 -- Days past KEEP_DAYS become monthly averages; months past about a year go.

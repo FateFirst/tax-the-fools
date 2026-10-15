@@ -1,7 +1,7 @@
 TaxTheFools = TaxTheFools or {}
 local U, Th, W, L, DB, Scan, UI = TaxTheFools.Util, TaxTheFools.Theme, TaxTheFools.Widgets, TaxTheFools.List,
   TaxTheFools.DB, TaxTheFools.Scan, TaxTheFools.UI
-local Auction = TaxTheFools.Auction
+local Auction, P = TaxTheFools.Auction, TaxTheFools.Price
 local Browse = { query = "", page = 0, frame = nil, back = false }
 TaxTheFools.Browse = Browse
 
@@ -65,22 +65,30 @@ local function money(v)
 end
 
 Browse.COLUMNS = {
-  { label = "Item", width = 220, sort = "name", fmt = function(r) return U.quality(r.quality) .. r.name .. "|r" end },
-  { label = "Qty", width = 44, align = "RIGHT", sort = "count", desc = true, fmt = function(r) return tostring(r.count) end },
-  { label = "Bid", width = 92, align = "RIGHT", sort = "bidNow", fmt = function(r) return money(r.bidNow) end },
-  { label = "Buyout", width = 92, align = "RIGHT", sort = "buy", fmt = function(r) return money(r.buy) end },
-  { label = "Each", width = 84, align = "RIGHT", sort = "unit", fmt = function(r) return money(r.unit) end },
-  { label = "Market", width = 84, align = "RIGHT", sort = "market", fmt = function(r) return money(r.market) end },
-  { label = "%", width = 48, align = "RIGHT", sort = "pct",
+  { label = "Item", width = 130, sort = "name", fmt = function(r) return U.quality(r.quality) .. r.name .. "|r" end },
+  { label = "Qty", width = 40, align = "RIGHT", sort = "count", desc = true, fmt = function(r) return tostring(r.count) end },
+  { label = "Bid", width = 74, align = "RIGHT", sort = "bidNow", fmt = function(r) return money(r.bidNow) end },
+  { label = "Buyout", width = 74, align = "RIGHT", sort = "buy", fmt = function(r) return money(r.buy) end },
+  { label = "Each", width = 66, align = "RIGHT", sort = "unit", fmt = function(r) return money(r.unit) end },
+  { label = "Market", width = 66, align = "RIGHT", sort = "market", fmt = function(r) return money(r.market) end },
+  { label = "%", width = 44, align = "RIGHT", sort = "pct",
     fmt = function(r) return r.pct and (r.pct .. "%") or "-", Browse.PctToken(r.pct) end },
-  { label = "Seller", width = 92, sort = "owner", fmt = function(r) return r.owner or "?" end },
+  { label = "Trend", width = 56, align = "RIGHT", sort = "trend",
+    fmt = function(r)
+      if not r.trend then return "-", "dim" end
+      local t = (r.trend > 0) and "good" or ((r.trend < 0) and "bad" or "text")
+      return ((r.trend > 0) and "+" or "") .. r.trend .. "%", t
+    end },
+  { label = "Seller", width = 70, sort = "owner", fmt = function(r) return r.owner or "?" end },
 }
 
-function Browse.Decorate(rows, market)
+function Browse.Decorate(rows, market, history, today)
   for _, r in ipairs(rows) do
     local m = market[r.key]
     r.market = m and m.v or nil
     r.pct = nil
+    local t = history and P.Trend(history[r.key], today or U.day())
+    r.trend = t and t.pct or nil
     if r.unit and r.market and r.market > 0 then r.pct = math.floor(r.unit / r.market * 100 + 0.5) end
     r.bidNow = ((r.bid or 0) > 0) and r.bid or r.minBid
     r.buy = ((r.buyout or 0) > 0) and r.buyout or nil
@@ -129,7 +137,7 @@ end
 function Browse.Paint()
   local p = Browse.frame
   if not p then return end
-  p.list:SetData(Browse.Decorate(Scan.lastRows, DB.Realm().market))
+  p.list:SetData(Browse.Decorate(Scan.lastRows, DB.Realm().market, DB.Realm().history, U.day()))
   local pages = math.max(1, math.ceil(Scan.lastTotal / 50))
   p.pageText:SetText("Page " .. (Scan.lastPage + 1) .. " of " .. pages .. ", " .. Scan.lastTotal .. " found")
   Browse.UpdateWatchButton()
