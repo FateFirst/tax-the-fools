@@ -127,8 +127,14 @@ against a fake client; this proves the fake client was right.
     item nobody else sells reads dim `No competition`.
 55. **Deposit.** Before your first post of an item at a duration, the Sell tab shows
     `Deposit approx ...`. After that post, the preview drops "approx" and shows the deposit
-    learned from the gold you lost. Compare it with the gold that actually left your purse.
+    learned from the gold you lost. The server often sends the gold change a moment after the
+    "Auction created" message, so the learned figure appears once your purse updates (within
+    about 3 seconds of the post), not at the message. Compare it with the gold that actually
+    left your purse.
 56. **Split never uses a special bag.** Fill your normal bags, leave an empty slot in a quiver or
     soul bag, and press **Split**. It refuses ("No empty slot in a normal bag to split into.")
     and nothing moves.
-57. At no point above was anything crafted, bought, posted or cancelled without your click.
+57. **A failed post can be retried.** Try to post with less gold than the deposit (or an item the
+    house refuses). Post reports the failure, the item is not left in the auction sell slot and
+    its bag slot is not locked, and after you fix the cause the same stack posts on the next click.
+58. At no point above was anything crafted, bought, posted or cancelled without your click.
