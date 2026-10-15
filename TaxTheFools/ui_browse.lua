@@ -1,6 +1,7 @@
 TaxTheFools = TaxTheFools or {}
 local U, Th, W, L, DB, Scan, UI = TaxTheFools.Util, TaxTheFools.Theme, TaxTheFools.Widgets, TaxTheFools.List,
   TaxTheFools.DB, TaxTheFools.Scan, TaxTheFools.UI
+local Auction = TaxTheFools.Auction
 local Browse = { query = "", page = 0, frame = nil }
 TaxTheFools.Browse = Browse
 
@@ -59,14 +60,20 @@ function Browse.Build(parent)
   p.pageText = Th.Text(p, "body", 11, "dim")
   p.pageText:SetPoint("RIGHT", p.prev, "LEFT", -8, 0)
   p.pageText:SetJustifyH("RIGHT")
-  p.list = L.New(p, Browse.COLUMNS, 18, function() Browse.UpdateWatchButton() end)
+  p.list = L.New(p, Browse.COLUMNS, 18, function() Browse.UpdateWatchButton() Browse.UpdateBar() end)
   p.list:SetPoint("TOPLEFT", p.search, "BOTTOMLEFT", 0, -8)
-  p.list:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
+  p.list:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 32)
+  -- The action bar: one click each, no double-click or modifier-click buying.
+  p.buyBtn = W.Button(p, "Buy", 140, 24, function() Browse.Buy() end, "accent")
+  p.buyBtn:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
+  p.bidBtn = W.Button(p, "Bid", 120, 24, function() Browse.Bid() end)
+  p.bidBtn:SetPoint("RIGHT", p.buyBtn, "LEFT", -6, 0)
   p.list.onEnter = function(row, item) Browse.RowTip(row, item) end
   p.Refresh = function(self) Browse.Paint() end
   p.Layout = function(self) self.list:Paint() end
   Browse.frame = p
   Scan.OnChange(function() if p:IsVisible() then Browse.Paint() end end)
+  Auction.OnChange(function() Browse.UpdateBar() end)
   Browse.Paint()
   return p
 end
@@ -78,6 +85,7 @@ function Browse.Paint()
   local pages = math.max(1, math.ceil(Scan.lastTotal / 50))
   p.pageText:SetText("Page " .. (Scan.lastPage + 1) .. " of " .. pages .. ", " .. Scan.lastTotal .. " found")
   Browse.UpdateWatchButton()
+  Browse.UpdateBar()
 end
 
 function Browse.Search(text, page)
@@ -95,6 +103,52 @@ function Browse.UpdateWatchButton()
   local sel = p.list.selected
   p.watchBtn:SetEnabled(sel and true or false)
   p.watchBtn:SetLabel((sel and DB.Realm().watch[sel.key]) and "Unwatch" or "Watch")
+end
+
+-- Why Buy / Bid is unavailable for row r, or nil when it is available.
+function Browse.WhyNot(kind, r)
+  if not r then return "Select a listing first." end
+  if Auction.busy then return "Waiting for the auction house to answer." end
+  if Auction.Own(r) then return "That is your own auction." end
+  if kind == "buy" then
+    if not r.buy then return "This listing has no buyout." end
+    if r.buy > GetMoney() then return "You can't afford " .. U.money(r.buy, true) .. "." end
+  else
+    local amount = Auction.BidAmount(r)
+    if r.buy and amount >= r.buy then return "The next bid would reach the buyout. Use Buy." end
+    if r.high then return "You are already the high bidder." end
+    if amount > GetMoney() then return "You can't afford " .. U.money(amount, true) .. "." end
+  end
+  return nil
+end
+
+function Browse.UpdateBar()
+  local p = Browse.frame
+  if not p then return end
+  local r = p.list.selected or nil
+  local buyWhy, bidWhy = Browse.WhyNot("buy", r), Browse.WhyNot("bid", r)
+  p.buyBtn:SetEnabled(not buyWhy)
+  p.bidBtn:SetEnabled(not bidWhy)
+  p.buyBtn:SetLabel((r and r.buy) and ("Buy " .. U.money(r.buy)) or "Buy")
+  p.bidBtn:SetLabel(r and ("Bid " .. U.money(Auction.BidAmount(r))) or "Bid")
+  W.Tip(p.buyBtn, "Buy", buyWhy or "Buy out the selected listing.")
+  W.Tip(p.bidBtn, "Bid", bidWhy or "Place the next bid on the selected listing.")
+end
+
+-- After a confirmed buy or bid: look at the same page again.
+local function again() Browse.Search(Browse.query, Browse.page) end
+
+-- Button OnClick only. Auction.Buy / Auction.Bid re-read the listing first.
+function Browse.Buy()
+  local item = Browse.frame and Browse.frame.list.selected
+  if not item then return false end
+  return Auction.Buy(item.index, Auction.Sig(item), again)
+end
+
+function Browse.Bid()
+  local item = Browse.frame and Browse.frame.list.selected
+  if not item then return false end
+  return Auction.Bid(item.index, Auction.Sig(item), again)
 end
 
 function Browse.ToggleWatch()
