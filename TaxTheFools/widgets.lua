@@ -18,6 +18,17 @@ end
 
 function W.HideTip() GameTooltip:Hide() end
 
+-- A tooltip on hover. A plain frame needs the mouse enabled to see OnEnter, so labels (font
+-- strings take no mouse) get theirs through the frame that holds them.
+function W.HoverTip(f, title, body)
+  if not body then return f end
+  W.Tip(f, title, body)
+  f:EnableMouse(true)
+  f:SetScript("OnEnter", function() W.ShowTip(this) end)
+  f:SetScript("OnLeave", function() W.HideTip() end)
+  return f
+end
+
 function W.Button(parent, label, width, height, onClick, style)
   local b = CreateFrame("Button", nil, parent)
   b:SetWidth(width)
@@ -105,16 +116,12 @@ function W.Switch(parent, label, get, set, hint)
     set(not this.on)
     this:Refresh()
   end)
-  if hint then
-    W.Tip(f, label, hint)
-    f:SetScript("OnEnter", function() W.ShowTip(this) end)
-    f:SetScript("OnLeave", function() W.HideTip() end)
-  end
+  W.HoverTip(f, label, hint)
   f:Refresh()
   return f
 end
 
-function W.Slider(parent, label, min, max, step, get, set, fmt)
+function W.Slider(parent, label, min, max, step, get, set, fmt, hint)
   local f = CreateFrame("Frame", nil, parent)
   f:SetWidth(320)
   f:SetHeight(38)
@@ -144,6 +151,8 @@ function W.Slider(parent, label, min, max, step, get, set, fmt)
   -- windows from reacting to values the player is only passing through.
   s:SetScript("OnMouseUp", function() set(snap(this:GetValue())) end)
   f.slider = s
+  W.HoverTip(f, label, hint)
+  W.HoverTip(s, label, hint)
   f.Refresh = function(self)
     local v = get()
     s:SetValue(v)
@@ -153,7 +162,7 @@ function W.Slider(parent, label, min, max, step, get, set, fmt)
   return f
 end
 
-function W.Dropdown(parent, width, options, get, set)
+function W.Dropdown(parent, width, options, get, set, hint, title)
   local menu
   local b = W.Button(parent, "", width, 22, function(self)
     if menu:IsShown() then menu:Hide() return end
@@ -161,6 +170,7 @@ function W.Dropdown(parent, width, options, get, set)
     menu:SetPoint("TOPLEFT", self, "BOTTOMLEFT", 0, -2)
     menu:Show()
   end)
+  if hint then W.Tip(b, title or "", hint) end
   Th.SetFont(b.label, "body", 12)
   b.label:ClearAllPoints()
   b.label:SetPoint("LEFT", b, "LEFT", 8, 0)

@@ -3,7 +3,7 @@
 Auction house price history, deal finding and crafting profit for the Ravencraft
 server (Turtle WoW 1.18.1 client, WoW 1.12, Lua 5.0).
 
-This release (0.8.0): the auction window, scanning, price history, tooltips, crafting
+This release (0.8.1): the auction window, scanning, price history, tooltips, crafting
 profit for every recipe your characters know, buying, selling, and sales tracking from
 auction house mail. The **Deals** tab finds below-market, below-vendor, cheap-materials,
 undersupplied and recipe listings; **Browse** buys and bids on the selected row; **Sell** and

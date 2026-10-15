@@ -23,61 +23,81 @@ Opt.CATEGORIES = {
   { key = "general", label = "General", rows = {
     { kind = "switch", key = "replaceBlizzardAH", label = "Replace the Blizzard auction window",
       hint = "Takes effect next time you open the auction house. The Blizzard UI button switches back any time." },
-    { kind = "switch", key = "minimap", label = "Minimap button", after = function() TaxTheFools.Minimap.Refresh() end },
+    { kind = "switch", key = "minimap", label = "Minimap button", after = function() TaxTheFools.Minimap.Refresh() end,
+      hint = "Shows the Tax the Fools button on the minimap. Left-click opens the auction window, right-click opens these options. Drag it to move it round the minimap." },
     { kind = "slider", key = "scale", label = "Window scale", min = 0.8, max = 1.5, step = 0.05, fmt = pct,
-      after = function() W.ApplyScale() end },
+      after = function() W.ApplyScale() end,
+      hint = "Sizes every Tax the Fools window. 100% is normal; higher makes the windows and their text bigger. Default 100%." },
     { kind = "switch", key = "bagClick", label = "Right-click bag items to search or sell",
       hint = "At the auction house, right-click a bag item to search for it (Browse) or select it (Sell)." },
     { kind = "switch", key = "debug", label = "Debug messages",
       hint = "Prints extra detail, and shows Lua errors instead of quietly switching the failing part off." },
   } },
   { key = "scanning", label = "Scanning", rows = {
-    { kind = "slider", key = "scanDelay", label = "Minimum time between pages", min = 0, max = 2, step = 0.1, fmt = secs },
+    { kind = "slider", key = "scanDelay", label = "Minimum time between pages", min = 0, max = 2, step = 0.1, fmt = secs,
+      hint = "The shortest wait before a scan asks the auction house for its next page. Lower scans faster but the server may drop requests; higher is gentler. Default 0.3s." },
     { kind = "switch", key = "safeMode", label = "Safe pace (4s between pages)",
       hint = "Use this if scans keep repeating pages or stalling." },
-    { kind = "switch", key = "browseFeedsHistory", label = "Searches add to price history" },
+    { kind = "switch", key = "browseFeedsHistory", label = "Searches add to price history",
+      hint = "When on, the prices your Browse searches see are saved to the price history and market values, like a scan. Off keeps searches out of the history." },
   } },
   { key = "crafting", label = "Crafting", rows = {
     { kind = "switch", path = { "craft", "autoWatch" }, label = "Watch recipe materials automatically",
       hint = "Each time a tradeskill window opens, its products and materials join the Watchlist scan." },
     { kind = "slider", path = { "craft", "staleDays" }, label = "Dim prices older than", min = 1, max = 30, step = 1,
-      fmt = days, after = function() TaxTheFools.CraftUI.RefreshAll() end },
+      fmt = days, after = function() TaxTheFools.CraftUI.RefreshAll() end,
+      hint = "In the Craft tab, a price last seen more than this many days ago is dimmed, because it may be out of date. Default 7 days." },
     { kind = "switch", path = { "recipes", "tooltip" }, label = "Pattern payback tooltip line",
       hint = "Pattern tooltips say how many crafts pay the pattern back." },
     { kind = "slider", path = { "recipes", "skillAhead" }, label = "Learnable soon: skill ahead", min = 0, max = 75,
-      step = 5 },
+      step = 5,
+      hint = "A pattern counts as learnable soon when a character is within this many skill points of its required skill. Higher lists patterns that are further off. Default 25." },
   } },
   { key = "deals", label = "Deals & buying", rows = {
-    { kind = "switch", path = { "deals", "market" }, label = "Below market" },
-    { kind = "switch", path = { "deals", "vendor" }, label = "Below vendor" },
-    { kind = "switch", path = { "deals", "mats" }, label = "Cheap materials" },
+    { kind = "switch", path = { "deals", "market" }, label = "Below market",
+      hint = "Lists auctions priced well under the item's market value (see the Below market percentage), if the profit after the 5% auction cut and deposit reaches the minimum." },
+    { kind = "switch", path = { "deals", "vendor" }, label = "Below vendor",
+      hint = "Lists auctions whose buyout is lower than what a vendor would pay you for the same items." },
+    { kind = "switch", path = { "deals", "mats" }, label = "Cheap materials",
+      hint = "Lists crafting materials priced under the Materials percentage of market that a known recipe uses, if the recipe would still make the minimum profit." },
     { kind = "slider", path = { "deals", "belowMarketPct" }, label = "Below market", min = 50, max = 95, step = 5,
-      fmt = function(v) return v .. "%" end },
+      fmt = function(v) return v .. "%" end,
+      hint = "A listing counts as a deal when its price per item is at or below this % of the market value. Lower finds fewer, better deals. Default 70%." },
     { kind = "slider", path = { "deals", "minProfit" }, label = "Minimum profit", min = 0, max = 100000, step = 1000,
-      fmt = money },
+      fmt = money,
+      hint = "Below market, Cheap materials and Recipe deals must make at least this much profit to be listed. Higher hides small deals. Default 50s." },
     { kind = "slider", path = { "deals", "matPct" }, label = "Materials", min = 50, max = 100, step = 5,
-      fmt = function(v) return v .. "%" end },
+      fmt = function(v) return v .. "%" end,
+      hint = "A material is a cheap-materials deal when its price per item is at or below this % of its market value. Lower finds fewer, better deals. Default 85%." },
     { kind = "dropdown", path = { "deals", "minConfidence" }, label = "Minimum confidence",
-      options = TaxTheFools.DealsUI.CONFIDENCE },
+      options = TaxTheFools.DealsUI.CONFIDENCE,
+      hint = "How well the market value must be backed by scan history before a Below market deal is trusted. High needs plenty of recent scans; Low accepts thin data. Default Medium." },
     { kind = "switch", path = { "deals", "recipe" }, label = "Recipe",
       hint = "Patterns on the auction house that pay back quickly for a character who can learn them." },
     { kind = "slider", path = { "deals", "paybackCrafts" }, label = "Pays back within", min = 1, max = 50, step = 1,
-      fmt = function(v) return v == 1 and "1 craft" or (v .. " crafts") end },
+      fmt = function(v) return v == 1 and "1 craft" or (v .. " crafts") end,
+      hint = "A pattern is a deal when the profit from this many crafts covers its price. Lower finds fewer, quicker-paying patterns. Default 10 crafts." },
     { kind = "switch", path = { "deals", "under" }, label = "Undersupplied",
       hint = "Items you hold that sell well and are scarce on the auction house now." },
     { kind = "slider", path = { "deals", "underPct" }, label = "Undersupplied: listed at most", min = 10, max = 90,
-      step = 5, fmt = function(v) return v .. "%" end },
+      step = 5, fmt = function(v) return v .. "%" end,
+      hint = "An item is scarce when the number of listings now is at most this % of its usual (30-day median) number. Lower finds only the scarcest items. Default 33%." },
     { kind = "slider", path = { "deals", "premiumPct" }, label = "Undersupplied: suggest at", min = 100, max = 150,
-      step = 5, fmt = function(v) return v .. "%" end },
+      step = 5, fmt = function(v) return v .. "%" end,
+      hint = "The price Sell suggests for an undersupplied item, as a % of its market value or the lowest listing, whichever is higher. 100% is no premium. Default 110%." },
     { kind = "slider", path = { "buy", "confirmAbove" }, label = "Confirm buys at or above", min = 0, max = 500000,
       step = 10000,
-      fmt = function(v) return v == 0 and "never" or money(v) end },
+      fmt = function(v) return v == 0 and "never" or money(v) end,
+      hint = "A buy or bid at or above this amount asks you to confirm first. Set to never to skip the question. Default 5g." },
   } },
   { key = "sales", label = "Sales", rows = {
-    { kind = "slider", path = { "sales", "days" }, label = "Sell-rate window", min = 7, max = 90, step = 1, fmt = days },
+    { kind = "slider", path = { "sales", "days" }, label = "Sell-rate window", min = 7, max = 90, step = 1, fmt = days,
+      hint = "How many days of your sales history are used to work out how fast an item sells. Longer smooths out quiet weeks; shorter follows recent trends. Default 30 days." },
     { kind = "slider", path = { "sales", "warnPct" }, label = "Price warning above", min = 100, max = 200, step = 10,
-      fmt = function(v) return v .. "%" end },
-    { kind = "switch", path = { "sales", "tooltip" }, label = "Sells line in item tooltips" },
+      fmt = function(v) return v .. "%" end,
+      hint = "On Sell, warns you when your buyout is above this % of the average price you have sold this item for. Lower warns sooner. Default 120%." },
+    { kind = "switch", path = { "sales", "tooltip" }, label = "Sells line in item tooltips",
+      hint = "Adds a Sells line to item tooltips: the share of your auctions of this item that sold (rather than expired or were cancelled) in the sell-rate window, and how many auctions that counts." },
   } },
   { key = "ledger", label = "Ledger", rows = {
     { kind = "switch", path = { "ledger", "vendor" }, label = "Count vendor buys and sales",
@@ -85,44 +105,64 @@ Opt.CATEGORIES = {
   } },
   { key = "selling", label = "Selling", rows = {
     { kind = "slider", path = { "sell", "bidPct" }, label = "Starting bid, % of buyout", min = 50, max = 100, step = 5,
-      fmt = function(v) return v .. "%" end },
+      fmt = function(v) return v .. "%" end,
+      hint = "Sell sets the starting bid to this % of the buyout price. 100% means bid and buyout are equal. Default 90%." },
     { kind = "slider", path = { "sell", "floorPct" }, label = "Price floor, % of market value", min = 50, max = 100,
-      step = 5, fmt = function(v) return v .. "%" end },
+      step = 5, fmt = function(v) return v .. "%" end,
+      hint = "Sell will not suggest a buyout under this % of the item's market value, however low the competition goes, and warns when you type one. Default 80%." },
     { kind = "slider", path = { "sell", "undercut" }, label = "Undercut by", min = 1, max = 10000, step = 1,
-      fmt = money },
+      fmt = money,
+      hint = "How much Sell takes off the cheapest rival's buyout price per item when it suggests a price. Default 1 copper." },
     { kind = "dropdown", path = { "sell", "duration" }, label = "Default duration", options = {
-      { value = 120, label = "6h" }, { value = 480, label = "24h" }, { value = 1440, label = "72h" } } },
+      { value = 120, label = "6h" }, { value = 480, label = "24h" }, { value = 1440, label = "72h" } },
+      hint = "How long Sell lists an auction for to begin with. Longer lasts more time but costs a bigger deposit. Default 24h." },
   } },
   { key = "tooltip", label = "Tooltip", rows = {
-    { kind = "switch", path = { "tooltip", "market" }, label = "Market value" },
-    { kind = "switch", path = { "tooltip", "low" }, label = "Lowest price in the latest scan" },
-    { kind = "switch", path = { "tooltip", "vendor" }, label = "Vendor price" },
-    { kind = "switch", path = { "trend", "tooltip" }, label = "Price trend line" },
+    { kind = "switch", path = { "tooltip", "market" }, label = "Market value",
+      hint = "Adds the item's market value (its usual auction price from your scans) to item tooltips." },
+    { kind = "switch", path = { "tooltip", "low" }, label = "Lowest price in the latest scan",
+      hint = "Adds the lowest price per item seen in the most recent scan to item tooltips." },
+    { kind = "switch", path = { "tooltip", "vendor" }, label = "Vendor price",
+      hint = "Adds what a vendor pays for the item to item tooltips." },
+    { kind = "switch", path = { "trend", "tooltip" }, label = "Price trend line",
+      hint = "Adds a line to item tooltips showing whether the price over the last 7 days is rising, falling or steady. Needs about two weeks of scans." },
   } },
   { key = "appearance", label = "Appearance", rows = {
-    { kind = "dropdown", key = "theme", label = "Theme", options = themes(), after = function(v) Th.Apply(v) end },
-    { kind = "switch", key = "fonts", label = "Bundled fonts (needs /reload)" },
+    { kind = "dropdown", key = "theme", label = "Theme", options = themes(), after = function(v) Th.Apply(v) end,
+      hint = "The colour scheme of every Tax the Fools window. It applies straight away." },
+    { kind = "switch", key = "fonts", label = "Bundled fonts (needs /reload)",
+      hint = "Uses the fonts that come with the addon. Switch off to use the game's own font. Type /reload after changing it." },
   } },
   { key = "mail", label = "Mail", rows = {
     { kind = "switch", key = "replaceBlizzardMail", label = "Replace Blizzard's mailbox",
       hint = "Takes effect next time you open a mailbox. Disable TurtleMail first; TTF replaces it." },
     { kind = "dropdown", label = "Bank alt", options = function() return Opt.BankAltOptions() end,
       get = function() return DB.S().mail.bankAlt or "" end,
-      set = function(v) if v == "" then DB.S().mail.bankAlt = nil else DB.S().mail.bankAlt = v end end },
-    { kind = "switch", path = { "mail", "rules", "crafted" }, label = "Crafted goods" },
-    { kind = "switch", path = { "mail", "rules", "tradeGoods" }, label = "Cloth and trade goods" },
-    { kind = "switch", path = { "mail", "rules", "patterns" }, label = "Patterns" },
-    { kind = "switch", path = { "mail", "rules", "auctionable" }, label = "Anything auctionable" },
-    { kind = "keeplist", label = "Never fill (click to remove)" },
+      set = function(v) if v == "" then DB.S().mail.bankAlt = nil else DB.S().mail.bankAlt = v end end,
+      hint = "The character that Fill for bank alt in the Mail tab addresses mail to. Pick one of your characters on this realm, or None." },
+    { kind = "switch", path = { "mail", "rules", "crafted" }, label = "Crafted goods",
+      hint = "Fill for bank alt includes items that one of your recipes makes." },
+    { kind = "switch", path = { "mail", "rules", "tradeGoods" }, label = "Cloth and trade goods",
+      hint = "Fill for bank alt includes anything in the Trade Goods category, such as cloth, ore and herbs." },
+    { kind = "switch", path = { "mail", "rules", "patterns" }, label = "Patterns",
+      hint = "Fill for bank alt includes recipes, patterns, formulas and plans." },
+    { kind = "switch", path = { "mail", "rules", "auctionable" }, label = "Anything auctionable",
+      hint = "Fill for bank alt includes every bag item that can be sold at the auction house. Off by default." },
+    { kind = "keeplist", label = "Never fill (click to remove)",
+      hint = "Items you told Mail to keep. Fill for bank alt never attaches them. Click a name to take it off the list." },
   } },
   { key = "data", label = "Data", rows = {
     { kind = "info", text = function() return DB.SizeText() end },
-    { kind = "button", label = "Prune old data now", onClick = function()
-      DB.StartPrune()
-      TaxTheFools.Core.pruned = false
-      U.msg("Pruning old price history.")
-    end },
-    { kind = "button", label = "Reset all data", onClick = function() StaticPopup_Show("TAXTHEFOOLS_RESET") end },
+    { kind = "button", label = "Prune old data now",
+      hint = "Trims old price history now, instead of waiting for the next automatic clean-up. Your settings and recent prices stay.",
+      onClick = function()
+        DB.StartPrune()
+        TaxTheFools.Core.pruned = false
+        U.msg("Pruning old price history.")
+      end },
+    { kind = "button", label = "Reset all data",
+      hint = "Asks first, then deletes all price history, items and settings for every character and reloads the interface.",
+      onClick = function() StaticPopup_Show("TAXTHEFOOLS_RESET") end },
   } },
 }
 
@@ -191,7 +231,7 @@ function Opt.Control(parent, row)
   local get = function() return Opt.Get(row) end
   local set = function(v) Opt.Set(row, v) end
   if row.kind == "switch" then return W.Switch(parent, row.label, get, set, row.hint) end
-  if row.kind == "slider" then return W.Slider(parent, row.label, row.min, row.max, row.step, get, set, row.fmt) end
+  if row.kind == "slider" then return W.Slider(parent, row.label, row.min, row.max, row.step, get, set, row.fmt, row.hint) end
   if row.kind == "dropdown" then
     local f = CreateFrame("Frame", nil, parent)
     f:SetWidth(320)
@@ -201,7 +241,8 @@ function Opt.Control(parent, row)
     f.text:SetText(row.label)
     local opts = row.options
     if type(opts) == "function" then opts = opts() end
-    f.dd = W.Dropdown(f, 140, opts, get, set)
+    f.dd = W.Dropdown(f, 140, opts, get, set, row.hint, row.label)
+    W.HoverTip(f, row.label, row.hint)
     f.dd:SetPoint("RIGHT", f, "RIGHT", 0, 0)
     f.Refresh = function(self)
       if type(row.options) == "function" then self.dd:SetOptions(row.options()) end
@@ -216,6 +257,7 @@ function Opt.Control(parent, row)
     f.title = Th.Text(f, "body", 13, "text")
     f.title:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
     f.title:SetText(row.label)
+    W.HoverTip(f, row.label, row.hint)
     f.lines = {}
     for i = 1, Opt.KEEP_SHOWN + 1 do
       local b = CreateFrame("Button", nil, f)
@@ -257,6 +299,7 @@ function Opt.Control(parent, row)
   end
   if row.kind == "button" then
     local b = W.Button(parent, row.label, 180, 24, row.onClick)
+    if row.hint then W.Tip(b, row.label, row.hint) end
     b.Refresh = function() end
     return b
   end
@@ -270,19 +313,80 @@ function Opt.Control(parent, row)
   return f
 end
 
+Opt.VIEW_H = 338     -- the page's height in the 400 high window, until the client reports its own
+Opt.WHEEL_STEP = 30
+Opt.BAR = 10         -- the scrollbar's width
+
+-- The page is a frame holding a ScrollFrame, whose scroll child holds the controls, and a thin
+-- scrollbar that shows only when the controls are taller than the view.
 function Opt.Page(f, cat)
   local p = CreateFrame("Frame", nil, f)
   p:SetPoint("TOPLEFT", f.nav, "TOPRIGHT", 16, -14)
   p:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -16, 16)
-  p.controls = {}
+  p.controls, p.scroll, p.range, p.updating = {}, 0, 0, false
+  p.sf = CreateFrame("ScrollFrame", nil, p)
+  p.sf:SetPoint("TOPLEFT", p, "TOPLEFT", 0, 0)
+  p.sf:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -(Opt.BAR + 6), 0)
+  p.child = CreateFrame("Frame", nil, p.sf)
+  p.child:SetWidth(340)
+  p.child:SetHeight(1)
+  p.sf:SetScrollChild(p.child)
+  local bar = CreateFrame("Slider", nil, p)
+  bar:SetOrientation("VERTICAL")
+  bar:SetWidth(Opt.BAR)
+  bar:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
+  bar:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
+  local track = Th.Solid(bar, "BACKGROUND", "panel3")
+  track:SetAllPoints(bar)
+  bar:SetThumbTexture(Th.MEDIA .. "solid")
+  local thumb = bar:GetThumbTexture()
+  thumb:SetWidth(Opt.BAR)
+  thumb:SetHeight(30)
+  Th.Tint(thumb, "subtle")
+  bar:SetMinMaxValues(0, 0)
+  bar:SetValueStep(1)
+  bar:SetScript("OnValueChanged", function()
+    if p.updating then return end
+    Opt.ScrollTo(p, this:GetValue())
+  end)
+  bar:Hide()
+  p.bar = bar
+  p.sf:EnableMouseWheel(true)
+  p.sf:SetScript("OnMouseWheel", function() Opt.ScrollTo(p, p.scroll - arg1 * Opt.WHEEL_STEP) end)
   local y = 0
   for _, row in ipairs(cat.rows) do
-    local c = Opt.Control(p, row)
-    c:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -y)
+    local c = Opt.Control(p.child, row)
+    c:SetPoint("TOPLEFT", p.child, "TOPLEFT", 0, -y)
     y = y + c:GetHeight() + 10
     table.insert(p.controls, c)
   end
+  p.contentH = math.max(1, y - 10)
+  p.child:SetHeight(p.contentH)
+  -- Guarded: should this client not know the handler, Select's Fit still sizes the page.
+  pcall(p.SetScript, p, "OnSizeChanged", function() Opt.Fit(p) end)
   return p
+end
+
+-- The scroll offset, kept between 0 and the range; the bar follows.
+function Opt.ScrollTo(p, v)
+  if v > p.range then v = p.range end
+  if v < 0 then v = 0 end
+  p.scroll = v
+  p.sf:SetVerticalScroll(v)
+  p.updating = true
+  p.bar:SetValue(v)
+  p.updating = false
+end
+
+-- Sizes the scroll child to the page's width and works out how far it scrolls.
+function Opt.Fit(p)
+  local view, w = p.sf:GetHeight(), p.sf:GetWidth()
+  if not view or view <= 0 then view = Opt.VIEW_H end
+  if w and w > 0 then p.child:SetWidth(w) end
+  p.range = math.max(0, p.contentH - view)
+  p.bar:SetMinMaxValues(0, p.range)
+  if p.range > 0 then p.bar:Show() else p.bar:Hide() end
+  Opt.ScrollTo(p, p.scroll)
 end
 
 function Opt.NavRow(f, i, cat)
@@ -341,6 +445,10 @@ function Opt.Select(key)
     end
     if page then
       if on then page:Show() else page:Hide() end
+    end
+    if on then
+      Opt.Fit(page)
+      Opt.ScrollTo(page, 0)
     end
   end
   for _, c in ipairs(f.pages[key].controls) do c:Refresh() end

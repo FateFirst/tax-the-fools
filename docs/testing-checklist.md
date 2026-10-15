@@ -4,7 +4,7 @@ Run this after every install, on the real client. The tests prove the logic
 against a fake client; this proves the fake client was right.
 
 ## Load
-1. Log in on the bank character. Chat shows `TTF: v0.8.0 loaded`.
+1. Log in on the bank character. Chat shows `TTF: v0.8.1 loaded`.
 2. `/ttf probe`. The window opens with text selected. Press Ctrl+C and paste it
    into `tools/probe-<date>.txt` in this repo. Check:
    - every `fn` line says `yes`, except possibly `GetInboxInvoiceInfo`, `CalculateAuctionDeposit` (spec §13 Q2)

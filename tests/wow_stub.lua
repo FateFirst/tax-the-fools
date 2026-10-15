@@ -129,6 +129,19 @@ local function newFrame(kind, name, parent)
   f.GetValue = function(self) return self.value end
   f.SetThumbTexture = function(self, path) self.thumb = newTexture() self.thumb:SetTexture(path) end
   f.GetThumbTexture = function(self) return self.thumb end
+  -- ScrollFrame (1.12 API): SetScrollChild, GetScrollChild, SetVerticalScroll, GetVerticalScroll,
+  -- GetVerticalScrollRange; frames clip their scroll child. The range is the child's height less the frame's.
+  f.SetScrollChild = function(self, c) self.scrollChild = c end
+  f.GetScrollChild = function(self) return rawget(self, "scrollChild") end
+  f.SetVerticalScroll = function(self, v) self.vscroll = v end
+  f.GetVerticalScroll = function(self) return rawget(self, "vscroll") or 0 end
+  f.GetVerticalScrollRange = function(self)
+    local c = rawget(self, "scrollChild")
+    local r = c and (c:GetHeight() - self:GetHeight()) or 0
+    if r < 0 then r = 0 end
+    return r
+  end
+  f.EnableMouseWheel = function(self, on) self.wheel = on and true or false end
   -- Tooltips
   f.lines = {}
   -- GameTooltipTemplate (1.12): line i's left text is the global <name>TextLeft<i>, a FontString.

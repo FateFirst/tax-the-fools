@@ -332,3 +332,111 @@ T.test("the Ledger and trend options are bound to their settings", function()
   T.eq(DB.S().trend.tooltip, false)
   DB.S().trend.tooltip = true
 end)
+
+T.test("every option row has a plain-ASCII hint", function()
+  for _, cat in ipairs(Opt.CATEGORIES) do
+    for _, row in ipairs(cat.rows) do
+      if row.kind ~= "info" then
+        local what = cat.key .. ": " .. tostring(row.label)
+        T.ok(type(row.hint) == "string" and string.len(row.hint) > 20, what .. " has a hint")
+        T.ok(not string.find(row.hint, "[^\32-\126]"), what .. " hint is ASCII")
+      end
+    end
+  end
+end)
+
+T.test("every control shows its hint when the label or control is hovered", function()
+  local f = Opt.Create()
+  for _, cat in ipairs(Opt.CATEGORIES) do
+    Opt.Select(cat.key)
+    local controls = f.pages[cat.key].controls
+    for i, row in ipairs(cat.rows) do
+      if row.kind ~= "info" then
+        local c = controls[i]
+        T.ok(type(c.tip) == "table", cat.key .. ": " .. row.label .. " has a tooltip")
+        T.eq(c.tip.title, row.label)
+        T.eq(c.tip.body, row.hint)
+        if row.kind ~= "button" then
+          T.ok(c.scripts.OnEnter ~= nil, row.label .. " reacts to the mouse")
+        end
+      end
+    end
+  end
+  local c = f.pages.deals.controls[4]
+  GameTooltip:Hide()
+  WoW.runScript(c, "OnEnter")
+  T.eq(GameTooltip.lines[1][1], "Below market")
+  T.ok(string.find(GameTooltip.lines[2][1], "market value", 1, true))
+  WoW.runScript(c.slider, "OnEnter")
+  T.eq(GameTooltip.lines[1][1], "Below market")
+  local dd = f.pages.deals.controls[7]
+  WoW.runScript(dd.dd, "OnEnter")
+  T.eq(GameTooltip.lines[1][1], "Minimum confidence")
+end)
+
+T.test("a fresh database shows the Deals switches on, in options and in the rail", function()
+  local f = Opt.Create()
+  Opt.Select("deals")
+  for i, row in ipairs(Opt.CATEGORIES[4].rows) do
+    if row.kind == "switch" then
+      T.eq(DB.S().deals[row.path[2]], true, row.label .. " defaults on")
+      T.eq(f.pages.deals.controls[i].on, true, row.label .. " shows on")
+    end
+  end
+  local D = TaxTheFools.DealsUI
+  local keys = { "market", "vendor", "mats", "recipe", "under" }
+  for _, k in ipairs(keys) do DB.S().deals[k] = false end
+  Opt.Select("general")
+  Opt.Select("deals")
+  for i, row in ipairs(Opt.CATEGORIES[4].rows) do
+    if row.kind == "switch" then T.eq(f.pages.deals.controls[i].on, false, row.label .. " follows the setting") end
+  end
+  WoW.runScript(f.pages.deals.controls[3], "OnClick")
+  T.eq(DB.S().deals.mats, true)
+  for _, k in ipairs(keys) do DB.S().deals[k] = true end
+end)
+
+T.test("a long page scrolls: child height, range, wheel, scrollbar, reset on switching", function()
+  local f = Opt.Create()
+  Opt.Select("deals")
+  local p = f.pages.deals
+  T.ok(p.child:GetHeight() > Opt.VIEW_H, "the deals controls are taller than the view")
+  T.eq(p.sf:GetScrollChild(), p.child)
+  T.eq(p.sf.wheel, true)
+  T.eq(p.range, p.child:GetHeight() - Opt.VIEW_H)
+  T.ok(p.bar:IsShown(), "the scrollbar shows")
+  T.eq(p.sf:GetVerticalScroll(), 0)
+  WoW.runScript(p.sf, "OnMouseWheel", -1)
+  T.eq(p.sf:GetVerticalScroll(), 30)
+  T.eq(p.bar:GetValue(), 30)
+  WoW.runScript(p.sf, "OnMouseWheel", 1)
+  T.eq(p.sf:GetVerticalScroll(), 0)
+  WoW.runScript(p.sf, "OnMouseWheel", 1)
+  T.eq(p.sf:GetVerticalScroll(), 0, "no scrolling above the top")
+  for i = 1, 40 do WoW.runScript(p.sf, "OnMouseWheel", -1) end
+  T.eq(p.sf:GetVerticalScroll(), p.range, "no scrolling below the end")
+  p.bar:SetValue(50)
+  T.eq(p.sf:GetVerticalScroll(), 50, "dragging the bar scrolls")
+  Opt.Select("sales")
+  Opt.Select("deals")
+  T.eq(p.sf:GetVerticalScroll(), 0, "back at the top after switching category")
+end)
+
+T.test("a short page has no scrollbar and cannot scroll", function()
+  local f = Opt.Create()
+  Opt.Select("ledger")
+  local p = f.pages.ledger
+  T.eq(p.range, 0)
+  T.eq(p.bar:IsShown(), false)
+  WoW.runScript(p.sf, "OnMouseWheel", -1)
+  T.eq(p.sf:GetVerticalScroll(), 0)
+end)
+
+T.test("controls live in the scroll child and stack from its top", function()
+  local f = Opt.Create()
+  Opt.Select("general")
+  local c = f.pages.general.controls[2]
+  T.eq(c.parent, f.pages.general.child)
+  T.eq(c.points[1][2], f.pages.general.child)
+  T.eq(c.points[1][5], -(f.pages.general.controls[1]:GetHeight() + 10))
+end)
