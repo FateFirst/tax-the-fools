@@ -4,7 +4,7 @@ Run this after every install, on the real client. The tests prove the logic
 against a fake client; this proves the fake client was right.
 
 ## Load
-1. Log in on the bank character. Chat shows `TTF: v0.3.0 loaded`.
+1. Log in on the bank character. Chat shows `TTF: v0.4.0 loaded`.
 2. `/ttf probe`. The window opens with text selected. Press Ctrl+C and paste it
    into `tools/probe-<date>.txt` in this repo. Check:
    - every `fn` line says `yes`, except possibly `GetInboxInvoiceInfo`, `CalculateAuctionDeposit` (spec §13 Q2)
@@ -104,4 +104,31 @@ against a fake client; this proves the fake client was right.
     `Gone: someone else bought it.` and the deal disappears from the list.
 47. A late "Bid accepted." after the 5-second no-reply message can be credited to the
     next action. If a message looks wrong, search again.
-48. At no point above was anything crafted, bought or sold without your click.
+## Selling (phase 3b)
+48. **Post one stack.** On the Sell tab, pick an item with a full stack in your bags. The
+    buyout and starting bid show where they came from. Press **Post** (it reads `Post 1 of 1`).
+    The status line says `1 of 1 posted`, the auction appears on the Auctions tab, and the
+    deposit is taken.
+49. **Split, then post.** Pick an item you hold more of, and a stack size no bag stack matches
+    exactly. The button reads **Split**. Press it: one stack of that size appears in an empty
+    bag slot, and the button then reads **Post**. Press it.
+50. **Post several stacks.** Set Stacks to 3. Each press posts one stack: the button reads
+    `Post 1 of 3`, then `Post 2 of 3`, and the status line counts `1 of 3 posted`, `2 of 3 posted`.
+51. **Price floor.** Type a buyout below 80% of market (the default floor). The warning reads
+    "Below your floor (80% of market)", Post is disabled, and nothing posts. Tick **Allow below
+    floor** and Post works. Pick another item: the tick is cleared.
+52. **Cancel an auction.** On the Auctions tab, select an auction with no bid and press
+    **Cancel auction**. It goes from the list at once.
+53. **Cancel with a bid.** Select an auction that has a bid and press **Cancel auction**.
+    CONFIRM CANCEL appears with the bid and buyout. Its **Cancel** button keeps the auction;
+    only its **Cancel auction** button takes it down.
+54. **Undercut colours.** After a scan or Browse search for the item: an auction priced above a
+    cheaper competitor reads red `Undercut <price>`, the cheapest reads green `Cheapest`, and an
+    item nobody else sells reads dim `No competition`.
+55. **Deposit.** Before your first post of an item at a duration, the Sell tab shows
+    `Deposit approx ...`. After that post, the preview drops "approx" and shows the deposit
+    learned from the gold you lost. Compare it with the gold that actually left your purse.
+56. **Split never uses a special bag.** Fill your normal bags, leave an empty slot in a quiver or
+    soul bag, and press **Split**. It refuses ("No empty slot in a normal bag to split into.")
+    and nothing moves.
+57. At no point above was anything crafted, bought, posted or cancelled without your click.

@@ -3,10 +3,11 @@
 Auction house price history, deal finding and crafting profit for the Ravencraft
 server (Turtle WoW 1.18.1 client, WoW 1.12, Lua 5.0).
 
-This release (0.3.0): the auction window, scanning, price history, tooltips, crafting
-profit for every recipe your characters know, and buying. The **Deals** tab finds
+This release (0.4.0): the auction window, scanning, price history, tooltips, crafting
+profit for every recipe your characters know, buying, and selling. The **Deals** tab finds
 below-market, below-vendor and cheap-materials listings; **Browse** buys and bids on
-the selected row. Selling and the Auctions tab come next (phase 3b). See
+the selected row; **Sell** and **Auctions** post and cancel your own auctions. Next is
+phase 4: tracking your sales from auction house mail. See
 `docs/superpowers/specs/2026-10-14-tax-the-fools-design.md` for the overall design.
 
 ## Install
@@ -55,12 +56,28 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
 - **Confirmation.** Options > Deals & buying > "Confirm buys at or above" (default 5g,
   0 = never). A buy at or above that amount opens a Confirm purchase window; nothing is
   bought until you press its **Buy**. Bids are never confirmed.
+- **Sell.** Pick an item from your bags and the Sell tab lists the competing auctions for it,
+  with a suggested buyout: 1c under the cheapest competing unit price at or above your floor
+  (80% of market by default), or the market value when nothing qualifies. The starting bid is
+  a percentage of the buyout (90% by default). Set the stack size and how many stacks, pick a
+  duration (6h, 24h or 72h), and read the deposit and what you will receive. The deposit shows
+  as `approx` until you have posted that item at that duration; after that it is the amount
+  the last post actually took. Post is one click per stack: when no bag stack matches the
+  size you chose, the button reads **Split** first, which splits one stack into an empty bag
+  slot (never a quiver or soul bag). Going below the floor is blocked until you tick
+  **Allow below floor**. Items that are soulbound, quest items or conjured are not listed.
+- **Auctions.** Your own auctions, one page of up to 50, with the price per unit against the
+  competition: red **Undercut** (someone is cheaper, with their price), green **Cheapest**, or
+  dim **No competition**. **Cancel auction** takes the selected auction down in one click; if
+  it has a bid, a confirmation says the bidder is refunded and you lose the deposit first.
+- **Selling options.** Options > Selling: starting bid % (50 to 100), price floor % (50 to
+  100), undercut (1c to 1g), and the default duration.
 - **Blizzard UI** switches to the stock window at any time; its **Tax the Fools** button
   switches back.
 
 Nothing is ever bought, bid on, posted, cancelled, crafted or sold without your
-click. The only thing that runs by itself is a scan turning pages. Selling and the
-Auctions tab (posting, cancelling and sales tracking) come next, in phase 3b.
+click. The only thing that runs by itself is a scan turning pages. Sales tracking from
+auction house mail is next, in phase 4.
 
 ## Commands
 
