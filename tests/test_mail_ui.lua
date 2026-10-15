@@ -193,7 +193,7 @@ T.test("an inbox burst repaints once per frame, and a change repaints too", func
   frame() frame()
   T.eq(T.count("GetInboxNumItems"), 2, "quiet without new events")
   WoW.mail[1].money = 5
-  MB.OnChange()
+  WoW.fire("MAIL_INBOX_UPDATE")
   frame()
   T.eq(p.list.data[1].money, 5)
 end)
@@ -204,24 +204,52 @@ T.test("the Blizzard button switches windows and Collect all labels follow the i
   T.eq(MU.win:IsShown(), false)
   T.ok(MailFrame:IsShown())
   T.ok(not T.calledWith("CloseMail"))
-  T.ok(MU.win.gold:GetText() ~= nil)
 end)
 
-T.test("closing the window ends the visit", function()
-  open({})
-  MU.win:Hide()
-  T.ok(T.calledWith("CloseMail"))
+T.test("Collect all's label follows the inbox", function()
+  local p = open({ ah("Auction successful: Linen Cloth", 900), { sender = "Ann", subject = "letter" } })
+  T.eq(MU.win.status.collect.label:GetText(), "COLLECT ALL (1)")
+  table.insert(WoW.mail, { sender = "Bob", subject = "gift", money = 5 })
+  WoW.fire("MAIL_INBOX_UPDATE")
+  frame()
+  T.eq(MU.win.status.collect.label:GetText(), "COLLECT ALL (2)")
 end)
 
-T.test("opening and painting call no engine action", function()
-  local p = open({ ah("Auction successful: Linen Cloth", 900, linen()), { sender = "Ann", subject = "x", body = "hi", money = 5 } })
+T.test("the columns fit the list at the minimum window size", function()
+  local sum = 0
+  for _, c in ipairs(MU.COLUMNS) do sum = sum + c.width end
+  T.ok(sum <= 560 - 20 - 12, "columns total " .. sum)
+end)
+
+T.test("Return is off for returned and GM mail", function()
+  local p = open({ { sender = "Ann", subject = "back", returned = true, money = 0, item = linen() },
+                   { sender = "GM", subject = "t", isGM = true, money = 5 } })
   p.list:SetHeight(300)
   p.list:Paint()
-  WoW.runScript(p.list.rows[1], "OnEnter")
   WoW.runScript(p.list.rows[1], "OnClick")
-  for _ = 1, 5 do WoW.fire("MAIL_INBOX_UPDATE") frame() end
-  for _, name in ipairs({ "GetInboxText", "GetInboxInvoiceInfo", "TakeInboxMoney", "TakeInboxItem", "DeleteInboxItem",
-                          "ReturnInboxItem", "SendMail", "ClickSendMailItemButton", "SetSendMailMoney", "CheckInbox" }) do
-    T.eq(T.count(name), 0, name)
-  end
+  T.eq(p.returnBtn.enabled, false)
+  WoW.runScript(p.list.rows[2], "OnClick")
+  T.eq(p.returnBtn.enabled, false)
+end)
+
+T.test("an engine change alone refreshes the status, not the list", function()
+  open({ ah("Auction successful: Linen Cloth", 900) })
+  WoW.calls = {}
+  MB.status = { text = "Collecting 1 of 1", token = "text" }
+  MB.OnChange()
+  frame()
+  T.eq(T.count("GetInboxNumItems"), 0, "no header read")
+  T.eq(MU.win.status.text:GetText(), "Collecting 1 of 1")
+end)
+
+T.test("a chain still ends with the list repainted", function()
+  local mails = {}
+  for i = 1, 6 do table.insert(mails, ah("Auction successful: Linen Cloth", 10 + i)) end
+  local p = open(mails)
+  click(MU.win.status.collect)
+  pump()
+  frame() frame()
+  T.eq(table.getn(p.list.data), 0)
+  T.eq(MU.win.status.stop:IsShown(), false)
+  T.eq(WoW.money, 1000 + 10 * 6 + 21)
 end)

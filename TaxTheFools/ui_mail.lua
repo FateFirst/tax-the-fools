@@ -2,7 +2,7 @@ TaxTheFools = TaxTheFools or {}
 local A = TaxTheFools
 local U, Th, W, L, Sales, MailRules, Mailbox, MailHook = A.Util, A.Theme, A.Widgets, A.List, A.Sales, A.MailRules,
   A.Mailbox, A.MailHook
-local MailUI = { frame = nil, win = nil, pages = {}, builders = {}, dirty = false }
+local MailUI = { frame = nil, win = nil, pages = {}, builders = {}, dirty = false, statusDirty = false, wasBusy = false }
 A.MailUI = MailUI
 
 -- The mail window (phase 5b spec section 5). The Inbox list reads headers only: painting and opening never
@@ -30,15 +30,15 @@ local function money(v)
 end
 
 MailUI.COLUMNS = {
-  { label = "Item", width = 40, fmt = function(r) if r.hasItem then return "Item", "gold" end return "" end },
-  { label = "From", width = 110, sort = "sender", fmt = function(r) return r.sender or "?" end },
-  { label = "Subject", width = 210, sort = "subject", fmt = function(r) return r.subject or "" end },
-  { label = "Money", width = 84, align = "RIGHT", sort = "money", fmt = function(r) return money(r.money) end },
-  { label = "COD", width = 74, align = "RIGHT", sort = "cod",
+  { label = "Item", width = 36, fmt = function(r) if r.hasItem then return "Item", "gold" end return "" end },
+  { label = "From", width = 90, sort = "sender", fmt = function(r) return r.sender or "?" end },
+  { label = "Subject", width = 130, sort = "subject", fmt = function(r) return r.subject or "" end },
+  { label = "Money", width = 76, align = "RIGHT", sort = "money", fmt = function(r) return money(r.money) end },
+  { label = "COD", width = 62, align = "RIGHT", sort = "cod",
     fmt = function(r) if r.cod and r.cod > 0 then return U.money(r.cod), "warn" end return "-", "dim" end },
-  { label = "Expires", width = 60, align = "RIGHT", sort = "daysLeft",
+  { label = "Expires", width = 50, align = "RIGHT", sort = "daysLeft",
     fmt = function(r) return A.UI.Approx((r.daysLeft or 0) * 86400) end },
-  { label = "Tag", width = 80, sort = "tag", fmt = function(r) return r.tag or "", "dim" end },
+  { label = "Tag", width = 62, sort = "tag", fmt = function(r) return r.tag or "", "dim" end },
 }
 
 -- The tag of a mail: an auction outcome from its subject, or "Returned".
@@ -109,8 +109,14 @@ function MailUI.Paint()
   end
   local n, waiting = MailUI.Totals(rows)
   p.count, p.waiting = n, waiting
-  p.footer:SetText(MailUI.Footer(table.getn(rows), waiting, Mailbox.collected))
+  p.total = table.getn(rows)
+  MailUI.RefreshFooter()
   MailUI.UpdateBar()
+end
+
+function MailUI.RefreshFooter()
+  local p = MailUI.frame
+  if p then p.footer:SetText(MailUI.Footer(p.total or 0, p.waiting or 0, Mailbox.collected)) end
 end
 
 function MailUI.UpdateBar()
@@ -123,7 +129,7 @@ function MailUI.UpdateBar()
   p.readBtn:SetEnabled((sel and not busy) and true or false)
   p.collectBtn:SetEnabled((sel and not busy and plan ~= "skip") and true or false)
   p.deleteBtn:SetEnabled((sel and not busy and not holds and not sel.isGM) and true or false)
-  p.returnBtn:SetEnabled((sel and not busy and not sel.isGM and not (sel.sender and string.find(sel.sender, "Auction House", 1, true))
+  p.returnBtn:SetEnabled((sel and not busy and not sel.isGM and not sel.wasReturned and not (sel.sender and string.find(sel.sender, "Auction House", 1, true))
     and not Sales.Classify(sel.subject)) and true or false)
   local s = MailUI.win and MailUI.win.status
   if s then
@@ -196,8 +202,8 @@ local function buildButtons(p)
   p.returnBtn:SetPoint("LEFT", p.deleteBtn, "RIGHT", 6, 0)
   W.Tip(p.returnBtn, "Return", "Send the selected mail back to its sender. Not for auction house mail.")
   p.footer = Th.Text(p, "body", 12, "dim")
-  p.footer:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 6)
-  p.footer:SetJustifyH("RIGHT")
+  p.footer:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 0, 30)
+  p.footer:SetJustifyH("LEFT")
 end
 
 function MailUI.BuildInbox(parent)
@@ -206,10 +212,10 @@ function MailUI.BuildInbox(parent)
   p.list = L.New(p, MailUI.COLUMNS, 18, function() MailUI.Select() end)
   p.list.onEnter = MailUI.Hover
   p.list:SetPoint("TOPLEFT", p, "TOPLEFT", 0, 0)
-  p.list:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 112)
+  p.list:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 132)
   p.detail = Th.Text(p, "body", 12, "text")
   p.detail:SetPoint("TOPLEFT", p.list, "BOTTOMLEFT", 4, -6)
-  p.detail:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -4, 34)
+  p.detail:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -4, 54)
   p.detail:SetJustifyH("LEFT")
   p.detail:SetJustifyV("TOP")
   p.detail:SetText(MailUI.HINT)
@@ -307,7 +313,7 @@ function MailUI.Create()
   end
   MailUI.win = f
   MailHook.window = f
-  Mailbox.OnChange = function() MailUI.dirty = true end
+  Mailbox.OnChange = function() MailUI.statusDirty = true end
   return f
 end
 
@@ -329,8 +335,21 @@ function MailUI.OnEvent(e)
 end
 
 -- Every frame (through Core.Safe)
+-- The list repaints on MAIL_INBOX_UPDATE (and when a chain ends); engine changes in between (every frame
+-- of a chain) only refresh the status line, footer and buttons.
 function MailUI.Tick()
-  if not MailUI.dirty then return end
-  MailUI.dirty = false
-  MailUI.Repaint()
+  local busy = Mailbox.busy and true or false
+  if MailUI.wasBusy and not busy then MailUI.dirty = true end
+  MailUI.wasBusy = busy
+  if MailUI.dirty then
+    MailUI.dirty, MailUI.statusDirty = false, false
+    MailUI.Repaint()
+  elseif MailUI.statusDirty then
+    MailUI.statusDirty = false
+    local f = MailUI.win
+    if not f or not f:IsShown() then return end
+    MailUI.RefreshStatus()
+    MailUI.RefreshFooter()
+    MailUI.UpdateBar()
+  end
 end
