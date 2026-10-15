@@ -183,3 +183,60 @@ T.test("Selling options: percentages, undercut as money, and the default duratio
   T.eq(DB.S().sell.duration, 120)
   T.eq(c[4].dd.label:GetText(), "6h")
 end)
+
+T.test("Sales options are bound to settings.sales", function()
+  local f = Opt.Create()
+  Opt.Select("sales")
+  local c = f.pages.sales.controls
+  T.eq(table.getn(c), 3)
+  c[1].slider:SetValue(60)
+  WoW.runScript(c[1].slider, "OnMouseUp")
+  T.eq(DB.S().sales.days, 60)
+  c[2].slider:SetValue(150)
+  WoW.runScript(c[2].slider, "OnMouseUp")
+  T.eq(DB.S().sales.warnPct, 150)
+  WoW.runScript(c[3], "OnClick")
+  T.eq(DB.S().sales.tooltip, false)
+  DB.S().sales.tooltip = true
+end)
+
+T.test("the undersupplied options are bound to settings.deals, with their ranges", function()
+  local f = Opt.Create()
+  Opt.Select("deals")
+  local c = f.pages.deals.controls
+  local n = table.getn(c)
+  WoW.runScript(c[n - 3], "OnClick")
+  T.eq(DB.S().deals.under, false)
+  c[n - 2].slider:SetValue(50)
+  WoW.runScript(c[n - 2].slider, "OnMouseUp")
+  T.eq(DB.S().deals.underPct, 50)
+  c[n - 1].slider:SetValue(125)
+  WoW.runScript(c[n - 1].slider, "OnMouseUp")
+  T.eq(DB.S().deals.premiumPct, 125)
+  local r = Opt.CATEGORIES
+  for _, cat in ipairs(r) do
+    if cat.key == "deals" then
+      local k = table.getn(cat.rows) - 1
+      T.eq(cat.rows[k - 1].min, 10) T.eq(cat.rows[k - 1].max, 90) T.eq(cat.rows[k - 1].step, 5)
+      T.eq(cat.rows[k].min, 100) T.eq(cat.rows[k].max, 150) T.eq(cat.rows[k].step, 5)
+    end
+    if cat.key == "sales" then
+      T.eq(cat.rows[1].min, 7) T.eq(cat.rows[1].max, 90)
+      T.eq(cat.rows[2].min, 100) T.eq(cat.rows[2].max, 200) T.eq(cat.rows[2].step, 10)
+    end
+  end
+  DB.S().deals.under, DB.S().deals.underPct, DB.S().deals.premiumPct = true, 33, 110
+end)
+
+T.test("the General page binds the bag right-click switch to settings.bagClick", function()
+  local f = Opt.Create()
+  Opt.Select("general")
+  local rows = Opt.CATEGORIES[1].rows
+  local idx
+  for i, row in ipairs(rows) do if row.key == "bagClick" then idx = i end end
+  T.ok(idx, "row exists")
+  T.eq(rows[idx].label, "Right-click bag items to search or sell")
+  WoW.runScript(f.pages.general.controls[idx], "OnClick")
+  T.eq(DB.S().bagClick, false)
+  DB.S().bagClick = true
+end)

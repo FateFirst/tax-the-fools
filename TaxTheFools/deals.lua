@@ -127,3 +127,51 @@ function Deals.Find(snapshot, ctx, s, me)
   end)
   return out
 end
+
+-- ---------- undersupplied (phase 4 spec section 4) ----------
+-- Pure: inp = { stats = { rate, n }, count = listings today, median = median listing count over
+-- the last 30 days, held, market, lowest = lowest unit price listed now }.
+-- Undersupplied: sells (rate >= 0.5 over n >= 3 results), little is listed (count at most underPct%
+-- of the median), and you hold some. suggest = floor(max(market, lowest) x premiumPct/100).
+function Deals.Under(key, inp, s)
+  if not s.under then return nil end
+  local st = inp.stats
+  if not st or not st.rate or st.rate < 0.5 or (st.n or 0) < 3 then return nil end
+  if not inp.median or inp.median <= 0 or not inp.count then return nil end
+  if inp.count * 100 > (s.underPct or 33) * inp.median then return nil end
+  if not inp.held or inp.held < 1 then return nil end
+  local base = inp.market
+  if inp.lowest and (not base or inp.lowest > base) then base = inp.lowest end
+  if not base or base <= 0 then return nil end
+  local suggest = math.floor(base * (s.premiumPct or 110) / 100)
+  local mv = inp.market
+  return { type = "under", key = key, held = inp.held, count = inp.held, suggest = suggest, unit = suggest,
+           market = mv, profit = inp.held * suggest * (1 - D.AH_CUT) }
+end
+
+-- Every undersupplied deal among the items you hold, best profit first. src = { held = { [key] = n },
+-- stats = function(key) -> Sales.Stats table, median = function(key) -> median listing count }.
+function Deals.FindUnder(snapshot, ctx, s, src)
+  local out = {}
+  if not snapshot or not snapshot.rows or not s.under then return out end
+  for key, held in pairs(src.held or {}) do
+    local rows = snapshot.rows[key] or {}
+    local lowest = nil
+    for _, row in ipairs(rows) do
+      local count, buyout = TaxTheFools.Scan.ParseSnapRow(row)
+      if count and count > 0 and buyout and buyout > 0 then
+        local unit = buyout / count
+        if not lowest or unit < lowest then lowest = unit end
+      end
+    end
+    local m = ctx.market[key]
+    local deal = Deals.Under(key, { stats = src.stats(key), count = table.getn(rows), median = src.median(key),
+                                    held = held, market = m and m.v, lowest = lowest }, s)
+    if deal then table.insert(out, deal) end
+  end
+  table.sort(out, function(a, b)
+    if a.profit ~= b.profit then return a.profit > b.profit end
+    return a.key < b.key
+  end)
+  return out
+end

@@ -1,13 +1,13 @@
 TaxTheFools = TaxTheFools or {}
 local U, Th, W, L, DB, Scan, UI = TaxTheFools.Util, TaxTheFools.Theme, TaxTheFools.Widgets, TaxTheFools.List,
   TaxTheFools.DB, TaxTheFools.Scan, TaxTheFools.UI
-local Auction, Deals, TS, I = TaxTheFools.Auction, TaxTheFools.Deals, TaxTheFools.TradeSkill, TaxTheFools.Items
+local Auction, Deals, TS, I, Inv, Price = TaxTheFools.Auction, TaxTheFools.Deals, TaxTheFools.TradeSkill, TaxTheFools.Items, TaxTheFools.Inventory, TaxTheFools.Price
 local DealsUI = { frame = nil }
 TaxTheFools.DealsUI = DealsUI
 
 DealsUI.RAIL = 150
 DealsUI.STALE_DAYS = 2
-DealsUI.TYPE = { market = "Market", vendor = "Vendor", mats = "Mats" }
+DealsUI.TYPE = { market = "Market", vendor = "Vendor", mats = "Mats", under = "Under" }
 DealsUI.CONFIDENCE = { { value = 0, label = "Low" }, { value = 0.4, label = "Medium" }, { value = 0.7, label = "High" } }
 
 local function money(v)
@@ -55,6 +55,10 @@ function DealsUI.RowTip(row, d)
   GameTooltip:SetOwner(row, "ANCHOR_CURSOR")
   GameTooltip:SetText(d.name, 1, 1, 1)
   if d.type == "mats" and d.recipe then GameTooltip:AddLine("Materials for " .. d.recipe, 0.78, 0.78, 0.74, 1) end
+  if d.type == "under" then
+    GameTooltip:AddLine("You hold " .. d.held .. ". Few are listed and it sells.", 0.78, 0.78, 0.74, 1)
+    GameTooltip:AddLine("Suggested price " .. U.money(d.suggest, true) .. " each.", 0.78, 0.78, 0.74, 1)
+  end
   if d.type == "market" and d.depositUnknown then GameTooltip:AddLine("Deposit unknown: profit may be a little lower.", 0.78, 0.78, 0.74, 1) end
   GameTooltip:Show()
 end
@@ -91,8 +95,10 @@ function DealsUI.BuildRail(p)
   p.marketSw:SetPoint("TOPLEFT", rail, "TOPLEFT", 0, 0)
   p.vendorSw:SetPoint("TOPLEFT", p.marketSw, "BOTTOMLEFT", 0, -2)
   p.matsSw:SetPoint("TOPLEFT", p.vendorSw, "BOTTOMLEFT", 0, -2)
+  p.underSw = sw(p, "Undersupplied", "under", "Items you hold that sell well and are scarce now. Sell opens the Sell tab.")
+  p.underSw:SetPoint("TOPLEFT", p.matsSw, "BOTTOMLEFT", 0, -2)
   p.belowSl = slider(p, "Below market", "belowMarketPct", 50, 95, 5, pct)
-  p.belowSl:SetPoint("TOPLEFT", p.matsSw, "BOTTOMLEFT", 0, -14)
+  p.belowSl:SetPoint("TOPLEFT", p.underSw, "BOTTOMLEFT", 0, -14)
   p.profitSl = slider(p, "Minimum profit", "minProfit", 0, 100000, 1000, function(v) return U.money(v) end)
   p.profitSl:SetPoint("TOPLEFT", p.belowSl, "BOTTOMLEFT", 0, -8)
   p.matSl = slider(p, "Materials", "matPct", 50, 100, 5, pct)
@@ -103,6 +109,10 @@ function DealsUI.BuildRail(p)
   p.confDD = W.Dropdown(rail, DealsUI.RAIL, DealsUI.CONFIDENCE, function() return DB.S().deals.minConfidence end,
     function(v) DB.S().deals.minConfidence = v DealsUI.Paint() end)
   p.confDD:SetPoint("TOPLEFT", p.confLabel, "BOTTOMLEFT", 0, -4)
+  p.underSl = slider(p, "Listed at most", "underPct", 10, 90, 5, pct)
+  p.underSl:SetPoint("TOPLEFT", p.confDD, "BOTTOMLEFT", 0, -8)
+  p.premiumSl = slider(p, "Suggest at", "premiumPct", 100, 150, 5, pct)
+  p.premiumSl:SetPoint("TOPLEFT", p.underSl, "BOTTOMLEFT", 0, -8)
 end
 
 function DealsUI.Build(parent)
@@ -149,9 +159,17 @@ function DealsUI.Paint()
   local text, token = DealsUI.BannerText(Scan.SnapshotAge(U.day(time())))
   p.banner:SetText(text)
   Th.Color(p.banner, token)
-  for _, c in ipairs({ p.marketSw, p.vendorSw, p.matsSw, p.belowSl, p.profitSl, p.matSl, p.confDD }) do c:Refresh() end
+  for _, c in ipairs({ p.marketSw, p.vendorSw, p.matsSw, p.underSw, p.belowSl, p.profitSl, p.matSl, p.confDD,
+    p.underSl, p.premiumSl }) do c:Refresh() end
   local keep = p.list.selected and Auction.Sig(p.list.selected)
-  local deals = Deals.Find(snap, TS.Context(), DB.S().deals, DB.charName)
+  local ctx = TS.Context()
+  local deals = Deals.Find(snap, ctx, DB.S().deals, DB.charName)
+  for _, u in ipairs(Deals.FindUnder(snap, ctx, DB.S().deals, DealsUI.UnderSource(ctx))) do table.insert(deals, u) end
+  table.sort(deals, function(a, b)
+    if a.profit ~= b.profit then return a.profit > b.profit end
+    if a.key ~= b.key then return a.key < b.key end
+    return (a.buyout or 0) < (b.buyout or 0)
+  end)
   p.list:SetData(DealsUI.Decorate(deals))
   for _, d in ipairs(p.list.data) do
     if same(keep, Auction.Sig(d)) then p.list.selected = d end
@@ -159,6 +177,19 @@ function DealsUI.Paint()
   p.list:Paint()
   if not p.list.selected then p.found = false end
   DealsUI.UpdateBar()
+end
+
+-- Holdings, sell-rate stats over the Sales window and the median listing count per key.
+function DealsUI.UnderSource(ctx)
+  local realm, now, today = DB.Realm(), time(), U.day(time())
+  return {
+    held = ctx.held,
+    stats = function(key) return TaxTheFools.Sales.Stats(realm.chars, key, DB.S().sales.days, now) end,
+    median = function(key)
+      local m = Price.Market(realm.history[key], today)
+      return m and m.n
+    end,
+  }
 end
 
 function DealsUI.Selected(item)
@@ -182,6 +213,12 @@ function DealsUI.UpdateBar()
   -- A Find that was cut off without telling us must not leave the button dead.
   if p.searching and not Scan.Busy() then p.searching = false end
   local d = p.list.selected or nil
+  if d and d.type == "under" then
+    p.findBtn:SetLabel("Sell")
+    p.findBtn:SetEnabled(not p.searching)
+    W.Tip(p.findBtn, "Sell", "Open the Sell tab with this item selected.")
+    return
+  end
   local found = d and p.found and same(p.found.sig, Auction.Sig(d))
   if found then
     local why = DealsUI.WhyNot(d)
@@ -200,8 +237,23 @@ function DealsUI.Click()
   local p = DealsUI.frame
   local d = p.list.selected
   if not d or p.searching then return false end
+  if d.type == "under" then return DealsUI.Sell(d) end
   if p.found and same(p.found.sig, Auction.Sig(d)) then return DealsUI.Buy(d) end
   return DealsUI.Find(d)
+end
+
+-- Switches to the Sell tab and selects the item. Never a buy, a search or a post.
+function DealsUI.Sell(d)
+  -- The tab strip owns the highlight and calls UI.ShowPage("sell") itself.
+  if UI.ah and UI.ah.tabs then UI.ah.tabs:Select("sell") else UI.ShowPage("sell") end
+  local SellUI = TaxTheFools.SellUI
+  local it = SellUI.Find(d.key)
+  if not it then
+    SellUI.Refresh()
+    it = SellUI.Find(d.key)
+  end
+  if it then SellUI.Select(it) else SellUI.Say("Can't auction that", "warn") end
+  return true
 end
 
 -- Paging is a scan, never a buy: nothing here reaches Auction.Buy.

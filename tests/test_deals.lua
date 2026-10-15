@@ -126,3 +126,89 @@ T.test("your own listings are excluded, switched-off types are excluded, results
   T.eq(r[1].owner, "Al") T.eq(r[3].key, "200:0")
   T.eq(table.getn(Dl.Find(sn, ctx, S({ vendor = false }), "Me")), 0, "vendor off")
 end)
+
+-- ---------- undersupplied (phase 4) ----------
+-- One key, 100:0. Defaults: rate >= 0.5, n >= 3, listings today <= 33% of the median, held >= 1.
+local function U(o)
+  local i = { stats = { rate = 0.6, n = 4 }, count = 1, median = 6, held = 5, market = 1000, lowest = 900 }
+  for k, v in pairs(o or {}) do i[k] = v end
+  return i
+end
+local function US(o)
+  local s = { under = true, underPct = 33, premiumPct = 110 }
+  for k, v in pairs(o or {}) do s[k] = v end
+  return s
+end
+
+T.test("undersupplied: suggest is max(market, lowest) x premium, profit is held x suggest x 0.95", function()
+  -- market 1000 beats lowest 900: suggest = floor(1000*110/100) = 1100; profit = 5*1100*0.95 = 5225.
+  local d = Dl.Under("100:0", U(), US())
+  T.eq(d.type, "under") T.eq(d.key, "100:0") T.eq(d.held, 5) T.eq(d.suggest, 1100)
+  T.near(d.profit, 5225, 0.001)
+  -- lowest 1500 beats market 1000: suggest = floor(1500*1.1) = 1650; held 3: 3*1650*0.95 = 4702.5.
+  d = Dl.Under("100:0", U({ lowest = 1500, held = 3 }), US())
+  T.eq(d.suggest, 1650) T.near(d.profit, 4702.5, 0.001)
+  -- floor: market 1001 * 1.10 = 1101.1 -> 1101; held 2: 2*1101*0.95 = 2091.9.
+  d = Dl.Under("100:0", U({ market = 1001, lowest = false, held = 2 }), US())
+  T.eq(d.suggest, 1101) T.near(d.profit, 2091.9, 0.001)
+  -- premium 125 on market 1000 = 1250; nobody listed (lowest nil) still works from the market alone.
+  T.eq(Dl.Under("100:0", U({ lowest = false }), US({ premiumPct = 125 })).suggest, 1250)
+end)
+
+T.test("undersupplied: the sell rate must be at least 0.5", function()
+  T.ok(Dl.Under("100:0", U({ stats = { rate = 0.5, n = 4 } }), US()), "exactly 0.5 counts")
+  T.eq(Dl.Under("100:0", U({ stats = { rate = 0.49, n = 4 } }), US()), nil)
+  T.eq(Dl.Under("100:0", U({ stats = { n = 0 } }), US()), nil, "no rate at all")
+  T.eq(Dl.Under("100:0", U({ stats = false }), US()), nil)
+end)
+
+T.test("undersupplied: at least 3 results", function()
+  T.ok(Dl.Under("100:0", U({ stats = { rate = 1, n = 3 } }), US()), "exactly 3 counts")
+  T.eq(Dl.Under("100:0", U({ stats = { rate = 1, n = 2 } }), US()), nil)
+end)
+
+T.test("undersupplied: listings today at most underPct of the median, compared exactly", function()
+  -- 2 of 4 is 50%: 2*100 <= 50*4 holds, 3 of 4 does not.
+  T.ok(Dl.Under("100:0", U({ count = 2, median = 4 }), US({ underPct = 50 })), "exactly at the limit")
+  T.eq(Dl.Under("100:0", U({ count = 3, median = 4 }), US({ underPct = 50 })), nil)
+  -- default 33%: 2 of 6 = 33.3% is over, 1 of 6 is under, 0 listed is under.
+  T.eq(Dl.Under("100:0", U({ count = 2, median = 6 }), US()), nil)
+  T.ok(Dl.Under("100:0", U({ count = 0, median = 6 }), US()))
+  T.eq(Dl.Under("100:0", U({ median = false }), US()), nil, "no median, no deal")
+  T.eq(Dl.Under("100:0", U({ median = 0 }), US()), nil)
+end)
+
+T.test("undersupplied: you must hold at least one, and the switch must be on", function()
+  T.ok(Dl.Under("100:0", U({ held = 1 }), US()))
+  T.eq(Dl.Under("100:0", U({ held = 0 }), US()), nil)
+  T.eq(Dl.Under("100:0", U({ held = false }), US()), nil)
+  T.eq(Dl.Under("100:0", U(), US({ under = false })), nil)
+  T.eq(Dl.Under("100:0", U({ market = false, lowest = false }), US()), nil, "no price to suggest from")
+end)
+
+T.test("FindUnder walks the holdings, reads the snapshot count and lowest, sorts by profit", function()
+  -- 100:0 held 5, 2 listings (lowest 800/2 = 400 each, 900 -> 900); median 8 so 2 of 8 = 25%.
+  -- 200:0 held 1, no listings, median 3; market 500: suggest 550, profit 522.5.
+  -- 300:0 held 4 but sells badly; 400:0 held 2 but 5 of 6 listed.
+  local sn = { rows = { ["100:0"] = { "2|800|0|A", "1|900|0|B" },
+                        ["400:0"] = { "1|10|0|A", "1|10|0|A", "1|10|0|A", "1|10|0|A", "1|10|0|A" } } }
+  local ctx = ctxOf({ ["100:0"] = { v = 1000 }, ["200:0"] = { v = 500 }, ["300:0"] = { v = 500 }, ["400:0"] = { v = 500 } })
+  local src = {
+    held = { ["100:0"] = 5, ["200:0"] = 1, ["300:0"] = 4, ["400:0"] = 2 },
+    stats = function(key)
+      if key == "300:0" then return { rate = 0.2, n = 9 } end
+      return { rate = 0.8, n = 5 }
+    end,
+    median = function(key)
+      if key == "100:0" then return 8 elseif key == "200:0" then return 3 end
+      return 6
+    end,
+  }
+  local r = Dl.FindUnder(sn, ctx, US(), src)
+  -- 100:0: lowest unit = 400, market 1000 wins: suggest 1100, profit 5*1100*0.95 = 5225.
+  T.eq(table.getn(r), 2)
+  T.eq(r[1].key, "100:0") T.near(r[1].profit, 5225, 0.001) T.eq(r[1].suggest, 1100)
+  T.eq(r[2].key, "200:0") T.near(r[2].profit, 522.5, 0.001)
+  T.eq(table.getn(Dl.FindUnder(sn, ctx, US({ under = false }), src)), 0)
+  T.eq(table.getn(Dl.FindUnder(nil, ctx, US(), src)), 0, "no snapshot")
+end)

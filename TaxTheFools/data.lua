@@ -39,7 +39,7 @@ D.DEFAULTS = {
     tooltip = { market = true, low = true, vendor = true },
     craft = { autoWatch = true, staleDays = 7 },
     deals = { market = true, vendor = true, mats = true, belowMarketPct = 70, minProfit = 5000, matPct = 85,
-              minConfidence = 0.4 },
+              minConfidence = 0.4, under = true, underPct = 33, premiumPct = 110 },
     buy = { confirmAbove = 50000 },        -- copper; 0 never asks
     sell = { bidPct = 90, floorPct = 80, undercut = 1, duration = 480 },
     bagClick = true,                       -- right-click a bag item at the AH: search (Browse) or select (Sell)

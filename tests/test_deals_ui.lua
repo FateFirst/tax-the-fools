@@ -55,7 +55,7 @@ local function types(p)
 end
 
 T.test("Deals is the first tab and registered as a builder", function()
-  T.eq(UI.TABS[1].key, "deals") T.eq(UI.TABS[2].key, "browse") T.eq(UI.TABS[3].key, "sell") T.eq(UI.TABS[4].key, "auctions") T.eq(UI.TABS[5].key, "craft")
+  T.eq(UI.TABS[1].key, "deals") T.eq(UI.TABS[2].key, "browse") T.eq(UI.TABS[3].key, "sell") T.eq(UI.TABS[4].key, "auctions") T.eq(UI.TABS[5].key, "history") T.eq(UI.TABS[6].key, "craft")
   T.ok(UI.builders.deals)
 end)
 
@@ -307,4 +307,82 @@ T.test("a failed buy confirmed in the window also reports back to Find", functio
   T.eq(p.findBtn.label:GetText(), "FIND")
   WoW.ah.bidReply = "auto"
   DB.S().buy.confirmAbove = 50000
+end)
+
+-- ---------- undersupplied deals (phase 4) ----------
+-- Runecloth 14047:0 held 5 (bag), market 1000, 1 listing in the snapshot (the 20|8000 deal group is
+-- replaced), median 6 listings, 4 results of which 3 sold (rate 0.75).
+-- suggest = floor(max(1000, 400) * 110/100) = 1100; profit = 5 * 1100 * 0.95 = 5225.
+local function seedUnder()
+  local realm = DB.Realm()
+  realm.market["14047:0"] = { v = 1000, conf = 0.8 }
+  A.Items.Remember(14047, "Runecloth", 1, 20)
+  realm.snapshot = { at = time(), day = A.Util.day(time()), rows = { ["14047:0"] = { "1|400|0|Bob" } } }
+  local today = A.Util.day(time())
+  realm.history["14047:0"] = { days = { [today - 1] = { p25 = 1000, n = 6 }, [today - 2] = { p25 = 1000, n = 6 },
+                                         [today - 3] = { p25 = 1000, n = 6 } } }
+  realm.chars[DB.charName] = realm.chars[DB.charName] or {}
+  local c = realm.chars[DB.charName]
+  c.bags = { ["14047:0"] = 5 }
+  c.sales = {}
+  local out = { "sold", "sold", "sold", "expired" }
+  for i = 1, 4 do table.insert(c.sales, { key = "14047:0", outcome = out[i], money = 1000, at = time() - 3600 }) end
+end
+
+local function underPage()
+  seedUnder()
+  local p = page()
+  return p
+end
+
+local function underRow(p)
+  for i, d in ipairs(p.list.data) do if d.type == "under" then return i, d end end
+end
+
+T.test("an undersupplied item shows as an Under row with its profit", function()
+  local p = underPage()
+  local i, d = underRow(p)
+  T.ok(i, "Under row present")
+  T.eq(d.typeLabel, "Under") T.eq(d.suggest, 1100) T.eq(d.held, 5) T.near(d.profit, 5225, 0.001)
+  T.eq(p.list.rows[i].cells[8]:GetText(), "Under")
+end)
+
+T.test("the Under switch and sliders write settings.deals and refresh the list", function()
+  local p = underPage()
+  T.ok(underRow(p))
+  WoW.runScript(p.underSw, "OnClick")
+  T.eq(DB.S().deals.under, false)
+  T.eq(underRow(p), nil)
+  WoW.runScript(p.underSw, "OnClick")
+  T.ok(underRow(p))
+  p.underSl.slider:SetValue(10)
+  WoW.runScript(p.underSl.slider, "OnMouseUp")
+  T.eq(DB.S().deals.underPct, 10)
+  -- 1 listing of a median 6 is 16.7%: over 10%, so the row goes.
+  T.eq(underRow(p), nil)
+  p.underSl.slider:SetValue(33)
+  WoW.runScript(p.underSl.slider, "OnMouseUp")
+  p.premiumSl.slider:SetValue(150)
+  WoW.runScript(p.premiumSl.slider, "OnMouseUp")
+  T.eq(DB.S().deals.premiumPct, 150)
+  local _, d = underRow(p)
+  T.eq(d.suggest, 1500)          -- floor(1000 * 150/100)
+  DB.S().deals.premiumPct = 110
+end)
+
+T.test("Sell on an Under deal switches to the Sell tab and selects it, with no buy call", function()
+  local p = underPage()
+  WoW.items[14047] = { name = "Runecloth", stack = 20, quality = 1, tex = "rune" }
+  WoW.bags[0] = { { id = 14047, name = "Runecloth", count = 20, vendor = 100 }, {}, {} }
+  local _, ud = underRow(p)
+  p.list.selected = ud
+  A.DealsUI.UpdateBar()
+  T.eq(p.findBtn.label:GetText(), "SELL")
+  WoW.runScript(p.findBtn, "OnClick")
+  T.eq(UI.ah.tabs.selected, "sell")
+  T.ok(A.SellUI.frame.sel)
+  T.eq(A.SellUI.frame.sel.key, "14047:0")
+  T.eq(T.count("PlaceAuctionBid"), 0) T.eq(T.count("QueryAuctionItems"), 0)
+  T.eq(T.count("StartAuction"), 0)
+  UI.ah.tabs:Select("deals")
 end)
