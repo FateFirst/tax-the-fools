@@ -314,7 +314,7 @@ function W.Chart(parent, w, h)
     b:SetScript("OnEnter", function()
       if not this.day then return end
       GameTooltip:SetOwner(this, "ANCHOR_CURSOR")
-      GameTooltip:SetText(date("%d %b", this.day * 86400), 1, 1, 1)
+      GameTooltip:SetText(date("!%d %b", this.day * 86400), 1, 1, 1)
       GameTooltip:AddLine(U.money(this.price), 0.78, 0.78, 0.74)
       GameTooltip:Show()
     end)

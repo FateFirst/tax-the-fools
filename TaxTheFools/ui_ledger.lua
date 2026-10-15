@@ -24,7 +24,7 @@ end
 
 LedgerUI.DAY_COLUMNS = {
   { label = "Date", width = 64, sort = "day", desc = true,
-    fmt = function(r) return date("%m-%d", r.day * 86400 + 43200) end },
+    fmt = function(r) return date("!%d %b", r.day * 86400) end },
   { label = "Sales", width = 84, align = "RIGHT", sort = "sale", fmt = function(r) return money(r.sale) end },
   { label = "Buys", width = 84, align = "RIGHT", sort = "buy", fmt = function(r) return money(r.buy) end },
   { label = "Deposits", width = 84, align = "RIGHT", sort = "deposit", fmt = function(r) return money(r.deposit) end },
