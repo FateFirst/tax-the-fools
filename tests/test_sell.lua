@@ -13,11 +13,20 @@ end)
 
 T.test("suggest undercuts the cheapest listing at or above the floor", function()
   -- market 1000, floor 80% = 800. Listings 700 (below floor), 800 (exactly at it), 900.
-  -- cheapest eligible = 800, undercut 1 -> 799. bid = floor(799*0.9) = floor(719.1) = 719.
+  -- cheapest eligible = 800, undercut 1 -> 799, clamped up to the floor 800. bid = floor(800*0.9) = 720.
   local r = S.Suggest({ L(900), L(700), L(800) }, 1000, 50, opts())
-  T.eq(r.source, "undercut") T.eq(r.buyout, 799) T.eq(r.bid, 719) T.eq(r.floor, 800)
+  T.eq(r.source, "undercut") T.eq(r.buyout, 800) T.eq(r.bid, 720) T.eq(r.floor, 800)
   -- 799 is not enough: the 800 listing is the only one that counts.
   T.eq(S.Suggest({ L(799), L(1200) }, 1000, 50, opts()).buyout, 1199, "799 < floor 800 is skipped")
+end)
+
+T.test("suggest never goes below the floor", function()
+  -- market 1000, floor 800. Listing at 850, undercut 5 -> 845 (above the floor, kept).
+  T.eq(S.Suggest({ L(850) }, 1000, nil, opts({ undercut = 5 })).buyout, 845)
+  -- undercut 60 -> 790, clamped to 800.
+  T.eq(S.Suggest({ L(850) }, 1000, nil, opts({ undercut = 60 })).buyout, 800)
+  -- listing at exactly 800, undercut 1 -> 799, clamped to 800.
+  T.eq(S.Suggest({ L(800) }, 1000, nil, opts()).buyout, 800)
 end)
 
 T.test("suggest ignores your own listings", function()
@@ -74,6 +83,8 @@ T.test("stacks counts whole stacks and clamps to the maximum", function()
   T.eq(S.Stacks(7, 20, 20), 0)          -- not enough for one
   T.eq(S.Stacks(7, 1, 1), 7)
   T.eq(S.Stacks(0, 5, 20), 0)
+  T.eq(S.Stacks(10, nil, 20), 0, "no stack size")
+  T.eq(S.Stacks(10, 5, nil), 2, "no maximum")
 end)
 
 T.test("net is the buyout less the 5% cut and the deposit", function()

@@ -35,6 +35,7 @@ function Sell.Suggest(listings, market, vendorSell, s)
   local out = { floor = floor }
   if cheapest then
     out.buyout, out.source = cheapest - undercut, "undercut"
+    if floor and out.buyout < floor then out.buyout = floor end
   elseif market then
     out.buyout, out.source = market, "market"
   elseif vendorSell then
@@ -50,8 +51,8 @@ end
 
 -- How many stacks of stackSize the units held make (a stack above maxStack is clamped).
 function Sell.Stacks(have, stackSize, maxStack)
-  if maxStack and stackSize > maxStack then stackSize = maxStack end
   if not stackSize or stackSize < 1 or not have or have < 1 then return 0 end
+  if maxStack and stackSize > maxStack then stackSize = maxStack end
   return math.floor(have / stackSize)
 end
 
