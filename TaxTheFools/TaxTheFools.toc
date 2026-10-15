@@ -7,10 +7,12 @@
 ## SavedVariablesPerCharacter: TaxTheFoolsCharDB
 
 data.lua
+recipedata.lua
 util.lua
 stats.lua
 price.lua
 craft.lua
+recipes.lua
 deals.lua
 sell.lua
 sales.lua
