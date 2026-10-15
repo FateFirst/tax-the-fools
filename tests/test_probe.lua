@@ -3,7 +3,7 @@ local Probe = TaxTheFools.Probe
 T.test("the probe reports which API functions this client has", function()
   local all = table.concat(Probe.Lines(), "\n")
   T.ok(string.find(all, "fn QueryAuctionItems yes", 1, true), all)
-  T.ok(string.find(all, "fn GetInboxInvoiceInfo MISSING", 1, true), all)
+  T.ok(string.find(all, "fn GetInboxItem MISSING", 1, true), all)
   T.ok(string.find(all, "realm Medivh", 1, true), all)
 end)
 

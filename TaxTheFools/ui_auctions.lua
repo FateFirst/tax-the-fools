@@ -78,6 +78,8 @@ function AuctionsUI.Read()
   p.total = total or n
   p.list:SetData(rows)
   AuctionsUI.Paint()
+  -- Auctions made outside the addon still get a posting, so a later sale can be matched.
+  TaxTheFools.Core.Safe("sales", TaxTheFools.Sales.Reconcile, DB.Char(), rows, time())
 end
 
 function AuctionsUI.Request() GetOwnerAuctionItems(0) end

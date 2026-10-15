@@ -217,6 +217,7 @@ function WoW.reset()
   WoW.bags = {}
   WoW.merchantOpen = false
   WoW.merchant = {}
+  WoW.mail = {}
   WoW.bankOpen = false
   WoW.tradeskill = { name = "Tailoring", rank = 0, maxRank = 0, selected = 0, rows = {} }
   WoW.rejectFonts = false
@@ -455,6 +456,31 @@ function WoW.clickBag(b, mouse)
 end
 -- Merchant: WoW.merchant[i] = { id=, name=, price=, quantity=, numAvailable=, noLink= }.
 -- price is for the whole lot of `quantity` units; numAvailable -1 means unlimited stock.
+-- ---------- scripted mailbox ----------
+-- Tests put mails in WoW.mail: { subject=, money=, cod=, daysLeft=, hasItem=, sender=, wasRead= }.
+-- GetInboxNumItems() and GetInboxHeaderInfo(index) are logged so a test can count reads.
+-- 1.12 GetInboxHeaderInfo(index) returns: packageIcon, stationeryIcon, sender, subject, money, CODAmount,
+-- daysLeft, hasItem, wasRead, wasReturned, textCreated, canReply, isGM (wowwiki, API GetInboxHeaderInfo).
+function GetInboxNumItems() WoW.log("GetInboxNumItems") return table.getn(WoW.mail) end
+function GetInboxHeaderInfo(i)
+  WoW.log("GetInboxHeaderInfo", i)
+  local m = WoW.mail[i]
+  if not m then return nil end
+  return "Interface\\Icons\\INV_Misc_Note_01", "Interface\\Icons\\INV_Misc_Note_01", m.sender or "Auction House",
+    m.subject, m.money or 0, m.cod or 0, m.daysLeft or 30, m.hasItem, m.wasRead, nil, nil, nil, nil
+end
+-- Calls that open, read the invoice of, collect from or delete mail. The addon never makes them (opening
+-- mail marks it read and shortens its expiry; collecting is left to TurtleMail), so they are only logged.
+-- Signatures as in 1.12 MailFrame.lua / FrameXML: GetInboxText(index), GetInboxInvoiceInfo(index),
+-- TakeInboxMoney(index), TakeInboxItem(index), DeleteInboxItem(index), ReturnInboxItem(index).
+function GetInboxText(i) WoW.log("GetInboxText", i) end
+function GetInboxInvoiceInfo(i) WoW.log("GetInboxInvoiceInfo", i) end
+function TakeInboxMoney(i) WoW.log("TakeInboxMoney", i) end
+function TakeInboxItem(i) WoW.log("TakeInboxItem", i) end
+function DeleteInboxItem(i) WoW.log("DeleteInboxItem", i) end
+function ReturnInboxItem(i) WoW.log("ReturnInboxItem", i) end
+-- Events: MAIL_SHOW (mailbox opened), MAIL_INBOX_UPDATE (fires several times on first open), MAIL_CLOSED.
+
 function GetMerchantNumItems() return table.getn(WoW.merchant) end
 function GetMerchantItemInfo(i)
   local m = WoW.merchant[i]
@@ -754,6 +780,13 @@ ERR_AUCTION_BID_OWN = "You cannot bid on your own auction."
 ERR_AUCTION_DATABASE_ERROR = "Internal auction error."
 ERR_AUCTION_STARTED = "Auction created."
 ERR_AUCTION_REMOVED = "Auction cancelled."
+ERR_AUCTION_SOLD_S = "Your auction of %s sold."
+-- Mail subject formats as the probe read them from the client.
+AUCTION_SOLD_MAIL_SUBJECT = "Auction successful: %s"
+AUCTION_EXPIRED_MAIL_SUBJECT = "Auction expired: %s"
+AUCTION_REMOVED_MAIL_SUBJECT = "Auction cancelled: %s"
+AUCTION_WON_MAIL_SUBJECT = "Auction won: %s"
+AUCTION_OUTBID_MAIL_SUBJECT = "Outbid on %s"
 ERR_AUCTION_LIMITED_DURATION_ITEM = "Items with a limited duration cannot be auctioned."
 ERR_AUCTION_REPAIR_ITEM = "You must repair that item first."
 ERR_AUCTION_USED_CHARGES = "Items with used charges cannot be auctioned."

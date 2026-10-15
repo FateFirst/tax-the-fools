@@ -252,7 +252,8 @@ T.test("selling and auctions: nothing posts, cancels, splits or bids without a c
     end
   end
   local function quiet(why)
-    for _, name in ipairs({ "StartAuction", "CancelAuction", "SplitContainerItem", "PlaceAuctionBid" }) do
+    for _, name in ipairs({ "StartAuction", "CancelAuction", "SplitContainerItem", "PlaceAuctionBid", "GetInboxText",
+                            "GetInboxInvoiceInfo", "TakeInboxMoney", "TakeInboxItem", "DeleteInboxItem", "ReturnInboxItem" }) do
       T.eq(T.count(name), 0, why .. ": " .. name)
     end
   end
@@ -309,5 +310,14 @@ T.test("selling and auctions: nothing posts, cancels, splits or bids without a c
   pump()
   T.eq(T.count("SplitContainerItem"), 1)
   T.eq(T.count("StartAuction"), 0)
+  WoW.calls = {}
+  -- the mailbox: AH mail is read from headers only, however many update events arrive
+  WoW.mail = { { subject = "Auction successful: Runecloth", money = 3800, daysLeft = 29.5 },
+               { subject = "Auction expired: Runecloth", money = 0, daysLeft = 28, hasItem = 1 } }
+  WoW.fire("MAIL_SHOW")
+  WoW.fire("MAIL_INBOX_UPDATE") WoW.fire("MAIL_INBOX_UPDATE")
+  pump()
+  T.ok(T.count("GetInboxHeaderInfo") >= 2, "the headers were read")
+  quiet("mailbox open with AH mail")
   UI.ah.tabs:Select("browse")
 end)
