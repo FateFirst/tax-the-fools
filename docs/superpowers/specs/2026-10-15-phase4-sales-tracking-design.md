@@ -29,7 +29,7 @@ Parent spec: `docs/superpowers/specs/2026-10-14-tax-the-fools-design.md` (§7 un
 
   The probe showed the strings: "Auction successful: %s", "Auction expired: %s", "Auction cancelled: %s", "Auction won: %s" and "Outbid on %s". Escape the pattern's magic characters, then replace `%s` with `(.+)`. The result is `outcome, itemName` or nil.
 - **De-duplication:**
-  - Key: `subject .. "|" .. money .. "|" .. floor((time() - daysLeft*86400)/3600)` (the arrival hour, which survives relogs). It is stored per character in `char.seenMail[key] = at`.
+  - Key: `subject .. "|" .. money .. "|" .. floor((time() + daysLeft*86400)/3600)` (the expiry hour, which stays the same across visits and relogs; `time() - daysLeft*86400` would drift by two hours per hour played). It is stored per character in `char.seenMail[key] = at`.
   - A key already seen is skipped.
   - `seenMail` is pruned with sales (older than 120 days).
 - **Recording:** a new sold, expired or cancelled mail calls `Sales.Record(char, outcome, itemName, money, now)`. Won and outbid are recorded for the History tab but don't affect sell rates.
