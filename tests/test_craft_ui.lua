@@ -564,7 +564,7 @@ T.test("Snipe these adds every AH line at its unit price and buys nothing", func
   T.eq(e.max, 300)
   T.eq(e.name, "Silk Cloth")
   T.eq(DB.Realm().snipe["2321:0"], nil, "vendor lines are not sniped")
-  T.eq(p.detail.status:GetText(), "Added 1 items to your snipe list")
+  T.eq(p.detail.status:GetText(), "Added 1 item to your snipe list")
   noBuying()
 end)
 

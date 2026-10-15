@@ -243,7 +243,7 @@ function CraftUI.SnipeThese(p)
     end
   end
   if n == 0 then p.detail.status:SetText("No auction house items to add")
-  else p.detail.status:SetText("Added " .. n .. " items to your snipe list") end
+  else p.detail.status:SetText("Added " .. n .. (n == 1 and " item" or " items") .. " to your snipe list") end
   return n
 end
 
