@@ -351,3 +351,28 @@ The trainer and vendor windows are only read. Nothing is bought from them; buy a
 142. **Stock refresh.** With Stock open, move an item into the bank, post a stack, or finish a scan: the
      list and totals update. Pick an item on Bags, switch to Stock and back: the pricing panel and your
      selection are as you left them.
+
+## Device sync (phase 9)
+
+Needs the Supabase project and ttf-sync set up as in `docs/sync.md`.
+
+143. **Set up the PC.** Run `ttf-sync setup`, then `ttf-sync init`. It prints a sync key; keep it. `ttf-sync status`
+     shows the device, the server version and a last sync time.
+144. **Join the laptop and the Deck.** On each, run `ttf-sync setup`, then `ttf-sync join` with the key.
+     `ttf-sync status` on each lists all three devices.
+145. **Scan on the PC, play on the laptop.** Scan on the PC, quit WoW and wait for the sync. Start WoW on the laptop
+     through ttf-sync: hover an item and the scanned prices are there.
+146. **Sell on the laptop.** Sell something, collect the mail, quit. Start the PC: History shows the sale.
+147. **Removals stick.** Remove a snipe item (and a watch and keep item) on one device. Sync everywhere: it stays
+     removed on the others and does not come back.
+148. **Steam Deck launch.** Start WoW from Steam on the Deck with the launch option from `docs/sync.md`. It syncs
+     before the game starts and again after you quit, and the game opens normally.
+149. **Windows shortcut.** Start WoW from the shortcut that runs `ttf-sync run` with Start in set to the WoW
+     folder. It syncs, starts the game, and syncs again after you quit.
+150. **Refuses while WoW is open.** With WoW running, run `ttf-sync sync`. It refuses to write and says why; the
+     save file is unchanged.
+151. **`/ttf sync`.** In game, `/ttf sync` shows when this device last synced.
+152. **`ttf-sync status`.** It shows the setup, the last sync, the log and the result of the last run (try it after
+     a failed sync, such as with no network).
+153. **Restore.** Run `ttf-sync restore`, pick a backup: the save file is replaced (at most 5 are kept), and the
+     next sync merges it as usual.

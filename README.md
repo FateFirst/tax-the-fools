@@ -154,6 +154,21 @@ click. The only things that run by themselves are a scan turning pages and readi
 headers of auction mail. Phase 5 (recipe payback and the mailbox) is done. Next is in-game
 testing and polish.
 
+## Sync between devices (PC, laptop, Steam Deck)
+
+Tax the Fools can keep your scans, prices, sales, ledger, snipe list and settings the same on
+every device you play on. A small helper program, **ttf-sync**, merges the save files through a
+free Supabase project that only you own, each time you start and quit WoW.
+
+It needs that Supabase project and the ttf-sync program (built with `make sync-build`, or
+downloaded from the GitHub release). Setup takes about 10 minutes; see [docs/sync.md](docs/sync.md).
+
+- It never writes your save file while WoW is open.
+- It keeps the last 5 backups of your save file, and `ttf-sync restore` puts one back.
+- `/ttf sync` in game shows when this device last synced.
+
+A website to browse your data may come later.
+
 ## Commands
 
     /ttf options              settings
@@ -165,6 +180,7 @@ testing and polish.
     /ttf show                 bring the auction window back
     /ttf probe                copyable dump of what this client supports
     /ttf debug                debug messages and stack traces
+    /ttf sync                 when this device last synced
 
 ## Develop
 
@@ -172,6 +188,8 @@ testing and polish.
     make media     regenerates the textures
     make fonts     re-downloads the bundled fonts
     make recipes   regenerates the built-in Tailoring recipe data from LibCrafts-1.0
+    make sync-test   runs the Go tests for ttf-sync
+    make sync-build  builds ttf-sync 1.0.0 for Windows and Linux into sync/dist/
 
 Run `docs/testing-checklist.md` in game after every install.
 
