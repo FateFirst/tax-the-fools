@@ -45,3 +45,16 @@ func TestScanProc(t *testing.T) {
 		t.Fatal("cmdline argv0 not seen")
 	}
 }
+
+func TestIsWoWRunningFailsClosed(t *testing.T) {
+	orig := Check
+	defer func() { Check = orig }()
+	Check = func() (bool, error) { return false, os.ErrPermission }
+	if !IsWoWRunning() {
+		t.Error("an unknown state must count as running")
+	}
+	Check = func() (bool, error) { return false, nil }
+	if IsWoWRunning() {
+		t.Error("not running")
+	}
+}

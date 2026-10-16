@@ -86,6 +86,21 @@ func Sync(d Deps) (Result, error) {
 	}
 	path := paths.SavedVars(c.WoWPath, c.Account)
 
+	// After the game: WoW writes its SavedVariables as it exits, so wait for it to be gone
+	// before reading anything. If it never goes, do nothing at all; the next sync catches up.
+	if d.WaitForExit > 0 && d.wowRunning() {
+		d.printf("WoW is still running: waiting up to %s for it to exit...\n", d.WaitForExit)
+		deadline := d.Now().Add(d.WaitForExit)
+		for d.wowRunning() && d.Now().Before(deadline) {
+			d.Sleep(time.Second)
+		}
+		if d.wowRunning() {
+			d.printf("WoW is still running after %s: skipping this sync (nothing read, written or pushed). The next sync will catch up.\n", d.WaitForExit)
+			res.Skipped = true
+			return res, nil
+		}
+	}
+
 	// 1. local
 	vars := map[string]luasv.Value{}
 	haveFile := false
@@ -166,7 +181,7 @@ func Sync(d Deps) (Result, error) {
 	}
 
 	// 4/6. write local (after the push attempt, so a conflict re-merge writes once)
-	wrote, skipped, werr := d.writeLocal(path, haveFile, vars, merged)
+	wrote, skipped, werr := d.writeLocal(path, haveFile, vars, merged, pushed)
 	res.Wrote, res.Skipped = wrote, skipped
 	if werr != nil {
 		return res, werr
@@ -190,25 +205,18 @@ func localNote(wrote, skipped bool) string {
 	case wrote:
 		return " · wrote local"
 	case skipped:
-		return " · local file NOT written (WoW is running; it will catch up at the next sync)"
+		return " · local file NOT written (WoW is running or could not be checked; it will catch up at the next sync)"
 	}
 	return ""
 }
 
 func (d *Deps) wowRunning() bool { return d.WoWRunning != nil && d.WoWRunning() }
 
-func (d *Deps) writeLocal(path string, haveFile bool, vars map[string]luasv.Value, merged luasv.Value) (wrote, skipped bool, err error) {
-	if d.wowRunning() && d.WaitForExit > 0 {
-		d.printf("WoW is still running: waiting up to %s for it to exit...\n", d.WaitForExit)
-		deadline := d.Now().Add(d.WaitForExit)
-		for d.wowRunning() && d.Now().Before(deadline) {
-			d.Sleep(time.Second)
-		}
-	}
+func (d *Deps) writeLocal(path string, haveFile bool, vars map[string]luasv.Value, merged luasv.Value, stamp bool) (wrote, skipped bool, err error) {
 	if d.wowRunning() {
 		return false, true, nil
 	}
-	if t, ok := merged.(*luasv.Table); ok {
+	if t, ok := merged.(*luasv.Table); ok && stamp {
 		st := luasv.NewTable()
 		st.SetS("at", float64(d.Now().Unix()))
 		st.SetS("device", d.Cfg.Device)

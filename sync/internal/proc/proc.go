@@ -3,6 +3,7 @@ package proc
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,18 +12,28 @@ import (
 	"strings"
 )
 
-// IsWoWRunning is a variable so callers and tests can swap it.
-var IsWoWRunning = detect
+// Check reports whether WoW is running. An error means "unknown" (the process list
+// could not be read). It is a variable so tests can swap it.
+var Check = detect
 
-func detect() bool {
+// IsWoWRunning fails closed: if the check itself fails it says true, so nothing is written.
+func IsWoWRunning() bool {
+	running, err := Check()
+	return running || err != nil
+}
+
+func detect() (bool, error) {
 	if runtime.GOOS == "windows" {
 		out, err := exec.Command("tasklist", "/FO", "CSV", "/NH").Output()
 		if err != nil {
-			return false
+			return false, fmt.Errorf("tasklist failed: %w", err)
 		}
-		return ParseTasklist(string(out))
+		return ParseTasklist(string(out)), nil
 	}
-	return ScanProc("/proc", os.Getpid())
+	if _, err := os.Stat("/proc/self"); err != nil {
+		return false, fmt.Errorf("cannot read /proc: %w", err)
+	}
+	return ScanProc("/proc", os.Getpid()), nil
 }
 
 func isWoWName(s string) bool { return strings.EqualFold(s, "wow.exe") }

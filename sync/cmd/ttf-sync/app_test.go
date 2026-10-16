@@ -139,6 +139,12 @@ func TestSetupInitJoinStatusSyncRestore(t *testing.T) {
 	if a.run([]string{"status"}) != 0 {
 		t.Fatal(errb)
 	}
+	if !strings.Contains(out.String(), "Last run:    ok:") {
+		t.Errorf("status lacks the last run: %q", out)
+	}
+	if lg, _ := os.ReadFile(filepath.Join(a.configDir, "ttf-sync.log")); !strings.Contains(string(lg), "pushed v1") {
+		t.Errorf("log %q", lg)
+	}
 	if strings.Contains(out.String(), c.SyncKey) || !strings.Contains(out.String(), "Server:      v1") ||
 		!strings.Contains(out.String(), "PC") || !strings.Contains(out.String(), "last synced") {
 		t.Errorf("status %q", out)
@@ -189,5 +195,62 @@ func TestVersionAndUsage(t *testing.T) {
 	}
 	if a.run([]string{"bogus"}) != 1 || a.run(nil) != 1 {
 		t.Error("exit codes")
+	}
+}
+
+func TestCleanPathAndGameDir(t *testing.T) {
+	for in, want := range map[string]string{`"C:\\Games\\WoW"`: `C:\\Games\\WoW`, "  '/a/b' \n": "/a/b", "/plain": "/plain"} {
+		if got := cleanPath(in); got != want {
+			t.Errorf("%q -> %q", in, got)
+		}
+	}
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "WoW.exe")
+	os.WriteFile(exe, nil, 0o644)
+	if gameDir(exe) != dir {
+		t.Errorf("gameDir %q", gameDir(exe))
+	}
+	if gameDir("%command%") != "" || gameDir(dir) != "" || gameDir("proton") != "" {
+		t.Error("should keep cwd")
+	}
+}
+
+func TestSyncFailureIsLogged(t *testing.T) {
+	fake := api.NewFake()
+	defer fake.Close()
+	a, _, _ := testApp(t, "")
+	wow := t.TempDir()
+	config.Save(a.configDir, config.Config{SupabaseURL: fake.URL(), AnonKey: api.FakeAnonKey, SyncKey: strings.Repeat("A", 40),
+		Device: "PC", WoWPath: wow, Account: "ACC"})
+	fake.SetStatus(503)
+	if a.run([]string{"sync"}) != 1 {
+		t.Fatal("expected failure")
+	}
+	lg, _ := os.ReadFile(filepath.Join(a.configDir, "ttf-sync.log"))
+	if !strings.Contains(string(lg), "ERROR") {
+		t.Errorf("log %q", lg)
+	}
+	var out bytes.Buffer
+	a.out = &out
+	a.run([]string{"status"})
+	if !strings.Contains(out.String(), "Last run:    ERROR") {
+		t.Errorf("status %q", out.String())
+	}
+}
+
+func TestInitShowsKeyEvenIfSaveFails(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores file modes")
+	}
+	fake := api.NewFake()
+	defer fake.Close()
+	a, out, _ := testApp(t, "")
+	config.Save(a.configDir, config.Config{SupabaseURL: fake.URL(), AnonKey: api.FakeAnonKey})
+	os.Chmod(config.Path(a.configDir), 0o400) // Load works, Save fails
+	if a.run([]string{"init"}) != 1 {
+		t.Fatal("expected an error")
+	}
+	if !strings.Contains(out.String(), "Your sync key is") {
+		t.Errorf("key not shown: %q", out)
 	}
 }

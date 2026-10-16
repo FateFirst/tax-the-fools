@@ -45,3 +45,17 @@ func TestDiscoverAndAccounts(t *testing.T) {
 		t.Error(p)
 	}
 }
+
+func TestSearchDedupesSymlinkedRoots(t *testing.T) {
+	root := t.TempDir()
+	real := filepath.Join(root, "real", "WoW")
+	mk(t, filepath.Join(real, "WTF"))
+	mk(t, real, "WoW.exe")
+	if err := os.Symlink(filepath.Join(root, "real"), filepath.Join(root, "link")); err != nil {
+		t.Skip("no symlinks")
+	}
+	got := Search([]Root{{filepath.Join(root, "real"), 2}, {filepath.Join(root, "link"), 2}})
+	if len(got) != 1 {
+		t.Fatalf("%v", got)
+	}
+}

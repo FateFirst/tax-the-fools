@@ -2,9 +2,11 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +17,7 @@ import (
 	"github.com/FateFirst/tax-the-fools/sync/api"
 	"github.com/FateFirst/tax-the-fools/sync/internal/backup"
 	"github.com/FateFirst/tax-the-fools/sync/internal/config"
+	"github.com/FateFirst/tax-the-fools/sync/internal/logfile"
 	"github.com/FateFirst/tax-the-fools/sync/internal/paths"
 	"github.com/FateFirst/tax-the-fools/sync/internal/proc"
 	"github.com/FateFirst/tax-the-fools/sync/internal/syncer"
@@ -23,7 +26,7 @@ import (
 
 // postGameWait is how long the after-game sync waits for a slow-exiting client
 // (Proton) before it gives up on the local write. The push happens either way.
-const postGameWait = 30 * time.Second
+const postGameWait = 60 * time.Second
 
 type app struct {
 	in         *bufio.Reader
@@ -40,7 +43,14 @@ type app struct {
 
 func newApp(in io.Reader, out, errw io.Writer) *app {
 	a := &app{in: bufio.NewReader(in), out: out, err: errw, now: time.Now, discover: paths.Discover}
-	a.wowRunning = func() bool { return proc.IsWoWRunning() }
+	a.wowRunning = func() bool {
+		running, err := proc.Check()
+		if err != nil {
+			fmt.Fprintf(a.out, "Could not check whether WoW is running (%v): treating it as running, so nothing is written.\n", err)
+			return true
+		}
+		return running
+	}
 	a.startGame = runCommand
 	a.syncFn = a.sync
 	return a
@@ -157,6 +167,11 @@ func (a *app) choose(title string, opts []string, allowTyped bool) string {
 	}
 }
 
+// cleanPath trims whitespace and the quotes Windows' "Copy as path" adds.
+func cleanPath(p string) string {
+	return strings.TrimSpace(strings.Trim(strings.TrimSpace(p), "\"'"))
+}
+
 func (a *app) setup() error {
 	dir, c, err := a.load()
 	if err != nil {
@@ -172,6 +187,7 @@ func (a *app) setup() error {
 		a.println("Nothing found automatically.")
 		wow = a.ask("WoW folder (the one with WoW.exe and WTF)", c.WoWPath)
 	}
+	wow = cleanPath(wow)
 	if wow == "" {
 		return errors.New("no WoW folder given")
 	}
@@ -211,6 +227,9 @@ func (a *app) client(c config.Config) (*api.Client, error) {
 	return &api.Client{URL: c.SupabaseURL, AnonKey: c.AnonKey}, nil
 }
 
+// preGameTimeout keeps a stalled network from holding up the game launch.
+const preGameTimeout = 20 * time.Second
+
 func (a *app) init() error {
 	dir, c, err := a.load()
 	if err != nil {
@@ -227,16 +246,16 @@ func (a *app) init() error {
 	if err := cl.CreateAccount(key); err != nil {
 		return err
 	}
-	c.SyncKey = key
-	if err := config.Save(dir, c); err != nil {
-		return err
-	}
 	a.println("Sync account created. Your sync key is:")
 	a.println()
 	a.println("    " + key)
 	a.println()
 	a.println("Keep this safe: anyone with it can read and change your synced data, and it can't be recovered.")
 	a.println("Put it in a password manager. Other devices join with: ttf-sync join <key>")
+	c.SyncKey = key
+	if err := config.Save(dir, c); err != nil { // the key is already on screen
+		return fmt.Errorf("the account exists but saving the config failed (%w). Write the key down, fix the problem, then run `ttf-sync join <key>`", err)
+	}
 	return nil
 }
 
@@ -275,17 +294,51 @@ func (a *app) sync(post bool) error {
 	if err != nil {
 		return err
 	}
+	var buf bytes.Buffer
 	d := syncer.Deps{Client: cl, Cfg: c, ConfigDir: dir, WoWRunning: a.wowRunning,
-		Now: a.now, Version: version, Out: a.out}
+		Now: a.now, Version: version, Out: io.MultiWriter(a.out, &buf)}
 	if post {
 		d.WaitForExit = postGameWait
+	} else {
+		cl.HTTP = &http.Client{Timeout: preGameTimeout}
 	}
 	_, err = syncer.Sync(d)
+	last := logfile.Last{At: a.now().Unix(), OK: err == nil, Message: strings.TrimSpace(buf.String())}
+	if err != nil {
+		last.Message = err.Error()
+		buf.WriteString("ERROR: " + err.Error() + "\n")
+	} else if last.Message != "" {
+		last.Message = lastLine(last.Message)
+	} else {
+		last.Message = "ok"
+	}
+	logfile.Append(dir, a.now(), buf.String())
+	logfile.SaveLast(dir, last)
 	return err
+}
+
+func lastLine(s string) string {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	return lines[len(lines)-1]
+}
+
+// gameDir: when the command is an existing file (WoW.exe from a Windows shortcut), run it
+// in its own folder, which the 1.12 client expects. Anything else keeps the current folder.
+func gameDir(first string) string {
+	st, err := os.Stat(first)
+	if err != nil || st.IsDir() {
+		return ""
+	}
+	abs, err := filepath.Abs(first)
+	if err != nil {
+		return ""
+	}
+	return filepath.Dir(abs)
 }
 
 func runCommand(args []string) (int, error) {
 	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Dir = gameDir(args[0])
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := cmd.Start(); err != nil {
 		return 1, err
@@ -347,9 +400,16 @@ func (a *app) status() error {
 	}
 	names, _ := backup.List(dir)
 	a.println(fmt.Sprintf("Backups:     %d (in %s)", len(names), backup.Dir(dir)))
-	if a.wowRunning() {
-		a.println("WoW:         running")
+	if l := logfile.LoadLast(dir); l != nil {
+		res := "ok"
+		if !l.OK {
+			res = "ERROR"
+		}
+		a.println(fmt.Sprintf("Last run:    %s: %s (%s)", res, l.Message, syncer.Ago(a.now(), time.Unix(l.At, 0))))
+	} else {
+		a.println("Last run:    none yet")
 	}
+	a.println("Log:         " + logfile.Path(dir))
 	cl, err := a.client(c)
 	if err != nil || c.SyncKey == "" {
 		a.println("Server:      not configured yet")

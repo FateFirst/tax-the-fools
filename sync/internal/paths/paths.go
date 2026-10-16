@@ -91,8 +91,12 @@ func Search(roots []Root) []string {
 				return fs.SkipDir
 			}
 			if IsWoWFolder(p) {
-				if !seen[p] {
-					seen[p] = true
+				key := p
+				if real, err := filepath.EvalSymlinks(p); err == nil {
+					key = real
+				}
+				if !seen[key] {
+					seen[key] = true
 					out = append(out, p)
 				}
 				return fs.SkipDir
@@ -134,6 +138,13 @@ func DefaultRoots() []Root {
 		matches, _ := filepath.Glob(pat)
 		for _, m := range matches {
 			roots = append(roots, Root{m, 5})
+		}
+	}
+	// Steam Deck SD card: /run/media/mmcblk0p1 or /run/media/<user>/<label>.
+	for _, pat := range []string{"/run/media/*", "/run/media/*/*"} {
+		matches, _ := filepath.Glob(pat)
+		for _, m := range matches {
+			roots = append(roots, Root{m, 4})
 		}
 	}
 	roots = append(roots, Root{filepath.Join(home, "Games"), 5})

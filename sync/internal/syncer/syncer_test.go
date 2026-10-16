@@ -257,25 +257,68 @@ func TestWoWRunningNoWriteButPush(t *testing.T) {
 	}
 }
 
-func TestWaitForExit(t *testing.T) {
+// Review Focus 4 regression: WoW writes its logout save while ttf-sync waits for it to exit.
+// The sync must read the file only after the wait, so that save is merged and pushed, not lost.
+func TestWaitForExitReadsAfterTheWait(t *testing.T) {
 	r := newRig(t)
 	a := r.device("PC")
 	a.write(scanA)
-	polls := 0
 	d := a.deps()
-	d.WaitForExit = 30 * time.Second
-	d.WoWRunning = func() bool { polls++; return polls < 4 }
+	d.WaitForExit = 60 * time.Second
+	running := true
+	d.WoWRunning = func() bool { return running }
+	d.Sleep = func(x time.Duration) {
+		a.now = a.now.Add(x)
+		a.write(scanA + saleB) // the logout save lands during the wait; later variable wins
+		running = false
+	}
 	res, err := Sync(d)
-	if err != nil || !res.Wrote {
+	if err != nil || !res.Wrote || res.Pushed != 1 {
 		t.Fatalf("%+v %v", res, err)
 	}
-	// never exits: gives up after the wait, still pushes
-	d = a.deps()
+	if n(tget(a.db(), "realms", "R", "chars", "Al", "sales")) != 1 {
+		t.Error("the logout save was overwritten")
+	}
+	b := r.device("Laptop")
+	b.sync()
+	if n(tget(b.db(), "realms", "R", "chars", "Al", "sales")) != 1 {
+		t.Error("the logout save was never pushed")
+	}
+}
+
+func TestStillRunningAfterWaitSkipsEverything(t *testing.T) {
+	r := newRig(t)
+	a := r.device("PC")
+	a.write(scanA)
+	d := a.deps()
 	d.WaitForExit = 5 * time.Second
 	d.WoWRunning = func() bool { return true }
-	res, err = Sync(d)
-	if err != nil || res.Wrote || !res.Skipped || res.Pushed == 0 {
+	res, err := Sync(d)
+	if err != nil || res.Wrote || !res.Skipped || res.Pushed != 0 || r.fake.Version(r.key) != 0 {
 		t.Fatalf("%+v %v", res, err)
+	}
+	if got, _ := os.ReadFile(a.file()); string(got) != scanA {
+		t.Error("file changed")
+	}
+	if !strings.Contains(a.out.String(), "skipping this sync") {
+		t.Errorf("output %q", a.out.String())
+	}
+}
+
+func TestNoStampWhenPushFails(t *testing.T) {
+	r := newRig(t)
+	a := r.device("PC")
+	a.write(scanA)
+	r.fake.SetHook(func(fn string) {
+		if fn == "ttf_pull" {
+			r.fake.SetStatus(503) // applies from the next request: the push fails
+		}
+	})
+	if _, err := a.sync(); err == nil {
+		t.Fatal("expected error")
+	}
+	if tget(a.db(), "sync") != nil {
+		t.Error("stamped although the push failed")
 	}
 }
 
