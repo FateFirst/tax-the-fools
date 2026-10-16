@@ -41,6 +41,8 @@ function Core.Init()
   Core.Safe("ledger prune", A.Ledger.Prune, DB.Char(), time())
   Core.Safe("ledger backfill", A.Ledger.Backfill, DB.Char())
   Core.Safe("ledger", A.LedgerHooks.Sync)
+  Core.Safe("sync stamps", DB.StampLegacy)
+  Core.Safe("market", A.Scan.RecomputeMarket)
   A.Inventory.bagsDirty = true      -- count the bags once at login, whichever event comes first
   Core.ready = true
   local prev = TaxTheFoolsDB.version
@@ -142,6 +144,7 @@ Core.HELP = {
   "/ttf watchlist - list watched items",
   "/ttf snipe <item name> <price> - buy-below price each, e.g. /ttf snipe Silk Cloth 20s; alone it shows the list",
   "/ttf status - what is stored and when the last full scan ran",
+  "/ttf sync - when TTF Sync last synced this data",
   "/ttf show - bring back the Tax the Fools auction window",
   "/ttf probe - dump what this client supports, to copy out",
   "/ttf debug - toggle debug messages and stack traces",
@@ -159,7 +162,7 @@ function Core.Watch(name, on)
     return
   end
   local key = U.key(id)
-  if on then DB.Realm().watch[key] = true else DB.Realm().watch[key] = nil end
+  DB.WatchSet(key, on)
   U.msg((on and "Watching " or "No longer watching ") .. A.Items.Name(id) .. ".")
 end
 
@@ -209,7 +212,7 @@ function Core.Snipe(rest)
     return
   end
   realm.snipe = realm.snipe or {}
-  local e = A.Snipe.Set(realm.snipe, U.key(id), A.Items.Name(id), copper, time())
+  local e = A.Snipe.Set(realm.snipe, U.key(id), A.Items.Name(id), copper, time(), realm.removed.snipe)
   U.msg("Sniping " .. A.Items.Name(id) .. " at " .. U.money(e.max, true) .. " each or less")
 end
 
@@ -218,6 +221,17 @@ function Core.Status()
   local last = DB.Realm().scan.lastFull
   if last then U.msg("Last full scan " .. A.UI.Duration(time() - last) .. " ago.")
   else U.msg("No full scan yet.") end
+end
+
+-- TaxTheFoolsDB.sync is written only by the TTF Sync tool: { at, device, version }.
+function Core.SyncStatus()
+  local s = TaxTheFoolsDB.sync
+  if type(s) ~= "table" or not s.at then
+    U.msg("Not synced yet: see docs/sync.md")
+    return
+  end
+  U.msg("Last synced " .. A.UI.Duration(math.max(0, time() - s.at)) .. " ago from " .. tostring(s.device or "?") ..
+        " (TTF Sync " .. tostring(s.version or "?") .. ")")
 end
 
 function Core.Command(msg)
@@ -232,12 +246,14 @@ function Core.Command(msg)
   elseif cmd == "watchlist" then Core.WatchList()
   elseif cmd == "snipe" then Core.Snipe(rest)
   elseif cmd == "status" then Core.Status()
+  elseif cmd == "sync" then Core.SyncStatus()
   elseif cmd == "show" then
     if A.AH.open then A.AH.ShowOurs() else U.msg("Talk to an auctioneer first.") end
   elseif cmd == "probe" then A.Probe.Show()
   elseif cmd == "debug" then
     local s = DB.S()
     s.debug = not s.debug
+    DB.Touch()
     U.msg("debug " .. (s.debug and "on" or "off"))
   else
     U.msg("commands:")

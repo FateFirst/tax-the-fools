@@ -231,12 +231,14 @@ end
 function Opt.Set(row, v)
   if row.set then
     row.set(v)
+    DB.Touch()
     if row.after then row.after(v) end
     return
   end
   local t, p = DB.S(), path(row)
   for i = 1, table.getn(p) - 1 do t = t[p[i]] end
   t[p[table.getn(p)]] = v
+  DB.Touch()
   if row.after then row.after(v) end
 end
 
@@ -283,7 +285,7 @@ function Opt.Control(parent, row)
       b.text:SetPoint("LEFT", b, "LEFT", 8, 0)
       b:SetScript("OnClick", function()
         if this.itemKey then
-          DB.S().mail.keep[this.itemKey] = nil
+          DB.KeepSet(this.itemKey, false)
           f:Refresh()
         end
       end)

@@ -324,6 +324,15 @@ function Scan.MarketStep()
   end
 end
 
+-- One pass over the history: market values rebuilt the same way as at the end of a scan. Run at login,
+-- so history merged in from another device (device sync) prices correctly.
+function Scan.RecomputeMarket()
+  local realm, today = DB.Realm(), U.day(time())
+  for key, entry in pairs(realm.history) do
+    realm.market[key] = P.Market(entry, today)
+  end
+end
+
 -- Stops the scan and keeps what it has, so the next visit can carry on. The
 -- page in flight was never accepted, so resuming asks for it again.
 function Scan.Pause(reason)

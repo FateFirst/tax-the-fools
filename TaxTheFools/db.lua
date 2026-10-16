@@ -56,6 +56,57 @@ end
 
 function DB.S() return TaxTheFoolsDB.settings end
 
+-- Every settings write calls this, so device sync can tell which side changed settings last.
+function DB.Touch() TaxTheFoolsDB.settingsAt = time() end
+
+-- Watchlist add or remove. The value is the time it was added; a removal leaves a record so sync
+-- doesn't bring the entry back from another device.
+function DB.WatchSet(key, on)
+  local realm = DB.Realm()
+  if on then
+    realm.watch[key] = time()
+    realm.removed.watch[key] = nil
+  else
+    realm.watch[key] = nil
+    realm.removed.watch[key] = time()
+  end
+end
+
+-- Mail keep list add or remove, the same way.
+function DB.KeepSet(key, on)
+  local mail = DB.S().mail
+  mail.keepRemoved = mail.keepRemoved or {}
+  if on then
+    mail.keep[key] = time()
+    mail.keepRemoved[key] = nil
+  else
+    mail.keep[key] = nil
+    mail.keepRemoved[key] = time()
+  end
+  DB.Touch()
+end
+
+-- Snipe list removal; false when the key wasn't listed.
+function DB.SnipeRemove(key)
+  local realm = DB.Realm()
+  return TaxTheFools.Snipe.Remove(realm.snipe, key, realm.removed.snipe, time())
+end
+
+-- Entries saved before sync existed hold true (watch, keep) or no time (snipe): give them one.
+function DB.StampLegacy()
+  local realm, now = DB.Realm(), time()
+  for k, v in pairs(realm.watch) do
+    if v == true then realm.watch[k] = now end
+  end
+  for _, e in pairs(realm.snipe) do
+    if type(e) == "table" and not e.at then e.at = now end
+  end
+  local keep = DB.S().mail.keep
+  for k, v in pairs(keep) do
+    if v == true then keep[k] = now end
+  end
+end
+
 -- Prices are per realm: the auction house is cross-faction on this server.
 function DB.Realm()
   local realms = TaxTheFoolsDB.realms

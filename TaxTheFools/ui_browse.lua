@@ -320,7 +320,7 @@ function Browse.ToggleWatch()
     return
   end
   local watch = DB.Realm().watch
-  if watch[item.key] then watch[item.key] = nil else watch[item.key] = true end
+  DB.WatchSet(item.key, not watch[item.key])
   Browse.UpdateWatchButton()
 end
 
@@ -337,7 +337,7 @@ function Browse.AddSnipe()
   max = math.floor(max)
   local realm = DB.Realm()
   realm.snipe = realm.snipe or {}
-  TaxTheFools.Snipe.Set(realm.snipe, item.key, item.name or item.key, max, time())
+  TaxTheFools.Snipe.Set(realm.snipe, item.key, item.name or item.key, max, time(), realm.removed.snipe)
   Browse.Decorate(p.list.data, realm.market, realm.history, U.day(), realm.snipe)
   p.list:Paint()
   U.msg("Sniping " .. (item.name or item.key) .. " at " .. U.money(realm.snipe[item.key].max, true) .. " each or less")

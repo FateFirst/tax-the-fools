@@ -114,14 +114,14 @@ end
 
 local function sw(p, label, field, hint)
   local s = W.Switch(p.rail, label, function() return DB.S().deals[field] end,
-    function(v) DB.S().deals[field] = v and true or false DealsUI.Paint() end, hint)
+    function(v) DB.S().deals[field] = v and true or false DB.Touch() DealsUI.Paint() end, hint)
   s:SetWidth(DealsUI.RAIL)
   return s
 end
 
 local function slider(p, label, field, min, max, step, fmt)
   local s = W.Slider(p.rail, label, min, max, step, function() return DB.S().deals[field] end,
-    function(v) DB.S().deals[field] = v DealsUI.Paint() end, fmt)
+    function(v) DB.S().deals[field] = v DB.Touch() DealsUI.Paint() end, fmt)
   s:SetWidth(DealsUI.RAIL)
   return s
 end
@@ -242,7 +242,7 @@ function DealsUI.SnipeRemove()
   local p = DealsUI.frame
   local sel = p and p.slist.selected
   if not sel then return false end
-  TaxTheFools.Snipe.Remove(DB.Realm().snipe, sel.key)
+  DB.SnipeRemove(sel.key)
   DealsUI.Paint()
   return true
 end

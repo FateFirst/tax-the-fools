@@ -5,7 +5,9 @@ TaxTheFools.Snipe = Snipe
 -- Pure snipe list rules (phase 7 spec section 3). list = DB.Realm().snipe, { [key] = { max, name, at } }.
 
 -- Adds or updates an item. An item already listed keeps the higher of the two maximums.
-function Snipe.Set(list, key, name, max, now)
+-- removed (optional) is the removal record table: adding clears the key's record.
+function Snipe.Set(list, key, name, max, now, removed)
+  if removed then removed[key] = nil end
   local e = list[key]
   if e and e.max and e.max > max then max = e.max end
   list[key] = { max = max, name = name, at = now }
@@ -20,9 +22,10 @@ function Snipe.SetMax(list, key, max)
   return e
 end
 
-function Snipe.Remove(list, key)
+function Snipe.Remove(list, key, removed, now)
   if not list[key] then return false end
   list[key] = nil
+  if removed then removed[key] = now end
   return true
 end
 

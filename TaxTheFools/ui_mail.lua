@@ -516,7 +516,7 @@ end
 function MailUI.KeepSel()
   local sel = MailUI.SelRow()
   if not sel then return false end
-  DB.S().mail.keep[sel.key] = true
+  DB.KeepSet(sel.key, true)
   return MailUI.RemoveSel()
 end
 

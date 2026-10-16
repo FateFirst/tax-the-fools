@@ -246,7 +246,7 @@ function CraftUI.SnipeThese(p)
   local n = 0
   for _, b in ipairs((plan and plan.buys) or {}) do
     if (b.source == "ah" or not b.source) and b.key then
-      TaxTheFools.Snipe.Set(realm.snipe, b.key, b.name, math.floor(b.unit), time())
+      TaxTheFools.Snipe.Set(realm.snipe, b.key, b.name, math.floor(b.unit), time(), realm.removed.snipe)
       n = n + 1
     end
   end

@@ -95,9 +95,9 @@ end
 function TS.Watch(recipes)
   local watch = DB.Realm().watch
   for _, r in pairs(recipes) do
-    if r.item then watch[r.item] = true end
+    if r.item and not watch[r.item] then DB.WatchSet(r.item, true) end
     for _, g in ipairs(r.reagents) do
-      if g.item then watch[g.item] = true end
+      if g.item and not watch[g.item] then DB.WatchSet(g.item, true) end
     end
   end
 end

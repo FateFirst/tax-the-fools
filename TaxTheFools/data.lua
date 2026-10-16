@@ -50,7 +50,7 @@ D.DEFAULTS = {
     trend = { tooltip = true },
     alerts = { on = true, minProfit = 10000, sound = true, snipe = true },
     recipes = { tooltip = true, skillAhead = 25 },
-    mail = { bankAlt = nil, rules = { crafted = true, tradeGoods = true, patterns = true, auctionable = false }, keep = {} },
+    mail = { bankAlt = nil, rules = { crafted = true, tradeGoods = true, patterns = true, auctionable = false }, keep = {}, keepRemoved = {} },
   },
   items = {},
   realms = {},
@@ -59,4 +59,4 @@ D.DEFAULTS = {
 
 D.CHAR_DEFAULTS = { windows = {}, sellView = "bags" }
 
-D.REALM_DEFAULTS = { history = {}, market = {}, scan = {}, chars = {}, watch = {}, snipe = {} }
+D.REALM_DEFAULTS = { history = {}, market = {}, scan = {}, chars = {}, watch = {}, snipe = {}, removed = { watch = {}, snipe = {} } }

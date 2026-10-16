@@ -57,6 +57,7 @@ function Mini.DragUpdate()
   local cx, cy = GetCursorPosition()
   local s = Minimap:GetEffectiveScale()
   DB.S().minimapAngle = Mini.AngleFrom(cx / s, cy / s, mx, my)
+  DB.Touch()
   Mini.Refresh()
 end
 
