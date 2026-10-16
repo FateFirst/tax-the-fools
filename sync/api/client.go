@@ -47,7 +47,8 @@ type Client struct {
 	HTTP    *http.Client
 }
 
-var defaultHTTP = &http.Client{Timeout: 30 * time.Second}
+// Two minutes: a push carries a few MB, which can take a while on a slow link.
+var defaultHTTP = &http.Client{Timeout: 120 * time.Second}
 
 func (c *Client) rpc(fn string, args map[string]any) ([]byte, error) {
 	body, err := json.Marshal(args)

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -136,8 +137,14 @@ func (f *Fake) handle(w http.ResponseWriter, r *http.Request) {
 		out(acc.version)
 	case "ttf_devices":
 		rows := []map[string]any{}
-		for d, t := range acc.devices {
-			rows = append(rows, map[string]any{"device": d, "last_sync": t.Format(time.RFC3339Nano)})
+		names := make([]string, 0, len(acc.devices))
+		for d := range acc.devices {
+			names = append(names, d)
+		}
+		// Newest first, as the SQL orders them.
+		sort.Slice(names, func(i, j int) bool { return acc.devices[names[i]].After(acc.devices[names[j]]) })
+		for _, d := range names {
+			rows = append(rows, map[string]any{"device": d, "last_sync": acc.devices[d].Format(time.RFC3339Nano)})
 		}
 		out(rows)
 	default:
