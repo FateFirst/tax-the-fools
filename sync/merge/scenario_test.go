@@ -333,3 +333,25 @@ func TestHistoryPrunedMonthsAndEmptyEntriesStayGone(t *testing.T) {
 		same(t, "merge(m, m)", again, m)
 	}
 }
+
+// A market value goes with its history: when an expired entry is dropped, its market value must not
+// come back at every sync and feed year-old prices to tooltips and Deals.
+func TestMarketDroppedWithItsHistory(t *testing.T) {
+	local := lua(t, `{ realms = { R = { history = {
+		live = { days = { [20369] = { n = 2, p25 = 10 } } },
+		gone = { months = { [202301] = { n = 1, p25 = 5, d = 1 } } } },
+		market = { live = { v = 10 }, gone = { v = 5 }, orphan = { v = 7 } } } } }`)
+	remote := lua(t, `{ realms = { R = { market = { gone = { v = 6 } } } } }`)
+	for _, order := range [][2]luasv.Value{{local, remote}, {remote, local}} {
+		m, _ := run(order[0], order[1])
+		mk := path(t, m, "realms", "R", "market")
+		if path(t, mk, "live") == nil {
+			t.Errorf("live market lost: %s", show(mk))
+		}
+		if path(t, mk, "gone") != nil || path(t, mk, "orphan") != nil {
+			t.Errorf("market without history kept: %s", show(mk))
+		}
+		again, _ := run(m, m)
+		same(t, "merge(m, m)", again, m)
+	}
+}

@@ -303,7 +303,19 @@ func (m *merger) realm(l, r luasv.Value, lok, rok bool, path string) (luasv.Valu
 			"snipe": fixed(rmSnipe),
 		}),
 	}
-	return m.fields(lt, rt, path, rules), true
+	out := m.fields(lt, rt, path, rules)
+	// A market value is only kept for an item that still has history: when the merge drops an expired
+	// entry, its market value would otherwise come back at every sync and feed year-old prices to
+	// tooltips and Deals (the addon recomputes market only for keys with history).
+	hist, market := fieldT(out, "history"), fieldT(out, "market")
+	if hist != nil && market != nil {
+		for _, k := range keys(market, nil) {
+			if _, ok := field(hist, k); !ok {
+				market.Delete(k)
+			}
+		}
+	}
+	return out, true
 }
 
 // history merges one key's price history. foldedTo, the newest day P.Compact has folded into months
