@@ -3,7 +3,7 @@ LUA := $(LUA_DIR)/bin/lua
 LUAC := $(LUA_DIR)/bin/luac
 ADDON := TaxTheFools
 
-.PHONY: test lint lua clean install media fonts recipes
+.PHONY: test lint lua clean install media fonts recipes sync-test sync-fixture
 
 lua: $(LUA)
 
@@ -18,6 +18,15 @@ lint: $(LUA)
 test: lint
 	python3 -m unittest tools/test_make_recipes.py
 	$(LUA) tests/run.lua $(wildcard tests/test_*.lua)
+	@if command -v go >/dev/null 2>&1; then $(MAKE) --no-print-directory sync-test; else echo "go not found: skipping sync-test"; fi
+
+# Go tests for the sync tool.
+sync-test:
+	cd sync && go vet ./... && go test ./...
+
+# Rebuild the SavedVariables round-trip fixture from the addon under the fake client.
+sync-fixture: $(LUA)
+	$(LUA) tools/sv-fixture.lua
 
 # Regenerate the white-mask textures the theme tints at run time.
 media:
