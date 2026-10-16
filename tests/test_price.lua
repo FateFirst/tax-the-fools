@@ -85,6 +85,12 @@ T.test("old days fold into months and very old months are dropped", function()
   T.eq(e.months[month].p25, 250, "mean of the folded days")
   T.eq(e.months[month].d, 2)
   T.eq(e.months[201001], nil, "month older than a year dropped")
+  T.eq(e.foldedTo, TODAY - 70, "the newest folded day")
+  e.foldedTo = TODAY - 50
+  e.days[TODAY - 80] = { p25 = 5, n = 1 }
+  P.Compact(e, TODAY)
+  T.eq(e.foldedTo, TODAY - 50, "never moves back")
+  T.eq(e.days[TODAY - 80], nil)
 end)
 
 T.test("compacting an entry with nothing recent reports it empty", function()

@@ -4,8 +4,6 @@
 package merge
 
 import (
-	"time"
-
 	"github.com/FateFirst/tax-the-fools/sync/luasv"
 )
 
@@ -20,7 +18,6 @@ const (
 	PostingKeepDays = 35   // Sell.LOG_DAYS (Sell.Prune runs at login)
 	PendingKeepDays = 7    // Ledger.BID_DAYS, pendingBids and pendingBuys
 	RemovalKeepDays = 90   // spec section 5: removal records
-	KeepDays        = 60   // D.KEEP_DAYS: day rows older than this are folded into months
 	secondsPerDay   = 86400
 )
 
@@ -306,41 +303,53 @@ func (m *merger) realm(l, r luasv.Value, lok, rok bool, path string) (luasv.Valu
 	return m.fields(lt, rt, path, rules), true
 }
 
-// history merges one key's price history: days and months by the larger n, then day rows the
-// addon would have folded into a month (older than KeepDays) are dropped when that month exists on
-// either side, so the addon doesn't fold them a second time. Other old days stay for the addon to fold.
+// history merges one key's price history. foldedTo, the newest day P.Compact has folded into months
+// on either device, is the max of both sides; day rows at or below it are dropped (already counted in a
+// month), the rest are unioned with dayRow. Months use the larger n.
 func (m *merger) history(l, r luasv.Value, lok, rok bool, path string) (luasv.Value, bool) {
 	lt, rt := asTable(l), asTable(r)
 	if (lok && lt == nil) || (rok && rt == nil) {
 		return m.other(l, r, lok, rok, path)
 	}
-	out := m.fields(lt, rt, path, map[string]rule{"days": m.mapOf(largerN), "months": m.mapOf(largerN)})
+	out := m.fields(lt, rt, path, map[string]rule{
+		"days":     m.mapOf(dayRow),
+		"months":   m.mapOf(largerN),
+		"foldedTo": maxNum,
+	})
+	fv, _ := field(out, "foldedTo")
+	folded, ok := asNum(fv)
 	days := fieldT(out, "days")
-	if m.now <= 0 || days == nil {
+	if !ok || days == nil {
 		return out, true
 	}
-	today := float64(int64(m.now) / secondsPerDay)
-	hasMonth := func(month float64) bool {
-		for _, t := range []*luasv.Table{lt, rt} {
-			if _, ok := field(fieldT(t, "months"), month); ok {
-				return true
-			}
-		}
-		return false
-	}
 	for _, k := range keys(days, nil) {
-		day, ok := asNum(k)
-		if ok && today-day >= KeepDays && hasMonth(monthOf(day)) {
+		if day, isNum := asNum(k); isNum && day <= folded {
 			days.Delete(k)
 		}
 	}
 	return out, true
 }
 
-// monthOf is the addon's month key for a day: yyyymm in UTC (price.lua).
-func monthOf(day float64) float64 {
-	t := time.Unix(int64(day)*secondsPerDay, 0).UTC()
-	return float64(t.Year()*100 + int(t.Month()))
+// dayRow mirrors P.Record: a browse row never replaces a scan row (full, watch, mats, snipe) for the
+// same day; within the same class the row with more listings (n) wins, local on a tie.
+func dayRow(l, r luasv.Value, lok, rok bool, path string) (luasv.Value, bool) {
+	if !lok || !rok {
+		return preferLocal(l, r, lok, rok, path)
+	}
+	class := func(v luasv.Value) int {
+		src, _ := field(asTable(v), "src")
+		if src == "browse" {
+			return 0
+		}
+		return 1
+	}
+	if cl, cr := class(l), class(r); cl != cr {
+		if cr > cl {
+			return clone(r), true
+		}
+		return clone(l), true
+	}
+	return largerN(l, r, lok, rok, path)
 }
 
 // newerChange keeps the snapshot changed last: changedAt, else at (scan.lua). Local on a tie.

@@ -145,12 +145,15 @@ end
 local function monthOf(day) return tonumber(date("!%Y%m", day * 86400)) end
 
 -- Days past KEEP_DAYS become monthly averages; months past about a year go.
+-- entry.foldedTo is the newest day ever folded: device sync drops day rows at or below it, so a day
+-- folded on one device isn't brought back from another and folded twice.
 -- Returns true when nothing is left, so the caller can drop the entry.
 function P.Compact(entry, today)
   entry.days = entry.days or {}
   entry.months = entry.months or {}
   for day, row in pairs(entry.days) do
     if today - day >= D.KEEP_DAYS then
+      if not entry.foldedTo or day > entry.foldedTo then entry.foldedTo = day end
       if row.p25 then
         local mk = monthOf(day)
         local m = entry.months[mk]

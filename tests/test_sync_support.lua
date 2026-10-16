@@ -168,10 +168,12 @@ T.test("login stamps old true entries and snipe entries without a time", functio
   realm.watch["1:0"] = true
   realm.snipe["2:0"] = { max = 5 }
   DB.S().mail.keep["3:0"] = true
+  realm.watch["4:0"] = WoW.now - 5
   DB.StampLegacy()
-  T.eq(realm.watch["1:0"], WoW.now)
-  T.eq(realm.snipe["2:0"].at, WoW.now)
-  T.eq(DB.S().mail.keep["3:0"], WoW.now)
+  T.eq(realm.watch["1:0"], 1, "a fixed old time, so any removal elsewhere beats it")
+  T.eq(realm.snipe["2:0"].at, 1)
+  T.eq(DB.S().mail.keep["3:0"], 1)
+  T.eq(realm.watch["4:0"], WoW.now - 5, "a stamped entry keeps its time")
 end)
 
 T.test("captures carry timestamps: bags, bank and each profession", function()

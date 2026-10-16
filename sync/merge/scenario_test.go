@@ -288,3 +288,23 @@ func TestBigFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A realistic history entry right after a login: folded up to day 20300, with days from 20301 on still
+// held, the oldest of them already past 60 days and waiting for the next fold. A self-merge keeps all.
+func TestHistorySelfMergeKeepsUnfoldedDays(t *testing.T) {
+	var b strings.Builder
+	for d := 20301; d <= 20370; d++ {
+		src := "full"
+		if d%7 == 0 {
+			src = "browse"
+		}
+		fmt.Fprintf(&b, "[%d] = { n = %d, p25 = %d, src = %q },", d, 3+d%5, 100+d%13, src)
+	}
+	a := lua(t, `{ realms = { R = { history = { k = { foldedTo = 20300, days = { `+b.String()+` },
+		months = { [202507] = { n = 4, p25 = 90, d = 12 }, [202506] = { n = 5, p25 = 95, d = 30 } } } } } } }`)
+	got, _ := run(a, a)
+	same(t, "merge(a, a)", got, a)
+	if count(t, got, "realms", "R", "history", "k", "days") != 70 {
+		t.Error("days lost")
+	}
+}

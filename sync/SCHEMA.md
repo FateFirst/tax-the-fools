@@ -62,7 +62,8 @@ Defaults (`data.lua` `D.REALM_DEFAULTS`): `history`, `market`, `scan`, `chars`, 
 
 | Path | Shape | Written by | Rule |
 |---|---|---|---|
-| `history[key].days[day]` | `{ n, qty, min, p25, med, sellers, src }` | `price.lua` `P.Record` (scans and browse) | Union by day; when both have a day, the row with the larger `n`, local on a tie. A day at least `D.KEEP_DAYS` (60) days old is dropped when either side has the month it falls in, because one device has already folded it in (`P.Compact`). Other old days stay for the addon to fold. |
+| `history[key].days[day]` | `{ n, qty, min, p25, med, sellers, src }` | `price.lua` `P.Record` (scans and browse) | Union by day. When both sides have a day, the rule follows `P.Record`: a scan row (`full`, `watch`, `mats`, `snipe`) beats a `browse` row, and within the same class the larger `n` wins, local on a tie. Days at or below the merged `foldedTo` are dropped. |
+| `history[key].foldedTo` | number, the newest day ever folded | `price.lua` `P.Compact` (only moves forward) | Max. Day rows at or below it have already been counted in a month on some device, so they are dropped and never folded twice. Unfolded days stay, whatever their age, for the addon to fold. |
 | `history[key].months[month]` | `{ p25, n, d }`, month `yyyymm` | `price.lua` `P.Compact` | Union by month, the larger `n`, local on a tie. |
 | `market[key]` | `{ v, conf, low, lowDay, seen, n }` | `scan.lua` `Scan.MarketStep`, `Scan.RecomputeMarket` (at login, Task 1) | Union by key; when both have it, the side whose `history[key].days` has the newest day, local on a tie. Recomputed at login anyway. |
 | `scan.lastFull` | number | `scan.lua` after a full scan | Max. |
@@ -116,6 +117,10 @@ List details, all in `sync/merge/lists.go`:
 - `version`, `probe`: local only (per install, or debug output).
 - `scan.resume`: local only. The spec says resume and job state stay local, so a remote resume is never taken.
 - `class`: local, else remote.
-- History months: larger `n`, the same as days, as the spec says. `d` (days folded) isn't compared.
+- History months: larger `n`, as the spec says. `d` (days folded) isn't compared.
+- History day rows: the source class is compared first (scan beats browse, as in `P.Record`), then `n`.
+- Legacy watch and keep `true` values, and snipe entries with no `at`: `DB.StampLegacy` stamps them with
+  `DB.LEGACY_AT` (1) at login, never with the current time, so a removal made on another device always
+  beats them. The merge reads `true` as time 0.
 - Unknown paths: local wins, and the remote value fills in only when the local side has none, so that
   nothing a newer addon writes is lost. Every such path is reported.

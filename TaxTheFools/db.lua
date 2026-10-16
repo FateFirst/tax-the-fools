@@ -92,18 +92,21 @@ function DB.SnipeRemove(key)
   return TaxTheFools.Snipe.Remove(realm.snipe, key, realm.removed.snipe, time())
 end
 
--- Entries saved before sync existed hold true (watch, keep) or no time (snipe): give them one.
+-- Entries saved before sync existed hold true (watch, keep) or no time (snipe): give them one. The time is
+-- DB.LEGACY_AT, a fixed long-ago second, not now: a removal another device recorded must still beat them.
+DB.LEGACY_AT = 1
+
 function DB.StampLegacy()
-  local realm, now = DB.Realm(), time()
+  local realm, at = DB.Realm(), DB.LEGACY_AT
   for k, v in pairs(realm.watch) do
-    if v == true then realm.watch[k] = now end
+    if v == true then realm.watch[k] = at end
   end
   for _, e in pairs(realm.snipe) do
-    if type(e) == "table" and not e.at then e.at = now end
+    if type(e) == "table" and not e.at then e.at = at end
   end
   local keep = DB.S().mail.keep
   for k, v in pairs(keep) do
-    if v == true then keep[k] = now end
+    if v == true then keep[k] = at end
   end
 end
 
