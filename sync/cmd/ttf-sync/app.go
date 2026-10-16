@@ -41,6 +41,9 @@ type app struct {
 	startGame func(args []string) (int, error)
 	// warnedCheck: the "could not check" warning is printed once per sync.
 	warnedCheck bool
+	// gameCheck and sleep: followGame polls the process list (tests replace both).
+	gameCheck func() (bool, error)
+	sleep     func(time.Duration)
 }
 
 func newApp(in io.Reader, out, errw io.Writer) *app {
@@ -59,6 +62,8 @@ func newApp(in io.Reader, out, errw io.Writer) *app {
 	}
 	a.startGame = runCommand
 	a.syncFn = a.sync
+	a.gameCheck = proc.Check
+	a.sleep = time.Sleep
 	return a
 }
 
@@ -338,11 +343,12 @@ func isWoWExe(p string) bool {
 	return strings.EqualFold(p, "wow.exe")
 }
 
-// gameDir: when the command is an existing WoW.exe (from a Windows shortcut), run it in
-// its own folder, which the 1.12 client expects. Anything else (Steam's reaper, /bin/sh,
-// proton) keeps the current folder.
+// gameDir: when the command is an existing WoW.exe, or another .exe in WoW's folder (a
+// launcher such as VanillaFixes.exe, which starts WoW.exe in its own working folder), run
+// it in that folder, which the 1.12 client expects. Anything else (Steam's reaper,
+// /bin/sh, proton) keeps the current folder.
 func gameDir(first string) string {
-	if !isWoWExe(first) {
+	if !strings.EqualFold(filepath.Ext(strings.ReplaceAll(first, `\`, "/")), ".exe") {
 		return ""
 	}
 	st, err := os.Stat(first)
@@ -353,7 +359,25 @@ func gameDir(first string) string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Dir(abs)
+	dir := filepath.Dir(abs)
+	if isWoWExe(first) || hasWoWExe(dir) {
+		return dir
+	}
+	return ""
+}
+
+// hasWoWExe: the folder holds WoW.exe under any capitalisation.
+func hasWoWExe(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if !e.IsDir() && isWoWExe(e.Name()) {
+			return true
+		}
+	}
+	return false
 }
 
 func runCommand(args []string) (int, error) {
@@ -374,6 +398,30 @@ func runCommand(args []string) (int, error) {
 	return 0, nil
 }
 
+// followGamePoll is how often followGame looks for WoW.exe.
+const followGamePoll = 5 * time.Second
+
+// followGame: a launcher such as VanillaFixes.exe starts WoW.exe and exits straight away.
+// When the command has ended but WoW.exe is still running, wait (with no time limit) for
+// WoW itself to close, so the after-game sync sees the file WoW writes on exit. If the
+// process list can't be read, it stops waiting and the sync's own check takes over.
+func (a *app) followGame() {
+	running, err := a.gameCheck()
+	if err != nil || !running {
+		return
+	}
+	a.println("The launcher has closed but WoW is still running: waiting for WoW to close before syncing.")
+	start := a.now()
+	for {
+		a.sleep(followGamePoll)
+		running, err = a.gameCheck()
+		if err != nil || !running {
+			break
+		}
+	}
+	a.println(fmt.Sprintf("WoW closed (played %s): syncing.", a.now().Sub(start).Round(time.Minute)))
+}
+
 // runGame: sync, start the game, wait, sync. The game starts even if the first sync fails.
 func (a *app) runGame(args []string) int {
 	if len(args) > 0 && args[0] == "--" {
@@ -387,11 +435,13 @@ func (a *app) runGame(args []string) int {
 		fmt.Fprintln(a.err, "Sync before the game failed:", err)
 		fmt.Fprintln(a.err, "Starting the game anyway.")
 	}
+	a.println("Starting the game. Leave this window open: it syncs again when WoW closes.")
 	code, err := a.startGame(args)
 	if err != nil {
 		fmt.Fprintln(a.err, "Error: could not run the game:", err)
 		return 1
 	}
+	a.followGame()
 	if err := a.syncFn(true); err != nil {
 		fmt.Fprintln(a.err, "Sync after the game failed:", err)
 	}

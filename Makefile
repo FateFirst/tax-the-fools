@@ -27,8 +27,8 @@ sync-test:
 # Cross-compile ttf-sync for Windows and Linux (Steam Deck) into sync/dist/.
 sync-build:
 	mkdir -p sync/dist
-	cd sync && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.version=1.0.0" -o dist/ttf-sync-windows-amd64.exe ./cmd/ttf-sync
-	cd sync && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=1.0.0" -o dist/ttf-sync-linux-amd64 ./cmd/ttf-sync
+	cd sync && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.version=1.0.1" -o dist/ttf-sync-windows-amd64.exe ./cmd/ttf-sync
+	cd sync && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=1.0.1" -o dist/ttf-sync-linux-amd64 ./cmd/ttf-sync
 
 # Rebuild the SavedVariables round-trip fixture from the addon under the fake client.
 sync-fixture: $(LUA)

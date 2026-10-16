@@ -189,7 +189,7 @@ A website to browse your data may come later.
     make fonts     re-downloads the bundled fonts
     make recipes   regenerates the built-in Tailoring recipe data from LibCrafts-1.0
     make sync-test   runs the Go tests for ttf-sync
-    make sync-build  builds ttf-sync 1.0.0 for Windows and Linux into sync/dist/
+    make sync-build  builds ttf-sync 1.0.1 for Windows and Linux into sync/dist/
 
 Run `docs/testing-checklist.md` in game after every install.
 

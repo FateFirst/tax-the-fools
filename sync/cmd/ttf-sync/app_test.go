@@ -39,6 +39,8 @@ func testApp(t *testing.T, stdin string) (*app, *bytes.Buffer, *bytes.Buffer) {
 	a.configDir = t.TempDir()
 	a.wowRunning = func() bool { return false }
 	a.discover = func() []string { return nil }
+	a.gameCheck = func() (bool, error) { return false, nil }
+	a.sleep = func(time.Duration) {}
 	return a, &out, &errb
 }
 
@@ -86,6 +88,66 @@ func TestRunStartsGameWhenPreSyncFails(t *testing.T) {
 	}
 	if !strings.Contains(errb.String(), "Starting the game anyway") {
 		t.Errorf("stderr %q", errb)
+	}
+}
+
+// A launcher (VanillaFixes.exe) exits as soon as WoW.exe is started: the after-game
+// sync waits until WoW.exe itself has gone.
+func TestRunWaitsForWoWAfterLauncherExits(t *testing.T) {
+	a, out, _ := testApp(t, "")
+	var calls []string
+	wowLeft := 0
+	a.syncFn = func(post bool) error {
+		calls = append(calls, fmt.Sprint("sync", post))
+		return nil
+	}
+	a.startGame = func(args []string) (int, error) {
+		calls = append(calls, "launcher")
+		wowLeft = 3 // WoW.exe keeps running for three more checks
+		return 0, nil
+	}
+	a.gameCheck = func() (bool, error) {
+		if wowLeft > 0 {
+			wowLeft--
+			calls = append(calls, "wow")
+			return true, nil
+		}
+		return false, nil
+	}
+	sleeps := 0
+	a.sleep = func(time.Duration) { sleeps++ }
+	if code := a.run([]string{"run", "--", "VanillaFixes.exe"}); code != 0 {
+		t.Fatalf("code %d", code)
+	}
+	if got := strings.Join(calls, ","); got != "syncfalse,launcher,wow,wow,wow,synctrue" {
+		t.Fatalf("calls %s", got)
+	}
+	if sleeps != 3 {
+		t.Errorf("sleeps %d", sleeps)
+	}
+	for _, w := range []string{"Leave this window open", "waiting for WoW to close", "WoW closed"} {
+		if !strings.Contains(out.String(), w) {
+			t.Errorf("output lacks %q: %s", w, out)
+		}
+	}
+}
+
+// If the process list can't be read, followGame doesn't wait forever.
+func TestRunFollowGameStopsOnCheckError(t *testing.T) {
+	a, _, _ := testApp(t, "")
+	n := 0
+	a.syncFn = func(bool) error { return nil }
+	a.startGame = func([]string) (int, error) { return 0, nil }
+	a.gameCheck = func() (bool, error) {
+		n++
+		if n == 1 {
+			return true, nil
+		}
+		return false, errors.New("tasklist failed")
+	}
+	a.run([]string{"run", "--", "VanillaFixes.exe"})
+	if n != 2 {
+		t.Fatalf("checks %d", n)
 	}
 }
 
@@ -231,6 +293,18 @@ func TestCleanPathAndGameDir(t *testing.T) {
 	if gameDir(exe) != dir {
 		t.Errorf("gameDir %q", gameDir(exe))
 	}
+	// A launcher beside WoW.exe (VanillaFixes.exe) also runs in WoW's folder.
+	vf := filepath.Join(dir, "VanillaFixes.exe")
+	os.WriteFile(vf, nil, 0o644)
+	if gameDir(vf) != dir {
+		t.Errorf("gameDir(launcher) %q", gameDir(vf))
+	}
+	// An .exe somewhere without WoW.exe keeps the current folder.
+	other := filepath.Join(t.TempDir(), "VanillaFixes.exe")
+	os.WriteFile(other, nil, 0o644)
+	if gameDir(other) != "" {
+		t.Errorf("gameDir(other) %q", gameDir(other))
+	}
 	for _, p := range []string{"/bin/sh", "/home/deck/.steam/ubuntu12_32/reaper", "C:\\Games\\Turtle\\WoW.exe"} {
 		if gameDir(p) != "" { // none exist here (or are not WoW.exe)
 			t.Errorf("gameDir(%q) = %q", p, gameDir(p))
@@ -239,7 +313,7 @@ func TestCleanPathAndGameDir(t *testing.T) {
 	if !isWoWExe(`C:\Games\Turtle\WoW.exe`) || !isWoWExe("/x/Wow.exe") || isWoWExe("/bin/sh") || isWoWExe("/x/reaper") {
 		t.Error("isWoWExe")
 	}
-	other := filepath.Join(dir, "reaper")
+	other = filepath.Join(dir, "reaper")
 	os.WriteFile(other, nil, 0o755)
 	if gameDir(other) != "" {
 		t.Error("an existing non-WoW file must keep cwd")

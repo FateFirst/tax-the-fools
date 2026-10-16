@@ -84,6 +84,14 @@ Make a shortcut so that WoW always starts through ttf-sync. Right-click the desk
 
 ttf-sync starts WoW in WoW's own folder, so you don't need to touch the shortcut's **Start in** field. The **Start in** field is optional; leave it empty.
 
+**If you start WoW through a launcher** such as `VanillaFixes.exe`, point the shortcut at the launcher instead:
+
+```
+"C:\Tools\ttf-sync.exe" run -- "C:\Games\TurtleWoW\VanillaFixes.exe"
+```
+
+VanillaFixes starts `WoW.exe` and closes a few seconds later. ttf-sync (1.0.1 and later) notices that `WoW.exe` is still running, prints "The launcher has closed but WoW is still running: waiting for WoW to close before syncing.", and waits as long as you play. When you quit, it prints "WoW closed (played ...): syncing." and runs the after-game sync. A launcher in WoW's folder is also started in that folder, like `WoW.exe`.
+
 A small console window stays open while you play and shows what the sync did. **Leave it open**: it closes itself after the second sync. Closing it early skips the after-game sync (nothing is lost; the next launch catches up). Use this shortcut instead of the normal one.
 
 ### Steam Deck
