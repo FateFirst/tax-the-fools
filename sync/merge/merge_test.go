@@ -83,7 +83,7 @@ var ruleCases = []struct {
 			market = { a = { v = 2 }, b = { v = 2 }, d = { v = 2 } } } } }`,
 		want: `{ realms = { R = { history = { a = { days = { [10] = { n = 1 }, [11] = { n = 1 } } },
 			b = { days = { [12] = { n = 1 }, [11] = { n = 1 } } } },
-			market = { a = { v = 2 }, b = { v = 1 } } } } }`, union: true}, // c and d have no history: dropped
+			market = { a = { v = 2 }, b = { v = 1 } } } } }`, union: true, pruned: true}, // c and d have no history: dropped
 	{name: "scan: lastFull max, resume stays local",
 		local:  `{ realms = { R = { scan = { lastFull = 100, resume = { page = 3 } } } } }`,
 		remote: `{ realms = { R = { scan = { lastFull = 300, resume = { page = 9 } } } } }`,
