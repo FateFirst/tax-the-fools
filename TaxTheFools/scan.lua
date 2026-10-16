@@ -425,7 +425,8 @@ function Scan.Progress(now)
 end
 
 -- ---------- the listing snapshot (phase 3a spec section 3) ----------
--- realm.snapshot = { at = time(), day = day, rows = { [key] = { "count|buyout|minBid|owner", ... } } }.
+-- realm.snapshot = { at = time(), day = day, changedAt = time(), rows = { [key] = { "count|buyout|minBid|owner", ... } } }.
+-- at is the scan that made it; changedAt is any later change (a partial scan, a bought listing), for device sync.
 -- Deals are read from it, so only listings with a buyout are kept.
 
 function Scan.SnapRow(l)
@@ -462,7 +463,7 @@ function Scan.SaveSnapshot(job)
   local realm = DB.Realm()
   local fresh = snapRows(job.listings)
   if job.kind == "full" then
-    realm.snapshot = { at = time(), day = job.day, rows = fresh }
+    realm.snapshot = { at = time(), day = job.day, changedAt = time(), rows = fresh }
     return
   end
   local snap = realm.snapshot
@@ -481,6 +482,7 @@ function Scan.SaveSnapshot(job)
   end
   for _, key in ipairs(stale) do snap.rows[key] = nil end
   for key, list in pairs(fresh) do snap.rows[key] = list end
+  snap.changedAt = time()
 end
 
 -- Takes one listing out: sig = { key, count, buyout, owner }. The owner is only
@@ -494,6 +496,7 @@ function Scan.SnapshotRemove(sig)
     if count == sig.count and buyout == sig.buyout and (not owner or not sig.owner or owner == sig.owner) then
       table.remove(list, i)
       if table.getn(list) == 0 then snap.rows[sig.key] = nil end
+      snap.changedAt = time()
       return true
     end
   end

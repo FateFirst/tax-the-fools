@@ -62,12 +62,12 @@ Defaults (`data.lua` `D.REALM_DEFAULTS`): `history`, `market`, `scan`, `chars`, 
 
 | Path | Shape | Written by | Rule |
 |---|---|---|---|
-| `history[key].days[day]` | `{ n, qty, min, p25, med, sellers, src }` | `price.lua` `P.Record` (scans and browse) | Union by day; when both have a day, the row with the larger `n`, local on a tie. |
+| `history[key].days[day]` | `{ n, qty, min, p25, med, sellers, src }` | `price.lua` `P.Record` (scans and browse) | Union by day; when both have a day, the row with the larger `n`, local on a tie. A day at least `D.KEEP_DAYS` (60) days old is dropped when either side has the month it falls in, because one device has already folded it in (`P.Compact`). Other old days stay for the addon to fold. |
 | `history[key].months[month]` | `{ p25, n, d }`, month `yyyymm` | `price.lua` `P.Compact` | Union by month, the larger `n`, local on a tie. |
 | `market[key]` | `{ v, conf, low, lowDay, seen, n }` | `scan.lua` `Scan.MarketStep`, `Scan.RecomputeMarket` (at login, Task 1) | Union by key; when both have it, the side whose `history[key].days` has the newest day, local on a tie. Recomputed at login anyway. |
 | `scan.lastFull` | number | `scan.lua` after a full scan | Max. |
 | `scan.resume` | saved scan job | `scan.lua` | Local only: never taken from the remote side. |
-| `snapshot` | `{ at, day, rows = { [key] = { "count\|buyout\|minBid\|owner", ... } } }` | `scan.lua` `Scan.SaveSnapshot`, `Scan.SnapshotRemove` | Newer `at`. |
+| `snapshot` | `{ at, day, changedAt, rows = { [key] = { "count\|buyout\|minBid\|owner", ... } } }` | `scan.lua` `Scan.SaveSnapshot` (full and partial scans), `Scan.SnapshotRemove` (bought listings from `auction.lua`, `ui_deals.lua`); each stamps `changedAt` | The newer `changedAt` (falling back to `at`), local on a tie. |
 | `watch[key]` | time added (old saves `true`) | `db.lua` `DB.WatchSet` from `core.lua`, `ui_browse.lua`, `tradeskill.lua` | Union with removal records, as `settings.mail.keep`. |
 | `removed.watch[key]` | time removed | `DB.WatchSet` | Union, latest time, 90-day prune, cleared by a surviving entry. |
 | `snipe[key]` | `{ max, name, at }` | `snipe.lua` `Snipe.Set`/`SetMax` from `core.lua` `/ttf snipe`, `ui_browse.lua`, `ui_craft.lua` | Union with removal records; the added time is `at`; when both sides list it, the newer `at`. |
@@ -85,9 +85,9 @@ Defaults (`data.lua` `D.REALM_DEFAULTS`): `history`, `market`, `scan`, `chars`, 
 | `sales` | list `{ key, name, outcome, money, at, qty, unit, secs }` | `sales.lua` `Sales.Record`, `ResolveNames` | Union, de-duplicated by `(at, outcome, money, name or key)`. Cap 2000, 120 days. |
 | `postings` | list `{ key, stack, bid, buyout, minutes, deposit, at, done, reconciled }` | `sell.lua` `Sell.Log`, `sales.lua` `Reconcile`, `Record` sets `done` | Union, de-duplicated by `(at, key, stack, buyout)`; `done` set on either side stays set. Cap 500, 35 days. |
 | `ledger` | list `{ at, kind, amount, key, qty, who }` | `ledger.lua` `Ledger.Add`, `Backfill`, `BidWon`; `ledger_hooks.lua` | Union, de-duplicated by `(at, kind, amount, key)`. `vendorIn`, `vendorOut` and `mailOut` grow in place (one per merchant visit, one postage entry per send chain): matched by `(at, kind, who)`, the larger amount kept. Cap 5000, 180 days. |
-| `pendingBids` | list `{ name, amount, at, key }` | `Ledger.PendingBid`, `BidWon`, `BidLost` | Union, de-duplicated by `(name, amount, at)`. 7 days. |
-| `pendingBuys` | list `{ name, at }` | `Ledger.PendingBuy`, `BidWon` | Union, de-duplicated by `(name, amount, at)` (no amount). 7 days. |
-| `seenMail[key]` | `{ at, n }` (old saves: a bare time, one mail) | `mail.lua` `Mail.Read`, `Mail.Forget` | The larger `n`, local on a tie. Keys older than 120 days go, as in `Sales.Prune`. |
+| `pendingBids` | list `{ name, amount, at, key, used }` | `Ledger.PendingBid`; `BidWon` and `BidLost` set `used` (they don't remove the entry) | Union, de-duplicated by `(name, amount, at)`; `used` is the larger of both sides. 7 days. |
+| `pendingBuys` | list `{ name, at, used }` | `Ledger.PendingBuy`; `BidWon` sets `used` | The same, with no amount in the identity. |
+| `seenMail[key]` | `{ at, n }`, `at` = last change (old saves: a bare time, one mail) | `mail.lua` `Mail.Read`, `Mail.Forget` (lowers `n` to at least 0 and stamps `at`, never deletes) | The newer `at`; on a tie the larger `n`, then local. `n = 0` reads as unseen. Keys older than 120 days go, as in `Sales.Prune`. |
 | `ledgerBackfilled` | boolean | `Ledger.Backfill` | Logical OR. |
 
 List details, all in `sync/merge/lists.go`:

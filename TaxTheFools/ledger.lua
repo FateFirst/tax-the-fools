@@ -5,7 +5,9 @@ TaxTheFools.Ledger = Ledger
 
 -- Pure: characters, the clock and every amount arrive as arguments.
 -- Storage: char.ledger (list, oldest first, { at, kind, amount, key, qty, who }),
--- char.pendingBids (list, oldest first, { name, amount, at, key }), char.ledgerBackfilled.
+-- char.pendingBids (list, oldest first, { name, amount, at, key, used }), char.ledgerBackfilled.
+-- A pending bid or buy marker that is settled gets `used = time` instead of being removed, so device sync
+-- can't bring it back from an older copy; readers skip used entries and the 7-day expiry removes them.
 
 Ledger.MAX_ENTRIES = 5000
 Ledger.KEEP_DAYS = 180
@@ -159,9 +161,19 @@ local function takeBuy(char, name, now)
   if not buys then return false end
   local cutoff = now - Ledger.BID_DAYS * 86400
   for i = table.getn(buys), 1, -1 do
-    if buys[i].name == name and buys[i].at >= cutoff then table.remove(buys, i) return true end
+    local b = buys[i]
+    if not b.used and b.name == name and b.at >= cutoff then b.used = now return true end
   end
   return false
+end
+
+-- The bids and buy markers not yet settled.
+function Ledger.Live(list)
+  local out = {}
+  for _, e in ipairs(list or {}) do
+    if not e.used then table.insert(out, e) end
+  end
+  return out
 end
 
 -- A won mail first consumes the newest buy marker for the name (no entry: the buy is already counted);
@@ -173,26 +185,28 @@ function Ledger.BidWon(char, name, now)
   dropOldBids(char, now)
   for i = table.getn(char.pendingBids), 1, -1 do
     local b = char.pendingBids[i]
-    if b.name == name then
-      table.remove(char.pendingBids, i)
+    if not b.used and b.name == name then
+      b.used = now
       return Ledger.Add(char, { at = now, kind = "bid", amount = b.amount, key = b.key }, now)
     end
   end
   return nil
 end
 
--- An outbid mail refunds the bid: it removes the pending bid for the name whose amount equals the refund
+-- An outbid mail refunds the bid: it settles the pending bid for the name whose amount equals the refund
 -- (newest such), else the oldest for the name. No spending. Returns true when one was removed.
 function Ledger.BidLost(char, name, money)
   if not char or not char.pendingBids then return false end
-  local bids = char.pendingBids
+  local bids, now = char.pendingBids, time()
   if money then
     for i = table.getn(bids), 1, -1 do
-      if bids[i].name == name and bids[i].amount == money then table.remove(bids, i) return true end
+      local b = bids[i]
+      if not b.used and b.name == name and b.amount == money then b.used = now return true end
     end
   end
   for i = 1, table.getn(bids) do
-    if bids[i].name == name then table.remove(bids, i) return true end
+    local b = bids[i]
+    if not b.used and b.name == name then b.used = now return true end
   end
   return false
 end

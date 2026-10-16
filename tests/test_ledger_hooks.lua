@@ -82,12 +82,13 @@ T.test("a bid is pending, then a won mail makes the bid entry; an outbid mail re
   WoW.fire("MAIL_SHOW") frame()
   T.eq(kinds(), "bid:3000")
   T.eq(led()[1].key, "14047:0")
-  T.eq(table.getn(DB.Char().pendingBids), 0)
+  T.eq(table.getn(A.Ledger.Live(DB.Char().pendingBids)), 0)
+  T.eq(DB.Char().pendingBids[1].used, WoW.now, "settled, not removed")
   -- outbid
   A.Ledger.PendingBid(DB.Char(), "Runecloth", 500, WoW.now, "14047:0")
   WoW.mail = { { subject = "Outbid on Runecloth", money = 500, daysLeft = 28.5 } }
   WoW.fire("MAIL_INBOX_UPDATE") frame()
-  T.eq(table.getn(DB.Char().pendingBids), 0)
+  T.eq(table.getn(A.Ledger.Live(DB.Char().pendingBids)), 0)
   T.eq(kinds(), "bid:3000", "no spending for an outbid")
 end)
 
@@ -104,8 +105,9 @@ T.test("a buyout's won mail adds no bid, even with a pending bid on the same nam
   WoW.now = WoW.now + 1800
   WoW.fire("MAIL_SHOW") frame()
   T.eq(kinds(), "buy:4000", "no extra spend")
-  T.eq(table.getn(DB.Char().pendingBids), 1, "the live bid survives")
-  T.eq(table.getn(DB.Char().pendingBuys), 0, "the marker is used up")
+  T.eq(table.getn(A.Ledger.Live(DB.Char().pendingBids)), 1, "the live bid survives")
+  T.eq(table.getn(A.Ledger.Live(DB.Char().pendingBuys)), 0, "the marker is used up")
+  T.eq(DB.Char().pendingBuys[1].used, WoW.now, "the marker is kept, marked used")
 end)
 
 T.test("outbid then rebid before the mail: the new bid survives", function()
@@ -116,8 +118,9 @@ T.test("outbid then rebid before the mail: the new bid survives", function()
   WoW.mail = { { subject = "Outbid on Runecloth", money = 300, daysLeft = 29.5 } }
   WoW.now = WoW.now + 1800
   WoW.fire("MAIL_SHOW") frame()
-  T.eq(table.getn(DB.Char().pendingBids), 1)
-  T.eq(DB.Char().pendingBids[1].amount, 400)
+  local live = A.Ledger.Live(DB.Char().pendingBids)
+  T.eq(table.getn(live), 1)
+  T.eq(live[1].amount, 400)
 end)
 
 T.test("the merchant flag clears when the auction house, mailbox or a new zone opens", function()

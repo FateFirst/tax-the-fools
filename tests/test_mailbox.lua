@@ -303,20 +303,32 @@ T.test("a delete forgets the mail's seenMail count, so a later identical sale is
   Mailbox.CollectAll() pump()
   T.eq(table.getn(WoW.mail), 0)
   T.eq(salesOf("sold"), 1)
-  T.eq(A.DB.Char().seenMail[key], nil, "the entry is removed at 0")
+  T.eq(A.DB.Char().seenMail[key].n, 0, "the entry stays at 0")
+  T.eq(A.DB.Char().seenMail[key].at, time(), "stamped when forgotten")
   local again = ah(900) again.daysLeft = 29.5
   WoW.mail = { again }
   WoW.fire("MAIL_INBOX_UPDATE") frame()
   T.eq(salesOf("sold"), 2, "the second identical sale counts")
 end)
 
-T.test("Mail.Forget decrements a count and removes the entry at 0", function()
+T.test("Mail.Forget decrements a count to 0, stamping each change", function()
   local c = A.DB.Char()
   c.seenMail = { a = { at = 5, n = 2 }, b = 7 }
-  Mail.Forget("a") T.eq(c.seenMail.a.n, 1) T.eq(c.seenMail.a.at, 5)
-  Mail.Forget("a") T.eq(c.seenMail.a, nil)
-  Mail.Forget("b") T.eq(c.seenMail.b, nil, "old format counts as one")
+  Mail.Forget("a") T.eq(c.seenMail.a.n, 1) T.eq(c.seenMail.a.at, time())
+  Mail.Forget("a") T.eq(c.seenMail.a.n, 0)
+  c.seenMail.a.at = 9
+  Mail.Forget("a") T.eq(c.seenMail.a.n, 0) T.eq(c.seenMail.a.at, 9, "already at 0: unchanged")
+  Mail.Forget("b") T.eq(c.seenMail.b.n, 0, "old format counts as one")
   Mail.Forget("none") Mail.Forget(nil)
+  T.eq(c.seenMail.none, nil)
+  T.eq(Mail.Recorded("x", 0, 29.5, time()), 0)
+end)
+
+T.test("a seenMail entry at n = 0 reads as unseen", function()
+  local c = A.DB.Char()
+  local key = Mail.Key("Auction successful: Linen Cloth", 900, 29.5, time())
+  c.seenMail = { [key] = { at = time() - 10, n = 0 } }
+  T.eq((Mail.Recorded("Auction successful: Linen Cloth", 900, 29.5, time())), 0)
 end)
 
 T.test("an AH sale of an item the cache can't name is still recorded and collected; its key comes later", function()
@@ -370,7 +382,7 @@ T.test("a mail the client drops on its own is forgotten too, so a later identica
   local key = Mail.Key(m.subject, 900, 29.5, time())
   Mailbox.CollectAll() pump()
   T.eq(table.getn(WoW.mail), 0)
-  T.eq(A.DB.Char().seenMail[key], nil)
+  T.eq(A.DB.Char().seenMail[key].n, 0)
   local again = ah(900) again.daysLeft = 29.5
   WoW.mail = { again }
   WoW.fire("MAIL_INBOX_UPDATE") frame()

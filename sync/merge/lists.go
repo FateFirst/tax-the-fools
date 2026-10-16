@@ -16,6 +16,8 @@ type listSpec struct {
 	grow map[string]bool
 	// doneFirst pairs finished postings first within an identity group.
 	doneFirst bool
+	// maxFields take the larger number of a pair (`used` on a settled bid or buy marker).
+	maxFields []string
 	keepDays  float64
 	cap       int
 }
@@ -30,8 +32,9 @@ var (
 	// Ledger.Add entries { at, kind, amount, key, qty, who }.
 	ledgerSpec = listSpec{id: []string{"at", "kind", "amount", "key"},
 		grow: map[string]bool{"vendorIn": true, "vendorOut": true, "mailOut": true}, keepDays: LedgerKeepDays, cap: MaxLedger}
-	// pendingBids { name, amount, at, key } and pendingBuys { name, at }.
-	pendingSpec = listSpec{id: []string{"name", "amount", "at"}, keepDays: PendingKeepDays}
+	// pendingBids { name, amount, at, key, used } and pendingBuys { name, at, used }. A settled entry
+	// keeps `used`, the latest of both sides.
+	pendingSpec = listSpec{id: []string{"name", "amount", "at"}, maxFields: []string{"used"}, keepDays: PendingKeepDays}
 )
 
 func (s listSpec) idOf(v luasv.Value) string {
@@ -61,6 +64,28 @@ func (s listSpec) idOf(v luasv.Value) string {
 		b.WriteString("\x00")
 	}
 	return b.String()
+}
+
+// maxOf sets each of fields in merged to b's value when that is a larger number.
+func maxOf(merged, b luasv.Value, fields []string) luasv.Value {
+	mt, bt := asTable(merged), asTable(b)
+	if mt == nil || bt == nil {
+		return merged
+	}
+	for _, f := range fields {
+		bv, ok := field(bt, f)
+		bn, isNum := asNum(bv)
+		if !ok || !isNum {
+			continue
+		}
+		if mv, ok := field(mt, f); ok {
+			if mn, isNum := asNum(mv); isNum && mn >= bn {
+				continue
+			}
+		}
+		mt.SetS(f, bn)
+	}
+	return merged
 }
 
 func atOf(v luasv.Value) float64 { return numOr(asTable(v), "at", 0) }
@@ -131,7 +156,7 @@ func (m *merger) list(s listSpec) rule {
 						out = append(out, clone(a[i]))
 					}
 				default:
-					out = append(out, unionFields(a[i], b[i]))
+					out = append(out, maxOf(unionFields(a[i], b[i]), b[i], s.maxFields))
 				}
 			}
 		}

@@ -29,8 +29,8 @@ end
 -- another read, because daysLeft is a rounded float.
 Mail.BOUNDARY = 5
 
--- seenMail[key] is { at = when first recorded, n = how many such mails are recorded }; the old format was
--- a bare timestamp, which reads as one recorded mail.
+-- seenMail[key] is { at = when last changed, n = how many such mails are recorded }; n = 0 reads as unseen.
+-- The old format was a bare timestamp, which reads as one recorded mail.
 local function seenCount(seen, key)
   local v = seen[key]
   if type(v) == "table" then return v.n or 1 end
@@ -88,18 +88,16 @@ function Mail.Recorded(subject, money, daysLeft, now)
 end
 
 -- A recorded mail has left the inbox (Collect all deleted it): one fewer under its key, so a later identical
--- mail is counted as new. The entry goes at 0.
+-- mail is counted as new. The entry stays at n = 0 with a fresh `at`, so device sync sees the newer count
+-- instead of bringing the old one back; the 120-day prune removes it.
 function Mail.Forget(key)
   if not key then return end
   local seen = A.DB.Char().seenMail
   local v = seen and seen[key]
   if not v then return end
-  local n = seenCount(seen, key) - 1
-  if n <= 0 then
-    seen[key] = nil
-  else
-    seen[key] = { at = type(v) == "table" and v.at or v, n = n }
-  end
+  local n = seenCount(seen, key)
+  if n <= 0 then return end
+  seen[key] = { at = time(), n = n - 1 }
 end
 
 -- Reads every mail header and records each new auction mail that still holds its payload. Identical mails

@@ -120,3 +120,21 @@ T.test("the snapshot's age is counted in whole days", function()
   DB.Realm().snapshot = { at = WoW.now - 3 * 86400, day = 20372, rows = {} }
   T.eq(Scan.SnapshotAge(20375), 3, "20375 - 20372")
 end)
+
+T.test("every snapshot change stamps changedAt, for device sync", function()
+  list(4306, "Silk Cloth", 20, 6000, "B")
+  Scan.StartFull(WoW.clock) pump()
+  local snap = DB.Realm().snapshot
+  T.eq(snap.changedAt, WoW.now, "a full scan")
+  snap.changedAt = 1
+  I.Remember(4306, "Silk Cloth")
+  DB.Realm().watch["4306:0"] = true
+  Scan.StartWatch(WoW.clock) pump()
+  T.eq(DB.Realm().snapshot.changedAt, WoW.now, "a partial scan")
+  T.eq(DB.Realm().snapshot.at, snap.at, "at stays the full scan's")
+  DB.Realm().snapshot.changedAt = 1
+  T.eq(Scan.SnapshotRemove({ key = "4306:0", count = 20, buyout = 9999 }), false)
+  T.eq(DB.Realm().snapshot.changedAt, 1, "no change, no stamp")
+  T.eq(Scan.SnapshotRemove({ key = "4306:0", count = 20, buyout = 6000 }), true)
+  T.eq(DB.Realm().snapshot.changedAt, WoW.now, "a bought listing")
+end)

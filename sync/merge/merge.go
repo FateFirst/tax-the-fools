@@ -4,6 +4,8 @@
 package merge
 
 import (
+	"time"
+
 	"github.com/FateFirst/tax-the-fools/sync/luasv"
 )
 
@@ -18,6 +20,7 @@ const (
 	PostingKeepDays = 35   // Sell.LOG_DAYS (Sell.Prune runs at login)
 	PendingKeepDays = 7    // Ledger.BID_DAYS, pendingBids and pendingBuys
 	RemovalKeepDays = 90   // spec section 5: removal records
+	KeepDays        = 60   // D.KEEP_DAYS: day rows older than this are folded into months
 	secondsPerDay   = 86400
 )
 
@@ -285,16 +288,13 @@ func (m *merger) realm(l, r luasv.Value, lok, rok bool, path string) (luasv.Valu
 	}
 	lhist, rhist := fieldT(lt, "history"), fieldT(rt, "history")
 	rules := map[string]rule{
-		"history": m.mapOf(m.table(map[string]rule{
-			"days":   m.mapOf(largerN),
-			"months": m.mapOf(largerN),
-		})),
-		"market": m.market(lhist, rhist),
+		"history": m.mapOf(m.history),
+		"market":  m.market(lhist, rhist),
 		"scan": m.table(map[string]rule{
 			"lastFull": maxNum,
 			"resume":   localOnly,
 		}),
-		"snapshot": newerAt,
+		"snapshot": newerChange,
 		"chars":    m.mapOf(m.char),
 		"watch":    fixed(watch),
 		"snipe":    fixed(snipe),
@@ -304,6 +304,55 @@ func (m *merger) realm(l, r luasv.Value, lok, rok bool, path string) (luasv.Valu
 		}),
 	}
 	return m.fields(lt, rt, path, rules), true
+}
+
+// history merges one key's price history: days and months by the larger n, then day rows the
+// addon would have folded into a month (older than KeepDays) are dropped when that month exists on
+// either side, so the addon doesn't fold them a second time. Other old days stay for the addon to fold.
+func (m *merger) history(l, r luasv.Value, lok, rok bool, path string) (luasv.Value, bool) {
+	lt, rt := asTable(l), asTable(r)
+	if (lok && lt == nil) || (rok && rt == nil) {
+		return m.other(l, r, lok, rok, path)
+	}
+	out := m.fields(lt, rt, path, map[string]rule{"days": m.mapOf(largerN), "months": m.mapOf(largerN)})
+	days := fieldT(out, "days")
+	if m.now <= 0 || days == nil {
+		return out, true
+	}
+	today := float64(int64(m.now) / secondsPerDay)
+	hasMonth := func(month float64) bool {
+		for _, t := range []*luasv.Table{lt, rt} {
+			if _, ok := field(fieldT(t, "months"), month); ok {
+				return true
+			}
+		}
+		return false
+	}
+	for _, k := range keys(days, nil) {
+		day, ok := asNum(k)
+		if ok && today-day >= KeepDays && hasMonth(monthOf(day)) {
+			days.Delete(k)
+		}
+	}
+	return out, true
+}
+
+// monthOf is the addon's month key for a day: yyyymm in UTC (price.lua).
+func monthOf(day float64) float64 {
+	t := time.Unix(int64(day)*secondsPerDay, 0).UTC()
+	return float64(t.Year()*100 + int(t.Month()))
+}
+
+// newerChange keeps the snapshot changed last: changedAt, else at (scan.lua). Local on a tie.
+func newerChange(l, r luasv.Value, lok, rok bool, path string) (luasv.Value, bool) {
+	stamp := func(v luasv.Value) float64 {
+		t := asTable(v)
+		return numOr(t, "changedAt", numOr(t, "at", -1))
+	}
+	if lok && rok && stamp(r) > stamp(l) {
+		return clone(r), true
+	}
+	return preferLocal(l, r, lok, rok, path)
 }
 
 // largerN keeps the history row with more listings (n), local on a tie.
@@ -395,8 +444,9 @@ func lastDot(s string) int {
 	return -1
 }
 
-// seenMail: per key the larger count n (local on a tie); keys older than 120 days go, as in
-// Sales.Prune. The old format, a bare timestamp, counts as one mail.
+// seenMail: per key the entry changed last (`at`, stamped by every write including Mail.Forget);
+// on a tie the larger count n, then local. Keys older than 120 days go, as in Sales.Prune. The old
+// format, a bare timestamp, counts as one mail stamped at that time.
 func (m *merger) seenMail(l, r luasv.Value, lok, rok bool, path string) (luasv.Value, bool) {
 	lt, rt := asTable(l), asTable(r)
 	if (lok && lt == nil) || (rok && rt == nil) {
@@ -408,12 +458,27 @@ func (m *merger) seenMail(l, r luasv.Value, lok, rok bool, path string) (luasv.V
 		}
 		return 1
 	}
+	stamp := func(v luasv.Value) float64 {
+		if t := asTable(v); t != nil {
+			return numOr(t, "at", -1)
+		}
+		if f, ok := asNum(v); ok {
+			return f
+		}
+		return -1
+	}
+	newer := func(l, r luasv.Value) bool {
+		if stamp(r) != stamp(l) {
+			return stamp(r) > stamp(l)
+		}
+		return count(r) > count(l)
+	}
 	out := luasv.NewTable()
 	for _, k := range keys(lt, rt) {
 		lv, a := field(lt, k)
 		rv, b := field(rt, k)
 		v := lv
-		if !a || (b && count(rv) > count(lv)) {
+		if !a || (b && newer(lv, rv)) {
 			v = rv
 		}
 		if m.now > 0 {
