@@ -1,6 +1,7 @@
 package luasv
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"strconv"
@@ -27,6 +28,8 @@ func (p *parser) fail(format string, a ...interface{}) error {
 
 // Parse reads top-level `NAME = value` assignments.
 func Parse(src []byte) (map[string]Value, error) {
+	// A file saved by a Windows editor may start with a UTF-8 byte order mark; the client never writes one.
+	src = bytes.TrimPrefix(src, []byte("\xef\xbb\xbf"))
 	p := &parser{src: src, line: 1}
 	out := map[string]Value{}
 	for {
