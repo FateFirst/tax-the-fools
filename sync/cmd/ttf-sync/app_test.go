@@ -14,6 +14,7 @@ import (
 	"github.com/FateFirst/tax-the-fools/sync/internal/backup"
 	"github.com/FateFirst/tax-the-fools/sync/internal/config"
 	"github.com/FateFirst/tax-the-fools/sync/internal/paths"
+	"github.com/FateFirst/tax-the-fools/sync/internal/proc"
 )
 
 // TestHelperGame is the fake game: it records that it ran and exits with a chosen code.
@@ -210,6 +211,19 @@ func TestCleanPathAndGameDir(t *testing.T) {
 	if gameDir(exe) != dir {
 		t.Errorf("gameDir %q", gameDir(exe))
 	}
+	for _, p := range []string{"/bin/sh", "/home/deck/.steam/ubuntu12_32/reaper", "C:\\Games\\Turtle\\WoW.exe"} {
+		if gameDir(p) != "" { // none exist here (or are not WoW.exe)
+			t.Errorf("gameDir(%q) = %q", p, gameDir(p))
+		}
+	}
+	if !isWoWExe(`C:\Games\Turtle\WoW.exe`) || !isWoWExe("/x/Wow.exe") || isWoWExe("/bin/sh") || isWoWExe("/x/reaper") {
+		t.Error("isWoWExe")
+	}
+	other := filepath.Join(dir, "reaper")
+	os.WriteFile(other, nil, 0o755)
+	if gameDir(other) != "" {
+		t.Error("an existing non-WoW file must keep cwd")
+	}
 	if gameDir("%command%") != "" || gameDir(dir) != "" || gameDir("proton") != "" {
 		t.Error("should keep cwd")
 	}
@@ -252,5 +266,21 @@ func TestInitShowsKeyEvenIfSaveFails(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Your sync key is") {
 		t.Errorf("key not shown: %q", out)
+	}
+}
+
+func TestCouldNotCheckWarnsOncePerSync(t *testing.T) {
+	var out bytes.Buffer
+	a := newApp(strings.NewReader(""), &out, &out)
+	orig := proc.Check
+	defer func() { proc.Check = orig }()
+	proc.Check = func() (bool, error) { return false, errors.New("boom") }
+	for i := 0; i < 5; i++ {
+		if !a.wowRunning() {
+			t.Fatal("unknown must count as running")
+		}
+	}
+	if c := strings.Count(out.String(), "Could not check"); c != 1 {
+		t.Errorf("%d warnings", c)
 	}
 }

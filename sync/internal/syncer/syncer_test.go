@@ -320,6 +320,27 @@ func TestNoStampWhenPushFails(t *testing.T) {
 	if tget(a.db(), "sync") != nil {
 		t.Error("stamped although the push failed")
 	}
+	// a later failure keeps the earlier stamp
+	r.fake.SetHook(nil)
+	r.fake.SetStatus(0)
+	if _, err := a.sync(); err != nil {
+		t.Fatal(err)
+	}
+	stamp := tget(a.db(), "sync", "at")
+	if stamp == nil {
+		t.Fatal("no stamp after a good sync")
+	}
+	r.fake.SetHook(func(fn string) {
+		if fn == "ttf_pull" {
+			r.fake.SetStatus(503)
+		}
+	})
+	if _, err := a.sync(); err == nil {
+		t.Fatal("expected error")
+	}
+	if tget(a.db(), "sync", "at") != stamp {
+		t.Error("the previous stamp was dropped")
+	}
 }
 
 func TestUnparseableNeverOverwritten(t *testing.T) {

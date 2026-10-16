@@ -216,6 +216,14 @@ func (d *Deps) writeLocal(path string, haveFile bool, vars map[string]luasv.Valu
 	if d.wowRunning() {
 		return false, true, nil
 	}
+	if t, ok := merged.(*luasv.Table); ok && !stamp {
+		// Push failed: keep the previous stamp (the merge result had it removed for the push).
+		if old, ok := vars["TaxTheFoolsDB"].(*luasv.Table); ok {
+			if prev, ok := old.GetS("sync"); ok {
+				t.SetS("sync", prev)
+			}
+		}
+	}
 	if t, ok := merged.(*luasv.Table); ok && stamp {
 		st := luasv.NewTable()
 		st.SetS("at", float64(d.Now().Unix()))

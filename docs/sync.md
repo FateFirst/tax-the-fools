@@ -90,7 +90,7 @@ A small console window stays open while you play and shows what the sync did. **
 
 1. Switch to Desktop Mode.
 2. In Steam, **Add a Game, Add a Non-Steam Game**, and add WoW's `WoW.exe`. Under its **Properties, Compatibility**, force a Proton version, like you do for any Windows game.
-3. Make a folder `~/ttf-sync/`, put the downloaded file in it, renamed to `ttf-sync`,, and make it runnable:
+3. Make a folder `~/ttf-sync/`, put the downloaded file in it, renamed to `ttf-sync`, and make it runnable:
 
    ```
    chmod +x ~/ttf-sync/ttf-sync

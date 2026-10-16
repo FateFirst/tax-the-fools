@@ -39,6 +39,8 @@ type app struct {
 	syncFn func(post bool) error
 	// startGame runs the game command and returns its exit code.
 	startGame func(args []string) (int, error)
+	// warnedCheck: the "could not check" warning is printed once per sync.
+	warnedCheck bool
 }
 
 func newApp(in io.Reader, out, errw io.Writer) *app {
@@ -46,6 +48,10 @@ func newApp(in io.Reader, out, errw io.Writer) *app {
 	a.wowRunning = func() bool {
 		running, err := proc.Check()
 		if err != nil {
+			if a.warnedCheck {
+				return true
+			}
+			a.warnedCheck = true
 			fmt.Fprintf(a.out, "Could not check whether WoW is running (%v): treating it as running, so nothing is written.\n", err)
 			return true
 		}
@@ -294,6 +300,7 @@ func (a *app) sync(post bool) error {
 	if err != nil {
 		return err
 	}
+	a.warnedCheck = false
 	var buf bytes.Buffer
 	d := syncer.Deps{Client: cl, Cfg: c, ConfigDir: dir, WoWRunning: a.wowRunning,
 		Now: a.now, Version: version, Out: io.MultiWriter(a.out, &buf)}
@@ -322,9 +329,21 @@ func lastLine(s string) string {
 	return lines[len(lines)-1]
 }
 
-// gameDir: when the command is an existing file (WoW.exe from a Windows shortcut), run it
-// in its own folder, which the 1.12 client expects. Anything else keeps the current folder.
+// isWoWExe: the base name (either path separator) is wow.exe, any case.
+func isWoWExe(p string) bool {
+	if i := strings.LastIndexAny(p, `/\`); i >= 0 {
+		p = p[i+1:]
+	}
+	return strings.EqualFold(p, "wow.exe")
+}
+
+// gameDir: when the command is an existing WoW.exe (from a Windows shortcut), run it in
+// its own folder, which the 1.12 client expects. Anything else (Steam's reaper, /bin/sh,
+// proton) keeps the current folder.
 func gameDir(first string) string {
+	if !isWoWExe(first) {
+		return ""
+	}
 	st, err := os.Stat(first)
 	if err != nil || st.IsDir() {
 		return ""
