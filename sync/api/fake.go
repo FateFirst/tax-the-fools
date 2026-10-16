@@ -80,8 +80,9 @@ func (f *Fake) handle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "fake failure", status)
 		return
 	}
-	if r.Method != "POST" || r.Header.Get("apikey") != FakeAnonKey ||
-		r.Header.Get("Authorization") != "Bearer "+FakeAnonKey {
+	// A publishable key goes in apikey only; a legacy JWT key may also come as the bearer token.
+	if auth := r.Header.Get("Authorization"); r.Method != "POST" || r.Header.Get("apikey") != FakeAnonKey ||
+		(auth != "" && auth != "Bearer "+FakeAnonKey) {
 		pgError(w, 401, "PGRST301", "Invalid API key")
 		return
 	}

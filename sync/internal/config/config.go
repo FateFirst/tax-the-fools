@@ -63,7 +63,11 @@ func Save(dir string, c Config) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(Path(dir), append(data, '\n'), 0o600)
+	if err := os.WriteFile(Path(dir), append(data, '\n'), 0o600); err != nil {
+		return err
+	}
+	// WriteFile only sets the mode of a new file; the key must not stay world-readable in an old one.
+	return os.Chmod(Path(dir), 0o600) // a no-op on Windows
 }
 
 func hostname() string {

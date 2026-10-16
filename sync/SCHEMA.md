@@ -64,7 +64,7 @@ Defaults (`data.lua` `D.REALM_DEFAULTS`): `history`, `market`, `scan`, `chars`, 
 |---|---|---|---|
 | `history[key].days[day]` | `{ n, qty, min, p25, med, sellers, src }` | `price.lua` `P.Record` (scans and browse) | Union by day. When both sides have a day, the rule follows `P.Record`: a scan row (`full`, `watch`, `mats`, `snipe`) beats a `browse` row, and within the same class the larger `n` wins, local on a tie. Days at or below the merged `foldedTo` are dropped. |
 | `history[key].foldedTo` | number, the newest day ever folded | `price.lua` `P.Compact` (only moves forward) | Max. Day rows at or below it have already been counted in a month on some device, so they are dropped and never folded twice. Unfolded days stay, whatever their age, for the addon to fold. |
-| `history[key].months[month]` | `{ p25, n, d }`, month `yyyymm` | `price.lua` `P.Compact` | Union by month, the larger `n`, local on a tie. |
+| `history[key].months[month]` | `{ p25, n, d }`, month `yyyymm` | `price.lua` `P.Compact` | Union by month, the larger `n`, local on a tie. Months older than `monthOf(today - 12*31 days)` are dropped, and an entry left with no days and no months is dropped (as `P.Compact` and the prune do), so the union can't bring them back. |
 | `market[key]` | `{ v, conf, low, lowDay, seen, n }` | `scan.lua` `Scan.MarketStep`, `Scan.RecomputeMarket` (at login, Task 1) | Union by key; when both have it, the side whose `history[key].days` has the newest day, local on a tie. Recomputed at login anyway. |
 | `scan.lastFull` | number | `scan.lua` after a full scan | Max. |
 | `scan.resume` | saved scan job | `scan.lua` | Local only: never taken from the remote side. |

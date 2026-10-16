@@ -18,11 +18,11 @@ Everything lives in a free Supabase project that only you own. No one else can r
 2. Click **New project**, give it any name (for example `ttf-sync`), choose a region near you and set a database password (you won't need it again). Wait for it to finish creating.
 3. Open **SQL Editor** in the left menu and click **New query**.
 4. Open `sync/supabase/001_init.sql` from this repo, copy the whole file, paste it into the editor and click **Run**. You should see "Success". It is safe to run twice.
-5. Open **Project Settings, then API**. Copy two things:
-   - the **Project URL** (like `https://abcdxyz.supabase.co`)
-   - the **anon public** key (a long string starting `eyJ`)
+5. Copy two things from the dashboard:
+   - the **Project URL** (like `https://abcdxyz.supabase.co`): **Project Settings, then Data API** (older dashboards: **Project Settings, then API**)
+   - an API key: **Project Settings, then API Keys**. New projects show a **Publishable key** (starts `sb_publishable_`): use that. Older projects only have the legacy **anon** key (a long string starting `eyJ`, under the **Legacy API keys** tab): that works too. Never use the **secret** or **service_role** key.
 
-   The anon key on its own can't read any data. The sync key (below) is what protects it.
+   The publishable/anon key on its own can't read any data. The sync key (below) is what protects it. ttf-sync's setup asks for it as the "anon key".
 
 ### 2. Get ttf-sync
 
@@ -82,7 +82,7 @@ Make a shortcut so that WoW always starts through ttf-sync. Right-click the desk
 "C:\Tools\ttf-sync.exe" run -- "C:\Games\TurtleWoW\WoW.exe"
 ```
 
-ttf-sync starts WoW in WoW's own folder, so you don't need to touch the shortcut's **Start in** field. If you'd like to be safe anyway, set **Start in** to the WoW folder.
+ttf-sync starts WoW in WoW's own folder, so you don't need to touch the shortcut's **Start in** field. The **Start in** field is optional; leave it empty.
 
 A small console window stays open while you play and shows what the sync did. **Leave it open**: it closes itself after the second sync. Closing it early skips the after-game sync (nothing is lost; the next launch catches up). Use this shortcut instead of the normal one.
 
@@ -100,7 +100,7 @@ A small console window stays open while you play and shows what the sync did. **
 5. In the WoW entry's **Properties, Launch Options**, put:
 
    ```
-   ~/ttf-sync/ttf-sync run -- %command%
+   /home/deck/ttf-sync/ttf-sync run -- %command%
    ```
 
 6. Back in Game Mode, launch WoW as usual.
@@ -127,7 +127,14 @@ Before every write, ttf-sync copies your file into a `backups` folder next to it
 ttf-sync restore
 ```
 
-Pick a backup from the list. The current file is backed up first. The next sync merges the restored data with the server copy again, so if you want to go back for good, restore and then fix the data in the game before the next sync.
+Pick a backup by typing its number (pressing Enter cancels). ttf-sync then warns: **this replaces the synced data on all devices.** Type `yes` to go ahead.
+
+What a restore does:
+
+1. It uploads the backup to the server as the new shared state. It is not merged, so anything on the server that the backup lacks is gone from the server.
+2. It backs up the current local file, then writes the backup in its place.
+
+Your other devices still hold their own copies, and at their next sync they merge those copies back in (a merge never deletes things on its own). If you want them rolled back too, run `ttf-sync restore` on each of them as well, choosing a backup from before the problem. If a restore reaches the server while another device is syncing, it stops without changing anything; just run it again.
 
 Config and backups live in `%APPDATA%\ttf-sync\` on Windows and `~/.config/ttf-sync/` on Linux.
 
@@ -135,7 +142,7 @@ Config and backups live in `%APPDATA%\ttf-sync\` on Windows and `~/.config/ttf-s
 
 **"Your Supabase project is paused."** Free projects pause after about a week without activity (regular syncs count as activity). Open the Supabase dashboard and click **Resume project**, then sync again. Your data is kept.
 
-**"That sync key was not accepted."** The key was copied wrongly, or `setup` on this device points at a different Supabase project than the one used for `init`. Check the URL and anon key in `ttf-sync status`, and paste the key again with `join`.
+**"That sync key was not accepted."** The key was copied wrongly, or `setup` on this device points at a different Supabase project than the one used for `init`. Check the URL and the key in `ttf-sync status`/the config, and paste the key again with `join`.
 
 **"local file NOT written (WoW is running)".** WoW (or a stuck `WoW.exe` process) was still open. Close it fully and run `ttf-sync sync`. The upload still happened.
 

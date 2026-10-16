@@ -4,6 +4,8 @@
 package merge
 
 import (
+	"time"
+
 	"github.com/FateFirst/tax-the-fools/sync/luasv"
 )
 
@@ -18,6 +20,7 @@ const (
 	PostingKeepDays = 35   // Sell.LOG_DAYS (Sell.Prune runs at login)
 	PendingKeepDays = 7    // Ledger.BID_DAYS, pendingBids and pendingBuys
 	RemovalKeepDays = 90   // spec section 5: removal records
+	KeepMonths      = 12   // D.KEEP_MONTHS: P.Compact drops older month rows
 	secondsPerDay   = 86400
 )
 
@@ -319,15 +322,36 @@ func (m *merger) history(l, r luasv.Value, lok, rok bool, path string) (luasv.Va
 	fv, _ := field(out, "foldedTo")
 	folded, ok := asNum(fv)
 	days := fieldT(out, "days")
-	if !ok || days == nil {
-		return out, true
+	if ok && days != nil {
+		for _, k := range keys(days, nil) {
+			if day, isNum := asNum(k); isNum && day <= folded {
+				days.Delete(k)
+			}
+		}
 	}
-	for _, k := range keys(days, nil) {
-		if day, isNum := asNum(k); isNum && day <= folded {
-			days.Delete(k)
+	// P.Compact also drops months older than KEEP_MONTHS (12 x 31 days) and an entry with nothing
+	// left; without this a copy that still has them brings them back at every sync.
+	if m.now > 0 {
+		months := fieldT(out, "months")
+		if months != nil {
+			oldest := monthOf(int64(m.now)/secondsPerDay - KeepMonths*31)
+			for _, k := range keys(months, nil) {
+				if mk, isNum := asNum(k); isNum && mk < oldest {
+					months.Delete(k)
+				}
+			}
+		}
+		if (days == nil || days.Len() == 0) && (months == nil || months.Len() == 0) {
+			return nil, false
 		}
 	}
 	return out, true
+}
+
+// monthOf is P.Compact's monthOf: the UTC yyyymm of a day number (days since the epoch).
+func monthOf(day int64) float64 {
+	t := time.Unix(day*secondsPerDay, 0).UTC()
+	return float64(t.Year()*100 + int(t.Month()))
 }
 
 // dayRow mirrors P.Record: a browse row never replaces a scan row (full, watch, mats, snipe) for the

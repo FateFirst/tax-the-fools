@@ -13,6 +13,7 @@ import (
 	"github.com/FateFirst/tax-the-fools/sync/api"
 	"github.com/FateFirst/tax-the-fools/sync/internal/backup"
 	"github.com/FateFirst/tax-the-fools/sync/internal/config"
+	"github.com/FateFirst/tax-the-fools/sync/internal/logfile"
 	"github.com/FateFirst/tax-the-fools/sync/internal/paths"
 	"github.com/FateFirst/tax-the-fools/sync/internal/proc"
 )
@@ -172,17 +173,36 @@ func TestSetupInitJoinStatusSyncRestore(t *testing.T) {
 		t.Fatal("no backup")
 	}
 	os.WriteFile(sv, []byte("garbage"), 0o644)
-	a.in.Reset(strings.NewReader("1\n"))
+	// Enter cancels; so does anything but "yes"
+	for _, in := range []string{"\n", "1\n\n", "1\nno\n"} {
+		a.in.Reset(strings.NewReader(in))
+		before := fake.Version(c.SyncKey)
+		if code := a.run([]string{"restore"}); code != 0 {
+			t.Fatalf("cancel %q: %d %s", in, code, errb)
+		}
+		if got, _ := os.ReadFile(sv); string(got) != "garbage" || fake.Version(c.SyncKey) != before {
+			t.Fatalf("%q changed something", in)
+		}
+	}
+	before := fake.Version(c.SyncKey)
+	out.Reset()
+	a.in.Reset(strings.NewReader("1\nyes\n"))
 	if code := a.run([]string{"restore"}); code != 0 {
 		t.Fatalf("restore %d %s", code, errb)
 	}
+	if !strings.Contains(out.String(), "replaces the synced data on ALL devices") {
+		t.Errorf("no warning: %q", out)
+	}
 	got, _ := os.ReadFile(sv)
-	if !strings.Contains(string(got), "lastFull") {
+	if !strings.Contains(string(got), "lastFull") || !strings.Contains(string(got), `"sync"`) {
 		t.Errorf("restored %q", got)
+	}
+	if fake.Version(c.SyncKey) != before+1 {
+		t.Errorf("server version %d, want %d", fake.Version(c.SyncKey), before+1)
 	}
 	// refuses while WoW runs
 	a.wowRunning = func() bool { return true }
-	a.in.Reset(strings.NewReader("1\n"))
+	a.in.Reset(strings.NewReader("1\nyes\n"))
 	if a.run([]string{"restore"}) != 1 {
 		t.Error("restore while running")
 	}
@@ -282,5 +302,17 @@ func TestCouldNotCheckWarnsOncePerSync(t *testing.T) {
 	}
 	if c := strings.Count(out.String(), "Could not check"); c != 1 {
 		t.Errorf("%d warnings", c)
+	}
+}
+
+func TestStatusShowsNoteOnItsOwnLine(t *testing.T) {
+	a, out, _ := testApp(t, "")
+	logfile.SaveLast(a.configDir, logfile.Last{At: a.now().Unix(), OK: true,
+		Message: "Pulled v1 from PC (3h ago) · merged · wrote local · pushed v2", Note: "Note: 7 data path(s) have no merge rule yet"})
+	if a.run([]string{"status"}) != 0 {
+		t.Fatal(out)
+	}
+	if !strings.Contains(out.String(), "Last run:    ok: Pulled v1") || !strings.Contains(out.String(), "\n             Note: 7 data") {
+		t.Errorf("%q", out)
 	}
 }

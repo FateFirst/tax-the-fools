@@ -367,12 +367,12 @@ Needs the Supabase project and ttf-sync set up as in `docs/sync.md`.
      removed on the others and does not come back.
 148. **Steam Deck launch.** Start WoW from Steam on the Deck with the launch option from `docs/sync.md`. It syncs
      before the game starts and again after you quit, and the game opens normally.
-149. **Windows shortcut.** Start WoW from the shortcut that runs `ttf-sync run` with Start in set to the WoW
-     folder. It syncs, starts the game, and syncs again after you quit.
+149. **Windows shortcut.** Start WoW from the shortcut that runs `ttf-sync run` (Start in left empty: the
+     tool starts WoW in its own folder). It syncs, starts the game, and syncs again after you quit.
 150. **Refuses while WoW is open.** With WoW running, run `ttf-sync sync`. It refuses to write and says why; the
      save file is unchanged.
 151. **`/ttf sync`.** In game, `/ttf sync` shows when this device last synced.
 152. **`ttf-sync status`.** It shows the setup, the last sync, the log and the result of the last run (try it after
      a failed sync, such as with no network).
-153. **Restore.** Run `ttf-sync restore`, pick a backup: the save file is replaced (at most 5 are kept), and the
-     next sync merges it as usual.
+153. **Restore.** Run `ttf-sync restore`, pick a backup (Enter cancels), type `yes`: the save file is replaced
+     (at most 5 are kept) and the backup is pushed to the server as the new shared state, not merged.

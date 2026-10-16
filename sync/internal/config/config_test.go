@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"runtime"
+	"testing"
+)
 
 func TestRoundTrip(t *testing.T) {
 	dir := t.TempDir()
@@ -34,5 +38,21 @@ func writeBad(t *testing.T, dir string) {
 	t.Helper()
 	if err := osWrite(Path(dir), "{nope"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSaveTightensExistingFile(t *testing.T) {
+	dir := t.TempDir()
+	if err := osWrite(Path(dir), "{}"); err != nil {
+		t.Fatal(err)
+	}
+	os.Chmod(Path(dir), 0o644)
+	if err := Save(dir, Config{SyncKey: "K"}); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" {
+		if st, _ := os.Stat(Path(dir)); st.Mode().Perm() != 0o600 {
+			t.Errorf("mode %v", st.Mode().Perm())
+		}
 	}
 }

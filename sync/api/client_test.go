@@ -134,21 +134,26 @@ func TestFakeFailMode(t *testing.T) {
 }
 
 func TestSendsHeaders(t *testing.T) {
-	var got http.Header
-	var path string
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got, path = r.Header, r.URL.Path
-		w.Write([]byte(`[{"version":3,"blob":"b","updated_at":"2026-10-16T01:02:03.123456+00:00","updated_by":"x"}]`))
-	}))
-	defer s.Close()
-	c := &Client{URL: s.URL + "/", AnonKey: "anon"}
-	st, err := c.Pull(NewSyncKey())
-	if err != nil || st.Version != 3 || st.UpdatedAt.Year() != 2026 {
-		t.Fatalf("%+v %v", st, err)
-	}
-	if path != "/rest/v1/rpc/ttf_pull" || got.Get("apikey") != "anon" ||
-		got.Get("Authorization") != "Bearer anon" || got.Get("Content-Type") != "application/json" {
-		t.Fatalf("%s %v", path, got)
+	for _, tc := range []struct{ key, auth string }{
+		{"eyJhbGciOi.legacy.jwt", "Bearer eyJhbGciOi.legacy.jwt"}, // legacy anon key: a JWT, also the bearer token
+		{"sb_publishable_abc123", ""},                             // publishable key: apikey only
+	} {
+		var got http.Header
+		var path string
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			got, path = r.Header, r.URL.Path
+			w.Write([]byte(`[{"version":3,"blob":"b","updated_at":"2026-10-16T01:02:03.123456+00:00","updated_by":"x"}]`))
+		}))
+		c := &Client{URL: s.URL + "/", AnonKey: tc.key}
+		st, err := c.Pull(NewSyncKey())
+		s.Close()
+		if err != nil || st.Version != 3 || st.UpdatedAt.Year() != 2026 {
+			t.Fatalf("%+v %v", st, err)
+		}
+		if path != "/rest/v1/rpc/ttf_pull" || got.Get("apikey") != tc.key ||
+			got.Get("Authorization") != tc.auth || got.Get("Content-Type") != "application/json" {
+			t.Fatalf("%s: %s %v", tc.key, path, got)
+		}
 	}
 }
 

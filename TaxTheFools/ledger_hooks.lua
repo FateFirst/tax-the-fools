@@ -46,7 +46,7 @@ function Hooks.Mail(char, e, name)
   if e.outcome == "sold" then
     L.Add(char, { kind = "sale", amount = e.money, key = e.key, qty = e.qty, at = e.at }, e.at)
   elseif e.outcome == "won" then L.BidWon(char, name, e.at)
-  elseif e.outcome == "outbid" then L.BidLost(char, name, e.money) end
+  elseif e.outcome == "outbid" then L.BidLost(char, name, e.money, time()) end
 end
 
 -- cur: the mailbox's step { sender, subject, money } from before a confirmed TakeInboxMoney.

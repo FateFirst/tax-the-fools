@@ -60,7 +60,11 @@ func (c *Client) rpc(fn string, args map[string]any) ([]byte, error) {
 		return nil, fmt.Errorf("bad Supabase URL %q: %w", c.URL, err)
 	}
 	req.Header.Set("apikey", c.AnonKey)
-	req.Header.Set("Authorization", "Bearer "+c.AnonKey)
+	// New projects hand out a publishable key (sb_publishable_...), which is not a JWT and must
+	// only go in apikey; the legacy anon key is a JWT and is also sent as the bearer token.
+	if strings.HasPrefix(c.AnonKey, "eyJ") {
+		req.Header.Set("Authorization", "Bearer "+c.AnonKey)
+	}
 	req.Header.Set("Content-Type", "application/json")
 	h := c.HTTP
 	if h == nil {

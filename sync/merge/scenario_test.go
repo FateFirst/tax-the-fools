@@ -250,12 +250,9 @@ func TestBigFixture(t *testing.T) {
 	self, rep := Merge(big, big, opts)
 	t.Logf("unknown: %q", rep.Unknown)
 	same(t, "merge(big, big)", self, big)
-	// The fixture is written by tools/sv-fixture.lua, which uses a few shapes the addon doesn't (a
-	// scan record, recipe names under recipes[prof]): those are reported, not lost.
-	for _, p := range []string{"realms.*.scan.pages", "recipes.*.Bolt of Runecloth"} {
-		if !strings.Contains(strings.Join(rep.Unknown, "\n"), p) {
-			t.Errorf("unknown paths %q lack %s", rep.Unknown, p)
-		}
+	// The fixture uses the addon's real shapes (sync/SCHEMA.md): every path has a merge rule.
+	if len(rep.Unknown) != 0 {
+		t.Errorf("unknown paths in the fixture: %q", rep.Unknown)
 	}
 
 	// A second device: a new sale for Zeppo, a snipe removed, a new history day, newer settings and
@@ -266,7 +263,7 @@ func TestBigFixture(t *testing.T) {
 	sales.SetN(3, lua(t, `{ at = 1760000500, key = "4306", name = "Silk Cloth", outcome = "sold", money = 1500 }`))
 	asTable(path(t, r, "snipe")).Delete("14047")
 	asTable(path(t, r, "removed", "snipe")).SetS("14047", 1760000600.0)
-	asTable(path(t, r, "history", "4306", "days")).SetN(20030, lua(t, `{ n = 3, p25 = 999 }`))
+	asTable(path(t, r, "history", "4306", "days")).SetN(20340, lua(t, `{ n = 3, p25 = 999 }`))
 	asTable(mod).SetS("settingsAt", 1760000700.0)
 	asTable(path(t, mod, "settings")).SetS("scale", 2.0)
 	fizz := asTable(path(t, r, "chars", "Fizzlebang"))
@@ -278,7 +275,7 @@ func TestBigFixture(t *testing.T) {
 	same(t, "merge(big, mod) == merge(mod, big)", ab, ba)
 	same(t, "the second device's copy is the merge", ab, mod)
 	m := path(t, ab, "realms", "Medivh")
-	if count(t, m, "chars", "Zeppo", "sales") != 3 || count(t, m, "chars", "Zeppo", "ledger") != 25 {
+	if count(t, m, "chars", "Zeppo", "sales") != 3 || count(t, m, "chars", "Zeppo", "ledger") != 27 {
 		t.Error("Zeppo's lists")
 	}
 	if path(t, m, "snipe", "14047") != nil || path(t, m, "snipe", "4306") == nil {
@@ -306,5 +303,33 @@ func TestHistorySelfMergeKeepsUnfoldedDays(t *testing.T) {
 	same(t, "merge(a, a)", got, a)
 	if count(t, got, "realms", "R", "history", "k", "days") != 70 {
 		t.Error("days lost")
+	}
+}
+
+// P.Compact drops months older than KEEP_MONTHS and an entry with nothing left. A copy that still
+// holds them (the server always does) must not bring them back, and the result must be stable.
+func TestHistoryPrunedMonthsAndEmptyEntriesStayGone(t *testing.T) {
+	// now is 2025-10-09: the cut is monthOf(today - 12*31 days) = 202410.
+	local := lua(t, `{ realms = { R = { history = {
+		live = { days = { [20369] = { n = 2, p25 = 10 } }, months = { [202301] = { n = 9, p25 = 5, d = 3 }, [202504] = { n = 4, p25 = 7, d = 2 } } },
+		gone = { days = {}, months = { [202301] = { n = 1, p25 = 5, d = 1 } } },
+		onlyOld = { foldedTo = 20000, months = {} } } } } }`)
+	remote := lua(t, `{ realms = { R = { history = {
+		live = { months = { [202309] = { n = 3, p25 = 5, d = 1 } } },
+		gone = { months = { [202302] = { n = 1, p25 = 5, d = 1 } } } } } } }`)
+	for _, order := range [][2]luasv.Value{{local, remote}, {remote, local}} {
+		m, _ := run(order[0], order[1])
+		h := path(t, m, "realms", "R", "history")
+		if path(t, h, "live", "months", 202301) != nil || path(t, h, "live", "months", 202309) != nil {
+			t.Errorf("old months came back: %s", show(h))
+		}
+		if path(t, h, "live", "months", 202504) == nil || path(t, h, "live", "days", 20369) == nil {
+			t.Errorf("recent data lost: %s", show(h))
+		}
+		if path(t, h, "gone") != nil || path(t, h, "onlyOld") != nil {
+			t.Errorf("empty entries came back: %s", show(h))
+		}
+		again, _ := run(m, m)
+		same(t, "merge(m, m)", again, m)
 	}
 }

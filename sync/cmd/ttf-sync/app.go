@@ -150,12 +150,12 @@ func (a *app) ask(prompt, def string) string {
 }
 
 // choose lists options and returns the picked one (by number, or a typed value when allowTyped).
-func (a *app) choose(title string, opts []string, allowTyped bool) string {
+func (a *app) choose(title string, opts []string, allowTyped, noDefault bool) string {
 	for i, o := range opts {
 		fmt.Fprintf(a.out, "  %d) %s\n", i+1, o)
 	}
 	def := ""
-	if len(opts) > 0 {
+	if len(opts) > 0 && !noDefault {
 		def = "1"
 	}
 	for {
@@ -188,7 +188,7 @@ func (a *app) setup() error {
 	var wow string
 	if len(found) > 0 {
 		a.println("Found:")
-		wow = a.choose("Pick a number, or type the folder path", found, true)
+		wow = a.choose("Pick a number, or type the folder path", found, true, false)
 	} else {
 		a.println("Nothing found automatically.")
 		wow = a.ask("WoW folder (the one with WoW.exe and WTF)", c.WoWPath)
@@ -210,13 +210,13 @@ func (a *app) setup() error {
 		a.println("Account folder: " + c.Account)
 	default:
 		a.println("Several account folders:")
-		c.Account = a.choose("Which one holds your Tax The Fools data?", accts, false)
+		c.Account = a.choose("Which one holds your Tax The Fools data?", accts, false, false)
 	}
 	if c.Account == "" {
 		return errors.New("no account folder given")
 	}
 	c.SupabaseURL = a.ask("Supabase project URL (https://xxxx.supabase.co)", c.SupabaseURL)
-	c.AnonKey = a.ask("Supabase anon key", c.AnonKey)
+	c.AnonKey = a.ask("Supabase publishable key (or legacy anon key)", c.AnonKey)
 	c.Device = a.ask("Name for this device", c.Device)
 	if err := config.Save(dir, c); err != nil {
 		return err
@@ -310,23 +310,24 @@ func (a *app) sync(post bool) error {
 		cl.HTTP = &http.Client{Timeout: preGameTimeout}
 	}
 	_, err = syncer.Sync(d)
-	last := logfile.Last{At: a.now().Unix(), OK: err == nil, Message: strings.TrimSpace(buf.String())}
+	last := logfile.Last{At: a.now().Unix(), OK: err == nil}
 	if err != nil {
 		last.Message = err.Error()
 		buf.WriteString("ERROR: " + err.Error() + "\n")
-	} else if last.Message != "" {
-		last.Message = lastLine(last.Message)
 	} else {
 		last.Message = "ok"
+		for _, l := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+			switch {
+			case strings.HasPrefix(l, "Note:"):
+				last.Note = l
+			case l != "":
+				last.Message = l // the pulled/pushed line, not the note after it
+			}
+		}
 	}
 	logfile.Append(dir, a.now(), buf.String())
 	logfile.SaveLast(dir, last)
 	return err
-}
-
-func lastLine(s string) string {
-	lines := strings.Split(strings.TrimSpace(s), "\n")
-	return lines[len(lines)-1]
 }
 
 // isWoWExe: the base name (either path separator) is wow.exe, any case.
@@ -425,6 +426,9 @@ func (a *app) status() error {
 			res = "ERROR"
 		}
 		a.println(fmt.Sprintf("Last run:    %s: %s (%s)", res, l.Message, syncer.Ago(a.now(), time.Unix(l.At, 0))))
+		if l.Note != "" {
+			a.println("             " + l.Note)
+		}
 	} else {
 		a.println("Last run:    none yet")
 	}
@@ -478,6 +482,8 @@ func orNone(s string) string {
 	return s
 }
 
+// restore puts a backup back as this device's file AND as the server's state (a push against
+// the current version, not a merge), after an explicit "yes".
 func (a *app) restore() error {
 	dir, c, err := a.load()
 	if err != nil {
@@ -485,6 +491,13 @@ func (a *app) restore() error {
 	}
 	if c.WoWPath == "" || c.Account == "" {
 		return errors.New("WoW folder or account not set: run `ttf-sync setup`")
+	}
+	cl, err := a.client(c)
+	if err != nil {
+		return err
+	}
+	if c.SyncKey == "" {
+		return errors.New("no sync key: run `ttf-sync init` or `ttf-sync join <key>` first")
 	}
 	names, err := backup.List(dir)
 	if err != nil {
@@ -494,32 +507,79 @@ func (a *app) restore() error {
 		return errors.New("no backups yet: one is made before each time ttf-sync writes the file")
 	}
 	if a.wowRunning() {
-		return errors.New("WoW is running: close it first, or it will overwrite the restored file when you log out")
+		return errors.New("WoW is running (or could not be checked): close it first, or it will overwrite the restored file when you log out")
 	}
 	a.println("Backups, newest first:")
-	pick := a.choose("Restore which one? (Enter to cancel)", names, false)
+	pick := a.choose("Restore which one? (type its number; Enter cancels)", names, false, true)
 	if pick == "" {
 		a.println("Cancelled.")
 		return nil
 	}
-	dest := paths.SavedVars(c.WoWPath, c.Account)
-	// Read the pick first: backing up the current file can rotate the oldest one away.
+	// Read and check the pick first: backing up the current file can rotate the oldest one away.
 	chosen, err := os.ReadFile(filepath.Join(backup.Dir(dir), pick))
 	if err != nil {
 		return err
 	}
+	vars, err := luasv.Parse(chosen)
+	if err != nil {
+		return fmt.Errorf("that backup cannot be parsed, nothing was changed: %w", err)
+	}
+	db, _ := vars["TaxTheFoolsDB"].(*luasv.Table)
+	if db == nil {
+		return errors.New("that backup holds no TaxTheFoolsDB, nothing was changed")
+	}
+	a.println("This replaces the synced data on ALL devices with " + pick + ".")
+	a.println("Other devices still hold their own copies and will merge them back in at their next sync, unless you restore them too.")
+	if strings.ToLower(a.ask("Type yes to continue", "")) != "yes" {
+		a.println("Cancelled.")
+		return nil
+	}
+	st, err := cl.Pull(c.SyncKey)
+	if err != nil {
+		return err
+	}
+	pushDB := luasv.NewTable()
+	for _, e := range db.Entries {
+		if e.Key != "sync" {
+			pushDB.Set(e.Key, e.Val)
+		}
+	}
+	js, err := luasv.MarshalJSON(pushDB)
+	if err != nil {
+		return err
+	}
+	enc, err := api.EncodeBlob(js)
+	if err != nil {
+		return err
+	}
+	nv, conflict, err := cl.Push(c.SyncKey, st.Version, enc, c.Device)
+	if err != nil {
+		return fmt.Errorf("the server was not changed and neither was this device: %w", err)
+	}
+	if conflict {
+		return errors.New("another device pushed while you were confirming; nothing was changed. Run `ttf-sync restore` again")
+	}
+	stamp := luasv.NewTable()
+	stamp.SetS("at", float64(a.now().Unix()))
+	stamp.SetS("device", c.Device)
+	stamp.SetS("version", version)
+	db.SetS("sync", stamp)
+	out, err := luasv.Write(vars, nil)
+	if err != nil {
+		return err
+	}
+	dest := paths.SavedVars(c.WoWPath, c.Account)
 	if _, err := os.Stat(dest); err == nil {
 		if _, err := backup.Create(dir, dest, a.now()); err != nil {
-			return fmt.Errorf("could not back up the current file first: %w", err)
+			return fmt.Errorf("pushed v%d, but could not back up the current file, so it was left as it is: %w", nv, err)
 		}
 	}
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
-	if err := os.WriteFile(dest, chosen, 0o644); err != nil {
-		return err
+	if err := os.WriteFile(dest, out, 0o644); err != nil {
+		return fmt.Errorf("pushed v%d, but writing %s failed: %w", nv, dest, err)
 	}
-	a.println("Restored " + pick + " to " + dest)
-	a.println("The next sync will merge it with the server copy again.")
+	a.println(fmt.Sprintf("Restored %s: pushed v%d to the server and wrote %s", pick, nv, dest))
 	return nil
 }

@@ -412,3 +412,20 @@ func TestAgo(t *testing.T) {
 		}
 	}
 }
+
+func TestSyncOfTheFixtureHasNoUnknownPaths(t *testing.T) {
+	r := newRig(t)
+	a := r.device("PC")
+	data, err := os.ReadFile("../../luasv/testdata/big.lua")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.write(string(data))
+	a.now = time.Unix(1760000000+1000, 0)
+	if _, err := Sync(a.deps()); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(a.out.String(), "no merge rule") {
+		t.Errorf("unknown paths: %s", a.out.String())
+	}
+}

@@ -230,20 +230,20 @@ func TestBigFixture(t *testing.T) {
 	if get(db, "settings", "minimapAngle") != -37.5 {
 		t.Error("minimapAngle")
 	}
-	if get(db, "items", "13468", "name") != `Black Lotus "Rare"` {
+	if get(db, "items", "13468", "n") != `Black Lotus "Rare"` {
 		t.Error("item name")
 	}
-	if get(db, "items", "13468", "deposit", 480.0) != 75.0 {
+	if get(db, "items", "13468", "dep", 480.0) != 75.0 {
 		t.Error("number key under deposit")
 	}
-	if !strings.Contains(get(db, "items", "14048", "link").(string), "|Hitem:14048:") {
-		t.Error("link")
+	if !strings.Contains(get(db, "items", "14048", "t").(string), `Icons\INV_Misc_14048`) {
+		t.Error("texture path with backslashes")
 	}
 	r := get(db, "realms", "Medivh")
 	if get(r, "chars", "Zeppo", "class") != "ROGUE" {
 		t.Error("class")
 	}
-	if get(r, "history", "14048", "days", 20003.0, "src") != "browse" {
+	if get(r, "history", "14048", "days", 20344.0, "src") != "browse" {
 		t.Error("day src")
 	}
 	if get(r, "chars", "Fizzlebang", "ledger", 25.0, "who") != `Someone's "Alt"` {
@@ -252,7 +252,7 @@ func TestBigFixture(t *testing.T) {
 	if get(r, "chars", "Dragonbait", "ledgerBackfilled") != false {
 		t.Error("bool")
 	}
-	if get(r, "watch", "14048") != true {
+	if get(r, "watch", "14048") != 1759999500.0 {
 		t.Error("watch")
 	}
 }

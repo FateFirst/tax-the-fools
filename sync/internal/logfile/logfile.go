@@ -47,6 +47,7 @@ type Last struct {
 	At      int64  `json:"at"`
 	OK      bool   `json:"ok"`
 	Message string `json:"message"`
+	Note    string `json:"note,omitempty"`
 }
 
 func lastPath(dir string) string { return filepath.Join(dir, "last-sync.json") }

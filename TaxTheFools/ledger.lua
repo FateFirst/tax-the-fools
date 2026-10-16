@@ -196,9 +196,9 @@ end
 -- An outbid mail refunds the bid: it settles the pending bid for the name whose amount equals the refund
 -- (newest such), else the oldest for the name; the entry stays, marked `used`. No spending. Returns true when
 -- one was settled.
-function Ledger.BidLost(char, name, money)
+function Ledger.BidLost(char, name, money, now)
   if not char or not char.pendingBids then return false end
-  local bids, now = char.pendingBids, time()
+  local bids = char.pendingBids
   if money then
     for i = table.getn(bids), 1, -1 do
       local b = bids[i]
