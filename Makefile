@@ -3,7 +3,7 @@ LUA := $(LUA_DIR)/bin/lua
 LUAC := $(LUA_DIR)/bin/luac
 ADDON := TaxTheFools
 
-.PHONY: test lint lua clean install media fonts recipes sync-test sync-fixture
+.PHONY: test lint lua clean install media fonts recipes sync-test sync-fixture sync-build
 
 lua: $(LUA)
 
@@ -23,6 +23,12 @@ test: lint
 # Go tests for the sync tool.
 sync-test:
 	cd sync && go vet ./... && go test ./...
+
+# Cross-compile ttf-sync for Windows and Linux (Steam Deck) into sync/dist/.
+sync-build:
+	mkdir -p sync/dist
+	cd sync && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags "-s -w -X main.version=1.0.0" -o dist/ttf-sync-windows-amd64.exe ./cmd/ttf-sync
+	cd sync && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.version=1.0.0" -o dist/ttf-sync-linux-amd64 ./cmd/ttf-sync
 
 # Rebuild the SavedVariables round-trip fixture from the addon under the fake client.
 sync-fixture: $(LUA)
