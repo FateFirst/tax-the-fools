@@ -15,10 +15,11 @@ function Snipe.Set(list, key, name, max, now, removed)
 end
 
 -- Sets the exact maximum of a listed item (the editable Max each field). nil when it is not listed.
-function Snipe.SetMax(list, key, max)
+function Snipe.SetMax(list, key, max, now)
   local e = list[key]
   if not e or not max or max <= 0 then return nil end
   e.max = max
+  if now then e.at = now end
   return e
 end
 

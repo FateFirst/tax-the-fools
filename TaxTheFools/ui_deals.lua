@@ -232,7 +232,7 @@ function DealsUI.SnipeEdit(v)
   local p = DealsUI.frame
   local sel = p and p.slist.selected
   if not sel or not v or v <= 0 then return false end
-  if not TaxTheFools.Snipe.SetMax(DB.Realm().snipe, sel.key, v) then return false end
+  if not TaxTheFools.Snipe.SetMax(DB.Realm().snipe, sel.key, v, time()) then return false end
   sel.max = v
   p.slist:Paint()
   return true

@@ -146,7 +146,7 @@ T.test("mail keep stores its time; removals leave records; keep and re-add clear
   later()
   DB.KeepSet("100:0", true)
   T.eq(m.keepRemoved["100:0"], nil)
-  T.eq(MailRules and 1 or 1, 1)
+  T.eq(m.keep["100:0"], WoW.now, "re-added with the new time")
 end)
 
 T.test("the options keep list and the Mail Keep button use the keep helper", function()
@@ -214,4 +214,30 @@ T.test("/ttf sync reports the last sync, or that there was none", function()
   ttf("sync")
   T.ok(T.calledWith("Last synced 2h 0m ago from Laptop (TTF Sync 1.0.0)"))
   TaxTheFoolsDB.sync = nil
+end)
+
+T.test("editing a snipe max stamps its time", function()
+  local list = {}
+  A.Snipe.Set(list, "a", "A", 10, 50)
+  A.Snipe.SetMax(list, "a", 5, 90)
+  T.eq(list.a.max, 5)
+  T.eq(list.a.at, 90)
+  openAH()
+  UI.ah.tabs:Select("deals")
+  local realm = DB.Realm()
+  A.Snipe.Set(realm.snipe, "14047:0", "Runecloth", 700, 1)
+  A.DealsUI.SetView("snipe")
+  UI.pages.deals.slist.selected = { key = "14047:0" }
+  T.ok(A.DealsUI.SnipeEdit(500))
+  T.eq(realm.snipe["14047:0"].at, WoW.now)
+end)
+
+T.test("market recompute skips nothing it cannot price: no history, no entry, no error", function()
+  local realm = DB.Realm()
+  realm.market["99:0"] = nil
+  A.Scan.RecomputeMarket()
+  T.eq(realm.market["99:0"], nil)
+  realm.history["98:0"] = { days = {} }
+  A.Scan.RecomputeMarket()
+  T.eq(realm.market["98:0"], nil)
 end)
