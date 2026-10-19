@@ -17,6 +17,8 @@ local function setting(s, k)
 end
 
 -- Suggested price per unit from competing listings { unit, count, owner }.
+-- atFloor is set when a rival sits at or under the floor, or the undercut was clamped up to it.
+-- s.vendorMult (default 3) is the multiple of vendor sell price used with no listings or market value.
 -- Your own listings (l.own, or owner == s.me) are ignored. s = { floorPct, undercut, bidPct, me }.
 -- floor is floorPct% of market, rounded up to whole copper; with no market value there is no floor,
 -- so the cheapest competing listing counts. Prices are whole copper (StartAuction takes no fractions).
@@ -25,22 +27,24 @@ function Sell.Suggest(listings, market, vendorSell, s)
   local me = s and s.me
   local floor = nil
   if market then floor = math.ceil(market * floorPct / 100) end
-  local cheapest = nil
+  local cheapest, pinned = nil, false
   for _, l in ipairs(listings or {}) do
     local own = l.own or (me and l.owner and l.owner == me)
     if not own and l.unit and (not floor or l.unit >= floor) then
       if not cheapest or l.unit < cheapest then cheapest = l.unit end
     end
+    if not own and l.unit and floor and l.unit <= floor then pinned = true end
   end
   local out = { floor = floor }
   if cheapest then
     out.buyout, out.source = math.floor(cheapest - undercut), "undercut"
-    if floor and out.buyout < floor then out.buyout = floor end
+    if floor and out.buyout < floor then out.buyout, pinned = floor, true end
   elseif market then
     out.buyout, out.source = math.floor(market), "market"
   elseif vendorSell then
-    out.buyout, out.source = math.floor(vendorSell * 3), "vendor"
+    out.buyout, out.source = math.floor(vendorSell * setting(s, "vendorMult")), "vendor"
   end
+  if pinned then out.atFloor = true end
   if out.buyout then
     if out.buyout < 1 then out.buyout = 1 end
     out.bid = math.floor(out.buyout * bidPct / 100)

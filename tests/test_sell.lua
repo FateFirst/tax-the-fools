@@ -191,3 +191,17 @@ T.test("learned deposits are a stack-size-independent base per item and duration
   S.LearnDeposit(items, 102, 120, 1, 1, 1)
   T.eq(items[102].n, "Name", "other fields are kept")
 end)
+
+T.test("Suggest uses vendorMult, default 3", function()
+  T.eq(S.Suggest({}, nil, 50, opts()).buyout, 150)
+  T.eq(S.Suggest({}, nil, 50, opts({ vendorMult = 5 })).buyout, 250)
+end)
+
+T.test("Suggest atFloor", function()
+  T.ok(S.Suggest({ L(700), L(900) }, 1000, 50, opts()).atFloor, "competitor under floor")
+  T.ok(S.Suggest({ L(800) }, 1000, 50, opts()).atFloor, "competitor at floor, undercut clamped")
+  T.ok(not S.Suggest({ L(900) }, 1000, 50, opts()).atFloor, "normal undercut")
+  T.ok(not S.Suggest({ L(900, "Me") }, 1000, 50, opts({ me = "Me" })).atFloor, "own listing ignored")
+  T.ok(not S.Suggest({ L(900) }, nil, 50, opts()).atFloor, "no market value")
+  T.ok(not S.Suggest({}, 1000, 50, opts()).atFloor, "no competition")
+end)

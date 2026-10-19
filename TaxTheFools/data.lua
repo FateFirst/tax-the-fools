@@ -43,7 +43,7 @@ D.DEFAULTS = {
               minConfidence = 0.4, under = true, underPct = 33, premiumPct = 110,
               recipe = true, paybackCrafts = 10 },
     buy = { confirmAbove = 50000 },        -- copper; 0 never asks
-    sell = { bidPct = 90, floorPct = 80, undercut = 1, duration = 480, repostDays = 7 },
+    sell = { bidPct = 90, floorPct = 80, undercut = 1, duration = 480, repostDays = 7, vendorMult = 3, quickVendor = false },
     bagClick = true,                       -- right-click a bag item at the AH: search (Browse) or select (Sell)
     sales = { days = 30, warnPct = 120, tooltip = true },
     ledger = { vendor = true },

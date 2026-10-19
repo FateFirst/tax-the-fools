@@ -219,7 +219,7 @@ function SellUI.SetListings(listings)
   p.list:SetData(data)
   local s = DB.S().sell
   local sug = Sell.Suggest(data, market, I.Vendor(item.id),
-    { floorPct = s.floorPct, undercut = s.undercut, bidPct = s.bidPct, me = DB.charName })
+    { floorPct = s.floorPct, undercut = s.undercut, bidPct = s.bidPct, vendorMult = s.vendorMult, me = DB.charName })
   st.buyout, st.bid, st.source, p.bidEdited = sug.buyout, sug.bid, sug.source, false
   SellUI.FillFields()
   SellUI.Update()

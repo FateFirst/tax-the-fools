@@ -20,6 +20,7 @@ snipe.lua
 sell.lua
 sales.lua
 stock.lua
+quick.lua
 ledger.lua
 mail.lua
 mailrules.lua
@@ -43,6 +44,7 @@ ui_browse.lua
 ui_deals.lua
 ui_sell.lua
 ui_stock.lua
+quick.lua
 ui_auctions.lua
 ui_history.lua
 ui_ledger.lua
