@@ -132,8 +132,10 @@ local function onScan()
   local fin = Scan.lastFinished
   if fin and fin ~= Quick.baseFinished and fin.kind == "quick" then
     finish()
-  elseif not TaxTheFools.DB.Realm().scan.resume then
-    -- Discarded, or dropped by another scan finishing: nothing left to resume.
+  else
+    local saved = TaxTheFools.DB.Realm().scan.resume
+    if saved and saved.kind == "quick" then return end
+    -- Discarded, dropped by another scan finishing, or replaced by another paused scan: nothing of ours to resume.
     Quick.job, Quick.state = nil, "idle"
     changed()
   end

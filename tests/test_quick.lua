@@ -164,6 +164,19 @@ T.test("a paused scan stays scanning, resumes and finishes; a discarded one goes
   T.eq(Q.state, "idle")
 end)
 
+T.test("a paused quick scan replaced by another paused scan returns Quick to idle", function()
+  seedBags()
+  list(14047, "Runecloth", 3, 8000)
+  Q.Scan(WoW.clock)
+  Scan.Pause()
+  T.eq(Q.state, "scanning")
+  DB.Realm().scan.resume = nil
+  T.ok(Scan.Start("watch", { { name = "Runecloth" } }, WoW.clock))
+  Scan.Pause()
+  T.eq(DB.Realm().scan.resume.kind, "watch")
+  T.eq(Q.state, "idle")
+end)
+
 T.test("Quick.Reprice rebuilds the rows from the kept listings and the current settings", function()
   seedBags({ { id = 2589, name = "Linen Cloth", count = 5 } })
   Q.Scan(WoW.clock) pump()
