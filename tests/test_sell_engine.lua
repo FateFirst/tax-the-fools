@@ -581,6 +581,45 @@ T.test("an unknown deposit (no money change at the reply) is logged as nil and n
   T.eq(TaxTheFoolsDB.items[14047] and TaxTheFoolsDB.items[14047].dep, nil)
 end)
 
+T.test("Post accepts a random-suffix item: the slot shows the full name, GetItemInfo only the base name", function()
+  stock() WoW.money = 100000
+  WoW.items[15210] = { name = "Raider's Cloak", stack = 1, vendor = 500 }
+  WoW.bags[0][2] = { id = 15210, suffix = 612, name = "Raider's Cloak of the Monkey", count = 1 }
+  local r = Auction.Post(0, 2, 1, 1000, 2000, 480, "15210:612", true)
+  T.eq(r, true)
+  T.eq(T.count("StartAuction"), 1, "one post")
+  T.ok(not T.calledWith("A different item is in the sell slot. Try again."))
+end)
+
+T.test("Post goes ahead when the lagging sell slot still shows the item that was there before", function()
+  stock() WoW.money = 100000
+  WoW.items[2589] = { name = "Linen Cloth", stack = 20, vendor = 10 }
+  WoW.bags[0][2] = { id = 2589, name = "Linen Cloth", count = 5 }
+  WoW.sellSlotLag = true
+  PickupContainerItem(0, 2) ClickAuctionSellItemButton() WoW.showSellSlot()   -- Linen shown in the slot
+  WoW.sellSlotShown = false                                                   -- the next change lags
+  local r = Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  T.eq(r, true)
+  T.eq(T.count("StartAuction"), 1, "one post")
+  WoW.sellSlotLag = false
+end)
+
+T.test("Post still refuses when the slot shows a different item that wasn't there before the click", function()
+  stock() WoW.money = 100000
+  WoW.items[2589] = { name = "Linen Cloth", stack = 20, vendor = 10 }
+  local real = ClickAuctionSellItemButton
+  ClickAuctionSellItemButton = function()
+    real()
+    if WoW.sellSlot and WoW.sellSlot.item.id == 14047 then
+      WoW.sellSlot = { item = { id = 2589, name = "Linen Cloth" }, count = 3 }    -- something else went in
+    end
+  end
+  local r = Auction.Post(0, 1, 20, 100, 200, 480, "14047:0", true)
+  ClickAuctionSellItemButton = real
+  T.eq(r, false)
+  T.eq(T.count("StartAuction"), 0)
+end)
+
 T.test("Post goes ahead when the real client hasn't shown the sell slot yet (the slot updates after the server answers)", function()
   stock() WoW.money = 100000
   WoW.sellSlotLag = true

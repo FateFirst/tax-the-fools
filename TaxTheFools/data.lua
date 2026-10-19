@@ -2,7 +2,7 @@ TaxTheFools = TaxTheFools or {}
 local D = {}
 TaxTheFools.Data = D
 
-D.VERSION = "0.11.0"
+D.VERSION = "0.11.1"
 -- Bump when saved data needs a one-time migration (see db.lua MIGRATIONS).
 D.DATA_VERSION = 1
 

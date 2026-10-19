@@ -247,7 +247,7 @@ function WoW.classicAPI(on)
 end
 
 function WoW.reset()
-  WoW.sellSlotLag, WoW.sellSlotShown = false, false
+  WoW.sellSlotLag, WoW.sellSlotShown, WoW.sellSlotSeen = false, false, nil
   WoW.calls = {}
   WoW.clock = 1000                      -- GetTime(): seconds since the client started
   WoW.now = 20375 * 86400 + 43200       -- time(): midday UTC on day 20375 (2025-10-14)
@@ -468,7 +468,7 @@ function GetContainerNumSlots(bag)
 end
 function GetContainerItemLink(bag, slot)
   local it = slotItem(bag, slot)
-  if it and it.id then return WoW.link(it.id, it.name) end
+  if it and it.id then return WoW.link(it.id, it.name, it.suffix) end
   return nil
 end
 function GetContainerItemInfo(bag, slot)
@@ -636,7 +636,11 @@ end
 -- empty and slot full: it comes back to the hand; both full: they swap.
 -- 1.12 CursorHasItem(): true while the cursor holds an item.
 function CursorHasItem() return WoW.cursor ~= nil end
-function WoW.showSellSlot() WoW.sellSlotShown = true WoW.fire("NEW_AUCTION_UPDATE") end
+function WoW.showSellSlot()
+  local s = WoW.sellSlot
+  WoW.sellSlotShown, WoW.sellSlotSeen = true, s and { item = s.item, count = s.count } or nil
+  WoW.fire("NEW_AUCTION_UPDATE")
+end
 function ClickAuctionSellItemButton()
   WoW.log("ClickAuctionSellItemButton")
   local c, s = WoW.cursor, WoW.sellSlot
@@ -650,11 +654,12 @@ function ClickAuctionSellItemButton()
 end
 -- 1.12 returns name, texture, count, quality, canUse, price; nothing for an empty slot.
 -- WoW.sellSlotLag: the real client only shows the slot's new item after the server answers (the
--- NEW_AUCTION_UPDATE event), so straight after the click this reads empty. WoW.showSellSlot() ends the lag.
+-- NEW_AUCTION_UPDATE event), so straight after a click it still reads what it showed before: empty, or
+-- the item that was there. WoW.showSellSlot() ends the lag.
 function GetAuctionSellItemInfo()
   local s = WoW.sellSlot
+  if WoW.sellSlotLag and not WoW.sellSlotShown then s = WoW.sellSlotSeen end
   if not s then return nil end
-  if WoW.sellSlotLag and not WoW.sellSlotShown then return nil end
   return s.item.name, s.item.tex or "tex", s.count, s.item.quality or 1, 1, (s.item.vendor or 0) * s.count
 end
 -- ---------- mailbox actions and the send slot (phase 5b) ----------

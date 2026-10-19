@@ -135,20 +135,25 @@ function Auction.Post(bag, slot, stack, bid, buyout, minutes, key, allowBelowFlo
   if learned and learned > GetMoney() then
     return refuse("You can't afford the deposit of " .. U.money(learned, true) .. ".")
   end
+  -- The full name from the bag link: a random-suffix item reads "Raider's Cloak of the Monkey" in the
+  -- slot, while GetItemInfo(id) gives only "Raider's Cloak".
+  local name = U.linkName(GetContainerItemLink(bag, slot)) or GetItemInfo(id)
   clearSellSlot()
+  local beforeName, _, beforeCount = GetAuctionSellItemInfo()
   PickupContainerItem(bag, slot)
   ClickAuctionSellItemButton()
   -- Still on the cursor: the slot refused it (a locked or unauctionable item). The real client only shows
-  -- the slot's new item once the server answers (NEW_AUCTION_UPDATE), so an empty read straight after the
-  -- click is normal and the post goes ahead, as Aux's does; the server's reply says whether it worked. A
-  -- slot that does read back must hold this item in this count.
-  local name = GetItemInfo(id)
+  -- the slot's new item once the server answers (NEW_AUCTION_UPDATE), so straight after the click it still
+  -- reads what it showed before (empty, or the item cleared out above). That stale read is normal and the
+  -- post goes ahead, as Aux's does; the server's reply says whether it worked. A read that has changed
+  -- must hold this item in this count.
   if CursorHasItem and CursorHasItem() then
     clearSellSlot()
     return refuse("The item didn't reach the sell slot. Try again.")
   end
   local slotName, _, slotCount = GetAuctionSellItemInfo()
-  if slotName and (slotCount ~= stack or (name and slotName ~= name)) then
+  local stale = slotName == beforeName and slotCount == beforeCount
+  if slotName and not stale and (slotCount ~= stack or (name and slotName ~= name)) then
     clearSellSlot()
     return refuse("A different item is in the sell slot. Try again.")
   end
