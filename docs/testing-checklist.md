@@ -376,3 +376,32 @@ Needs the Supabase project and ttf-sync set up as in `docs/sync.md`.
      a failed sync, such as with no network).
 153. **Restore.** Run `ttf-sync restore`, pick a backup (Enter cancels), type `yes`: the save file is replaced
      (at most 5 are kept) and the backup is pushed to the server as the new shared state, not merged.
+
+## Quick sell (phase 10)
+
+154. **The view.** On Sell the switch reads Bags, Repost, Stock and Quick. Pick Quick: the grid and the
+     pricing panel hide; a list of every auctionable bag slot shows "scan for prices", and Post next is
+     disabled. Reopen the window: Sell opens on Quick.
+155. **Scan bags.** Click Scan bags. The status reads "Scanning 1 of N..." and the scan strip above reads
+     "Bag prices". It pages by itself and nothing is posted. When it ends the status reads "Prices from
+     just now" (later "Prices from 2m ago"), each row has Each and Total, and one row is highlighted.
+     Clicking Scan bags during another scan says "Another scan is running..." and starts nothing.
+156. **Statuses.** Check rows read "at floor" (another seller sits at or below your floor), "no price"
+     (nothing to price from), "vendor x3" (vendor price only) and blank for a normal undercut.
+157. **One click, one post.** Click Post next: exactly one auction is posted, for the highlighted row's
+     whole stack at the Total shown, and the button reads "Waiting...". Click again before the server
+     answers: nothing happens. When the server answers the row reads Posted and the highlight moves on.
+     With 20 and 7 of one item, the 7 posts on the next click with no second scan.
+158. **Failures.** Move or split a highlighted stack, then click Post next: the row reads "Failed: Your bags
+     changed. Pick the item again.", nothing is posted and the highlight moves on. Hover the row for the
+     full reason. Post with too little money for the deposit: Failed with the server's reason.
+159. **Skip and pick.** Skip marks the row Skipped and moves on. Clicking a postable row highlights it;
+     clicking a "no price" row does not. When nothing is left, Post next and Skip are disabled. The
+     summary reads "N of M posted, total".
+160. **Vendor rows.** With "Include vendor-priced items" off, Post next passes over vendor rows. Tick it:
+     they are highlighted and post at vendor x the multiple. Change the multiple box to 5: the vendor
+     rows re-price and read "vendor x5", and Posted / Skipped marks stay. Options > Selling shows the same
+     switch and "Vendor price multiple"; the Bags view's "vendor xN" suggestion follows it too.
+161. **Duration and rescan.** The duration buttons start at your Sell default and change only this list
+     (the Bags view keeps the default). Switch to Bags and back: the list and marks are kept. Scan bags
+     again: every mark clears. Nothing is cut off at the smallest AH window.

@@ -9,7 +9,7 @@ TaxTheFools.StockUI = StockUI
 -- Repost row only selects the item, as the grid does; Post is still the one button on the Sell panel.
 
 StockUI.SCAN_EVERY = 2
-StockUI.VIEWS = { "bags", "repost", "stock" }
+StockUI.VIEWS = { "bags", "repost", "stock", "quick" }
 
 -- Compact money so the columns fit: 45c, 1s 99c, 12.34g, and one decimal from 100g.
 local function short(c)
@@ -114,6 +114,8 @@ function StockUI.Paint(p)
     local rows = StockUI.StockRows()
     p.slist:SetData(rows)
     p.totals:SetText(StockUI.TotalsText(Stock.Total(rows)))
+  elseif p.view == "quick" and TaxTheFools.QuickUI then
+    TaxTheFools.QuickUI.Paint()
   end
 end
 
@@ -130,15 +132,16 @@ local function setShown(w, on)
 end
 
 function StockUI.SetView(p, view)
-  if view ~= "bags" and view ~= "repost" and view ~= "stock" then view = "bags" end
+  if view ~= "bags" and view ~= "repost" and view ~= "stock" and view ~= "quick" then view = "bags" end
   p.view = view
   if type(TaxTheFoolsCharDB) == "table" then TaxTheFoolsCharDB.sellView = view end
   for v, b in pairs(p.viewBtns) do Th.Color(b.label, v == view and "gold" or "white") end
-  for _, w in ipairs(panelWidgets(p)) do setShown(w, view ~= "stock") end
+  for _, w in ipairs(panelWidgets(p)) do setShown(w, view ~= "stock" and view ~= "quick") end
   setShown(p.rlist, view == "repost")
   setShown(p.slist, view == "stock")
   setShown(p.totals, view == "stock")
   if view ~= "repost" then p.empty:Hide() end
+  if TaxTheFools.QuickUI then TaxTheFools.QuickUI.Show(p, view == "quick") end
   SellUI.PaintGrid()
   SellUI.Update()                    -- also puts the chart back, or keeps it hidden, for the selection
   StockUI.Paint(p)
@@ -194,7 +197,7 @@ function StockUI.Build(p)
   local saved = type(TaxTheFoolsCharDB) == "table" and TaxTheFoolsCharDB.sellView or "bags"
   p.viewBtns = {}
   local x = 0
-  for _, spec in ipairs({ { "bags", "Bags", 56 }, { "repost", "Repost", 64 }, { "stock", "Stock", 56 } }) do
+  for _, spec in ipairs({ { "bags", "Bags", 56 }, { "repost", "Repost", 64 }, { "stock", "Stock", 56 }, { "quick", "Quick", 56 } }) do
     local v = spec[1]
     local b = W.Button(p, spec[2], spec[3], 22, function() StockUI.SetView(p, v) end)
     b:SetPoint("TOPLEFT", p, "TOPLEFT", x, 0)
@@ -228,6 +231,8 @@ function StockUI.Build(p)
     self.rlist:Paint()
     self.slist:Paint()
   end
+  p.quick = false
+  if TaxTheFools.QuickUI then TaxTheFools.QuickUI.Build(p) end
   p.stockAt = 0
   Scan.OnChange(function()
     if not p:IsVisible() or p.view ~= "stock" then return end

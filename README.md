@@ -92,18 +92,29 @@ Copy the `TaxTheFools` folder into `twmoa_1181\Interface\AddOns`, or from this r
   size you chose, the button reads **Split** first, which splits one stack into an empty bag
   slot (never a quiver or soul bag). Going below the floor is blocked until you tick
   **Allow below floor**. Items that are soulbound, quest items or conjured are not listed.
-- **Repost and Stock.** The Sell tab has a **Bags | Repost | Stock** switch (the last view is kept).
+- **Repost and Stock.** The Sell tab has a **Bags | Repost | Stock | Quick** switch (the last view is kept).
   **Repost** lists items in your bags whose auctions expired or were cancelled in the last 7 days
   (Options > Selling, 1 to 30), with the change in price (last price and price now are in the row tooltip); clicking a row
   selects the item with your last stack size, and Post stays one click per stack. **Stock** lists
   everything your characters hold in bags and bank plus what is on the auction house, with each,
   value, sell rate and trend, a per-character tooltip and a total. Mail is not counted.
+- **Quick sell.** The Sell tab's fourth view, **Quick**, relists everything in your bags with one
+  button. **Scan bags** searches the auction house once per item (it pages by itself, like any scan),
+  then lists one row per bag slot, stack as it sits, with its price: 1c under the cheapest seller at or
+  above your floor, or the market value. Rows that land on your floor say "at floor"; items with
+  nothing to price from say "no price"; items priced only from the vendor say "vendor x3". Click
+  **Post next** again and again: each click posts the highlighted row once, and the highlight moves on
+  when the server answers (a failure is marked with its reason and also moves on). **Skip** passes a
+  row over, clicking a row makes it next, and a rescan clears the marks. Vendor-priced rows post only
+  with **Include vendor-priced items** ticked, at vendor price x the multiple (default 3), both also in
+  Options > Selling. The duration buttons change this list only.
 - **Auctions.** Your own auctions, one page of up to 50, with the price per unit against the
   competition: red **Undercut** (someone is cheaper, with their price), green **Cheapest**, or
   dim **No competition**. **Cancel auction** takes the selected auction down in one click; if
   it has a bid, a confirmation says the bidder is refunded and you lose the deposit first.
 - **Selling options.** Options > Selling: starting bid % (50 to 100), price floor % (50 to
-  100), undercut (1c to 1g), the default duration, and how many days the Repost list covers (1 to 30).
+  100), undercut (1c to 1g), the default duration, how many days the Repost list covers (1 to 30),
+  whether Quick sell includes vendor-priced items, and the vendor price multiple (x1 to x20).
 - **Sales tracking.** Open a mailbox and the addon reads the headers of your auction mail
   (sold, expired, cancelled, won, outbid) and counts each mail once, across visits and relogs. Identical mails (several stacks expiring
   together, or bought for the same price) are counted individually.

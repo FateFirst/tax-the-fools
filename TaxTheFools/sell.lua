@@ -17,6 +17,8 @@ local function setting(s, k)
 end
 
 -- Suggested price per unit from competing listings { unit, count, owner }.
+-- atFloor is set when the undercut price lands on the floor (a rival sat at or just above it, so the undercut was clamped up).
+-- s.vendorMult (default 3) is the multiple of vendor sell price used with no listings or market value.
 -- Your own listings (l.own, or owner == s.me) are ignored. s = { floorPct, undercut, bidPct, me }.
 -- floor is floorPct% of market, rounded up to whole copper; with no market value there is no floor,
 -- so the cheapest competing listing counts. Prices are whole copper (StartAuction takes no fractions).
@@ -39,8 +41,9 @@ function Sell.Suggest(listings, market, vendorSell, s)
   elseif market then
     out.buyout, out.source = math.floor(market), "market"
   elseif vendorSell then
-    out.buyout, out.source = math.floor(vendorSell * 3), "vendor"
+    out.buyout, out.source = math.floor(vendorSell * setting(s, "vendorMult")), "vendor"
   end
+  if floor and out.source == "undercut" and out.buyout == floor then out.atFloor = true end
   if out.buyout then
     if out.buyout < 1 then out.buyout = 1 end
     out.bid = math.floor(out.buyout * bidPct / 100)

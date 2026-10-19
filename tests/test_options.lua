@@ -158,7 +158,7 @@ T.test("Selling options: percentages, undercut as money, and the default duratio
   local f = Opt.Create()
   Opt.Select("selling")
   local c = f.pages.selling.controls
-  T.eq(table.getn(c), 5)
+  T.eq(table.getn(c), 7)
   local lo, hi = c[1].slider:GetMinMaxValues()
   T.eq(lo, 50) T.eq(hi, 100)
   c[1].slider:SetValue(75)

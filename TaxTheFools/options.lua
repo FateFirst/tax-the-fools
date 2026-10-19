@@ -131,6 +131,13 @@ Opt.CATEGORIES = {
     { kind = "dropdown", path = { "sell", "duration" }, label = "Default duration", options = {
       { value = 120, label = "6h" }, { value = 480, label = "24h" }, { value = 1440, label = "72h" } },
       hint = "How long Sell lists an auction for to begin with. Longer lasts more time but costs a bigger deposit. Default 24h." },
+    { kind = "switch", path = { "sell", "quickVendor" }, label = "Include vendor-priced items",
+      after = function() if TaxTheFools.QuickUI then TaxTheFools.QuickUI.SettingsChanged() end end,
+      hint = "In the Quick view on Sell, Post next also posts items with no auction or market price, at their vendor price times the multiple below. Off passes over them. Default off." },
+    { kind = "slider", path = { "sell", "vendorMult" }, label = "Vendor price multiple", min = 1, max = 20, step = 1,
+      fmt = function(v) return "x" .. v end,
+      after = function() if TaxTheFools.QuickUI then TaxTheFools.QuickUI.SettingsChanged() end end,
+      hint = "An item with no auction or market price is priced at its vendor price times this, in the Quick view and the Bags view. Default x3." },
   } },
   { key = "tooltip", label = "Tooltip", rows = {
     { kind = "switch", path = { "tooltip", "market" }, label = "Market value",

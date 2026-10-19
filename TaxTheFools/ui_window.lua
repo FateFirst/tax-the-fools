@@ -37,8 +37,8 @@ function UI.Duration(s)
   return math.floor(h / 24) .. "d " .. math.mod(h, 24) .. "h"
 end
 
-UI.KIND_LABEL = { full = "Full scan", watch = "Watchlist", mats = "Materials", snipe = "Snipe list" }
-UI.KIND_PAUSED = { full = "full scan", watch = "watchlist scan", mats = "materials scan", snipe = "snipe scan" }
+UI.KIND_LABEL = { full = "Full scan", watch = "Watchlist", mats = "Materials", snipe = "Snipe list", quick = "Bag prices" }
+UI.KIND_PAUSED = { full = "full scan", watch = "watchlist scan", mats = "materials scan", snipe = "snipe scan", quick = "bag price scan" }
 
 -- What the status strip says and offers, from the scan's state alone.
 function UI.Describe(p, resume, lastFull, now)
