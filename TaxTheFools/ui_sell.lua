@@ -406,7 +406,7 @@ function SellUI.Update()
   end
   p.title:SetText(U.quality(it.quality) .. it.name .. "|r  (" .. it.total .. " held)")
   local labels = { undercut = { "undercut", "good" }, market = { "market", "text" },
-                   vendor = { "vendor x3", "warn" }, own = { "your price", "dim" } }
+                   vendor = { "vendor x" .. DB.S().sell.vendorMult, "warn" }, own = { "your price", "dim" } }
   local l = labels[st.source or ""] or { "set a price", "warn" }
   p.sourceText:SetText(l[1])
   Th.Color(p.sourceText, l[2])
@@ -452,7 +452,7 @@ function SellUI.UpdateChart()
   local p = SellUI.frame
   if not p or not p.chart then return end
   local it = p.sel
-  if p.view == "stock" then p.chart:Hide() return end
+  if p.view == "stock" or p.view == "quick" then p.chart:Hide() return end
   local short = SellUI.LIST_H - SellUI.CHART_H - SellUI.CHART_GAP
   local rows = math.floor((short - 20) / p.list.rowHeight)
   if not it or rows < SellUI.LIST_MIN_ROWS then

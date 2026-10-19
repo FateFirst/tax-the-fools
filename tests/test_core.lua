@@ -374,3 +374,50 @@ T.test("/ttf snipe alone prints the list without the auction house, else opens t
   A.AH.open = false
   DB.Realm().snipe = {}
 end)
+
+T.test("the Quick view: Scan bags, OnUpdate and events never post; each Post next click posts once", function()
+  WoW.items[14047] = { name = "Runecloth", stack = 20, quality = 1, tex = "rune" }
+  WoW.bags[0] = { { id = 14047, name = "Runecloth", count = 20, vendor = 100 }, { id = 14047, name = "Runecloth", count = 7, vendor = 100 }, {} }
+  WoW.bags[1], WoW.bags[2], WoW.bags[3], WoW.bags[4] = nil, nil, nil, nil
+  WoW.money = 1000000
+  for i = 1, 5 do table.insert(WoW.ah.listings, { id = 14047, name = "Runecloth", count = 20, buyout = 8000 + i, owner = "S" .. i }) end
+  local function pump()
+    for _ = 1, 40 do
+      WoW.clock = WoW.clock + 0.5
+      WoW.runScript(TaxTheFoolsCore, "OnUpdate")
+      if UI.pages.sell and UI.pages.sell.quick then WoW.runScript(UI.pages.sell.quick, "OnUpdate") end
+      if WoW.ah.pending then WoW.ahRespond() end
+    end
+  end
+  AuctionFrame:Show()
+  WoW.fire("AUCTION_HOUSE_SHOW")
+  WoW.runScript(TaxTheFoolsCore, "OnUpdate")
+  UI.ah:Show()
+  UI.ah.tabs:Select("sell")
+  local p = UI.pages.sell
+  WoW.runScript(p.viewBtns.quick, "OnClick")
+  local q = p.quick
+  q.list:SetHeight(200)
+  pump()
+  WoW.runScript(q.scanBtn, "OnClick")
+  pump()
+  T.eq(A.Quick.state, "ready", "the bag scan finished")
+  WoW.fire("BAG_UPDATE") WoW.fire("PLAYER_MONEY") WoW.fire("AUCTION_ITEM_LIST_UPDATE")
+  pump()
+  T.eq(T.count("StartAuction"), 0, "scanning and the view's OnUpdate never post")
+  WoW.runScript(q.postBtn, "OnClick")
+  T.eq(T.count("StartAuction"), 1, "one Post next click")
+  WoW.runScript(q.postBtn, "OnClick")
+  T.eq(T.count("StartAuction"), 1, "a click while waiting sends nothing")
+  WoW.postRespond()
+  pump()
+  T.eq(T.count("StartAuction"), 1, "the reply moves the highlight but never posts")
+  WoW.runScript(q.postBtn, "OnClick")
+  T.eq(T.count("StartAuction"), 2, "the next click posts the 7")
+  WoW.postRespond()
+  pump()
+  T.eq(T.count("StartAuction"), 2)
+  T.eq(T.count("PlaceAuctionBid"), 0) T.eq(T.count("CancelAuction"), 0)
+  WoW.runScript(p.viewBtns.bags, "OnClick")
+  UI.ah.tabs:Select("browse")
+end)
